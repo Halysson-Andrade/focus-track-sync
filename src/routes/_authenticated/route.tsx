@@ -2,7 +2,6 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/hooks/use-auth";
-import { useCurrentSession } from "@/hooks/use-current-session";
 import { usePageTracker } from "@/hooks/use-page-tracker";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -17,8 +16,7 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const { user } = useAuth();
-  const session = useCurrentSession(user?.id);
-  usePageTracker(user?.id, session.current?.id ?? null);
+  usePageTracker(user?.id, null);
   return (
     <AppShell>
       <Outlet />
