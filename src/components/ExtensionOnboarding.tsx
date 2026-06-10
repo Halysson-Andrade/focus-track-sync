@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Check, Download, ExternalLink, Chrome, Copy } from "lucide-react";
+import { UnzipIllustration, ChromeUrlIllustration, DevModeIllustration, SelectFolderIllustration } from "./ExtensionIllustrations";
 import { toast } from "sonner";
 
 const STORAGE_KEY = "extension_onboarding_done";
