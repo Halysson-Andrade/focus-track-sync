@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      navegacao_paginas: {
+        Row: {
+          created_at: string
+          duracao_segundos: number | null
+          fim: string | null
+          id: string
+          inativo_segundos: number
+          inicio: string
+          path: string
+          registro_id: string | null
+          title: string | null
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          duracao_segundos?: number | null
+          fim?: string | null
+          id?: string
+          inativo_segundos?: number
+          inicio?: string
+          path: string
+          registro_id?: string | null
+          title?: string | null
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          duracao_segundos?: number | null
+          fim?: string | null
+          id?: string
+          inativo_segundos?: number
+          inicio?: string
+          path?: string
+          registro_id?: string | null
+          title?: string | null
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "navegacao_paginas_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "registros_atividade"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           ativo: boolean
