@@ -29,6 +29,7 @@ interface UserSnapshot {
   navSegSource: { app: number; ext: number };
   idleSeconds: number;
   lastUrl: { url: string; title: string; domain: string } | null;
+  lastAppPage: { path: string; title: string } | null;
 }
 
 function OperacionalPage() {
