@@ -151,6 +151,29 @@ function Dashboard() {
     return Array.from(m.values()).sort((a, b) => b.total - a.total);
   }, [pages, now]);
 
+  // Unified log: merge app pages + external chrome nav, sorted desc by inicio
+  const unifiedLogs: UnifiedLog[] = useMemo(() => {
+    const nowTs = Date.now();
+    const appLogs: UnifiedLog[] = pages.map((p) => {
+      const dur = p.duracao_segundos ?? (p.fim ? (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000 : (nowTs - new Date(p.inicio).getTime()) / 1000);
+      return { id: `a:${p.id}`, origem: "app", label: p.title ?? p.path, sub: p.path, inicio: p.inicio, fim: p.fim, duracao: dur, inativo: p.inativo_segundos || 0 };
+    });
+    const extLogs: UnifiedLog[] = externalNav.map((n) => {
+      const dur = n.duracao_segundos ?? (n.fim ? (new Date(n.fim).getTime() - new Date(n.inicio).getTime()) / 1000 : (nowTs - new Date(n.inicio).getTime()) / 1000);
+      return { id: `e:${n.id}`, origem: "chrome", label: n.title ?? n.domain, sub: n.domain, inicio: n.inicio, fim: n.fim, duracao: dur, inativo: n.inativo_segundos || 0 };
+    });
+    return [...appLogs, ...extLogs].sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime());
+  }, [pages, externalNav, now]);
+
+  const sourceTotals = useMemo(() => {
+    const sum = (rows: { duracao: number }[]) => rows.reduce((a, r) => a + r.duracao, 0);
+    return {
+      app: sum(unifiedLogs.filter((l) => l.origem === "app")),
+      chrome: sum(unifiedLogs.filter((l) => l.origem === "chrome")),
+    };
+  }, [unifiedLogs]);
+
+
   const currentOpen = viewingOther ? otherRecords.find((r) => !r.fim) : session.current;
   const status = currentOpen?.status ?? "ENCERRADO";
 
