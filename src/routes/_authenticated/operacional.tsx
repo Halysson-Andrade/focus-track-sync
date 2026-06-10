@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDuration, formatHM } from "@/lib/format";
-import { Activity, Coffee, Pause, Utensils, AlertTriangle, Circle, Search, Chrome, Globe, Eye } from "lucide-react";
+import { Activity, Coffee, Pause, Utensils, AlertTriangle, Circle, Search, Chrome, Globe, Eye, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/operacional")({
   head: () => ({ meta: [{ title: "Painel Operacional — Controle de Atividade" }] }),
