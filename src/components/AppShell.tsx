@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: Activity },
-  { to: "/relatorios", label: "Relatórios", icon: FileText },
-  { to: "/ranking", label: "Ranking", icon: Trophy },
+  { to: "/relatorios", label: "Relatórios", icon: FileText, admin: true },
+  { to: "/ranking", label: "Ranking", icon: Trophy, admin: true },
   { to: "/admin", label: "Usuários", icon: Users, admin: true },
 ];
 
