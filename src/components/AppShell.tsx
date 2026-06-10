@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ExtensionOnboarding } from "@/components/ExtensionOnboarding";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: Activity },
@@ -15,7 +16,7 @@ const nav = [
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { profile, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const router = useRouter();
   const [dark, setDark] = useState(false);
   const [open, setOpen] = useState(false);
