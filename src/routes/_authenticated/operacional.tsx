@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_authenticated/operacional")({
 
 type Profile = { id: string; nome: string; email: string };
 type Registro = { id: string; usuario_id: string; status: string; inicio: string; fim: string | null; duracao_minutos: number | null };
-type NavRow = { usuario_id: string; inicio: string; fim: string | null; duracao_segundos: number | null; inativo_segundos: number; url?: string; title?: string; domain?: string };
+type NavRow = { usuario_id: string; inicio: string; fim: string | null; duracao_segundos: number | null; inativo_segundos: number; url?: string; title?: string; domain?: string; path?: string };
 
 interface UserSnapshot {
   profile: Profile;
