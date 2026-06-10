@@ -81,6 +81,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
+      <ExtensionOnboarding userId={user?.id} />
+
       {/* Sidebar */}
       <aside className={cn(
         "fixed inset-y-0 left-0 z-40 w-64 transform bg-sidebar text-sidebar-foreground transition-transform md:translate-x-0",
