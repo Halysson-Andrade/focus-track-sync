@@ -34,6 +34,45 @@ export function AppShell({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes.user?.id;
+      if (uid) {
+        const nowIso = new Date().toISOString();
+        // Encerra registro de atividade aberto
+        const { data: openReg } = await supabase
+          .from("registros_atividade")
+          .select("id, inicio")
+          .eq("usuario_id", uid)
+          .is("fim", null)
+          .order("inicio", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (openReg) {
+          const dur = (new Date(nowIso).getTime() - new Date(openReg.inicio).getTime()) / 60000;
+          await supabase
+            .from("registros_atividade")
+            .update({ fim: nowIso, duracao_minutos: dur, observacao: "Encerrado no logout" })
+            .eq("id", openReg.id);
+        }
+        // Encerra navegação de página aberta
+        const { data: openNav } = await supabase
+          .from("navegacao_paginas")
+          .select("id, inicio, inativo_segundos")
+          .eq("usuario_id", uid)
+          .is("fim", null)
+          .order("inicio", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (openNav) {
+          const dur = (new Date(nowIso).getTime() - new Date(openNav.inicio).getTime()) / 1000;
+          await supabase
+            .from("navegacao_paginas")
+            .update({ fim: nowIso, duracao_segundos: dur })
+            .eq("id", openNav.id);
+        }
+      }
+    } catch { /* noop */ }
     await supabase.auth.signOut();
     router.navigate({ to: "/auth" });
   };
