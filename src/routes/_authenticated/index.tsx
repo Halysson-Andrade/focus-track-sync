@@ -7,7 +7,8 @@ import { InactivityModal } from "@/components/InactivityModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle, MousePointer2 } from "lucide-react";
+import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle, MousePointer2, Chrome, Globe } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { formatDuration, formatHM } from "@/lib/format";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
@@ -25,6 +26,14 @@ type Registro = {
 type Pagina = {
   id: string; path: string; title: string | null; inicio: string; fim: string | null;
   duracao_segundos: number | null; inativo_segundos: number;
+};
+type NavExterna = {
+  id: string; url: string; domain: string; title: string | null; inicio: string; fim: string | null;
+  duracao_segundos: number | null; inativo_segundos: number;
+};
+type UnifiedLog = {
+  id: string; origem: "app" | "chrome"; label: string; sub: string;
+  inicio: string; fim: string | null; duracao: number; inativo: number;
 };
 
 function formatSeconds(s: number) {
