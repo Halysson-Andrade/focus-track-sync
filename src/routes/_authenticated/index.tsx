@@ -56,6 +56,7 @@ function Dashboard() {
   // Data for the effective user (own session OR another user when admin)
   const [otherRecords, setOtherRecords] = useState<Registro[]>([]);
   const [pages, setPages] = useState<Pagina[]>([]);
+  const [externalNav, setExternalNav] = useState<NavExterna[]>([]);
 
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 1000);
@@ -81,16 +82,19 @@ function Dashboard() {
       .then(({ data }) => setOtherRecords((data ?? []) as Registro[]));
   }, [viewingOther, effectiveUserId, now.getMinutes()]);
 
-  // Load today's page navigation
+  // Load today's page navigation (app) + external (chrome extension)
   useEffect(() => {
     if (!effectiveUserId) return;
     const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    const since = startOfDay.toISOString();
     supabase.from("navegacao_paginas").select("*")
-      .eq("usuario_id", effectiveUserId)
-      .gte("inicio", startOfDay.toISOString())
-      .order("inicio", { ascending: true })
+      .eq("usuario_id", effectiveUserId).gte("inicio", since).order("inicio", { ascending: true })
       .then(({ data }) => setPages((data ?? []) as Pagina[]));
+    supabase.from("navegacao_externa").select("*")
+      .eq("usuario_id", effectiveUserId).gte("inicio", since).order("inicio", { ascending: true })
+      .then(({ data }) => setExternalNav((data ?? []) as NavExterna[]));
   }, [effectiveUserId, now.getMinutes()]);
+
 
   // 30-day history for effective user
   useEffect(() => {
