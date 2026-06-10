@@ -106,6 +106,14 @@ function OperacionalPage() {
       const lastUrl = lastExt && lastExt.url
         ? { url: lastExt.url, title: lastExt.title || lastExt.domain || lastExt.url, domain: lastExt.domain || "" }
         : null;
+      // última página do app
+      const lastOpenApp = myApp
+        .filter((n) => !n.fim)
+        .sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime())[0];
+      const lastApp = lastOpenApp ?? myApp.sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime())[0];
+      const lastAppPage = lastApp && lastApp.path
+        ? { path: lastApp.path, title: lastApp.title || lastApp.path }
+        : null;
       return {
         profile: p,
         isOnline,
@@ -117,6 +125,7 @@ function OperacionalPage() {
         navSegSource: { app: sumSec(myApp), ext: sumSec(myExt) },
         idleSeconds,
         lastUrl,
+        lastAppPage,
       };
     });
   }, [profiles, registros, navApp, navExt, now]);
