@@ -265,6 +265,25 @@ function UserCard({ snapshot, nowTs }: { snapshot: UserSnapshot; nowTs: number }
           <Stat label="Inativo" value={s.totals.INATIVO} variant="destructive" />
         </div>
 
+        {s.lastUrl && (
+          <div className="mt-3 rounded-md border bg-muted/30 px-2 py-2 text-xs">
+            <div className="flex items-center gap-1 text-muted-foreground mb-0.5">
+              <ExternalLink className="h-3 w-3" />
+              <span className="uppercase tracking-wide text-[9px]">Navegando</span>
+            </div>
+            <a
+              href={s.lastUrl.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block truncate text-primary hover:underline font-medium"
+              title={s.lastUrl.url}
+            >
+              {s.lastUrl.title}
+            </a>
+            <div className="truncate text-[10px] text-muted-foreground">{s.lastUrl.domain}</div>
+          </div>
+        )}
+
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-md border bg-muted/30 px-2 py-1.5">
             <div className="flex items-center justify-between">
