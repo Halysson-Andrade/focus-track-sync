@@ -275,11 +275,11 @@ function UserCard({ snapshot, nowTs }: { snapshot: UserSnapshot; nowTs: number }
           <Stat label="Inativo" value={s.totals.INATIVO} variant="destructive" />
         </div>
 
-        {s.lastUrl && (
+        {s.lastUrl ? (
           <div className="mt-3 rounded-md border bg-muted/30 px-2 py-2 text-xs">
             <div className="flex items-center gap-1 text-muted-foreground mb-0.5">
               <ExternalLink className="h-3 w-3" />
-              <span className="uppercase tracking-wide text-[9px]">Navegando</span>
+              <span className="uppercase tracking-wide text-[9px]">Navegando (Chrome)</span>
             </div>
             <a
               href={s.lastUrl.url}
@@ -292,7 +292,16 @@ function UserCard({ snapshot, nowTs }: { snapshot: UserSnapshot; nowTs: number }
             </a>
             <div className="truncate text-[10px] text-muted-foreground">{s.lastUrl.domain}</div>
           </div>
-        )}
+        ) : s.lastAppPage ? (
+          <div className="mt-3 rounded-md border bg-muted/30 px-2 py-2 text-xs">
+            <div className="flex items-center gap-1 text-muted-foreground mb-0.5">
+              <Globe className="h-3 w-3" />
+              <span className="uppercase tracking-wide text-[9px]">No app</span>
+            </div>
+            <div className="block truncate font-medium">{s.lastAppPage.title}</div>
+            <div className="truncate text-[10px] text-muted-foreground">{s.lastAppPage.path}</div>
+          </div>
+        ) : null}
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-md border bg-muted/30 px-2 py-1.5">
