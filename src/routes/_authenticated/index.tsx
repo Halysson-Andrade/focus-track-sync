@@ -357,36 +357,49 @@ function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Recent page visits log */}
+      {/* Unified navigation log */}
       <Card>
-        <CardHeader><CardTitle>Logs de navegação — últimas visitas</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Logs de navegação — últimas visitas</CardTitle>
+            <div className="flex items-center gap-2 text-xs">
+              <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/5">
+                <Globe className="h-3 w-3" /> App {formatSeconds(sourceTotals.app)}
+              </Badge>
+              <Badge variant="outline" className="gap-1 border-warning/30 bg-warning/5">
+                <Chrome className="h-3 w-3" /> Chrome {formatSeconds(sourceTotals.chrome)}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
         <CardContent>
-          {pages.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Sem logs.</p>
+          {unifiedLogs.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Sem logs. Instale a extensão para capturar navegação fora do app.</p>
           ) : (
             <ul className="space-y-1.5 text-sm">
-              {[...pages].reverse().slice(0, 25).map((p) => {
-                const dur = p.duracao_segundos ?? (p.fim ? (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000 : (Date.now() - new Date(p.inicio).getTime()) / 1000);
-                return (
-                  <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs text-muted-foreground">{formatHM(p.inicio)}</span>
-                      <span className="font-medium">{p.title ?? p.path}</span>
-                      <span className="font-mono text-xs text-muted-foreground">{p.path}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="font-mono">{formatSeconds(dur)}</span>
-                      {p.inativo_segundos > 0 && (
-                        <span className="font-mono text-destructive">idle {formatSeconds(p.inativo_segundos)}</span>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
+              {unifiedLogs.slice(0, 30).map((l) => (
+                <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">{formatHM(l.inicio)}</span>
+                    {l.origem === "app" ? (
+                      <Badge variant="outline" className="gap-1 shrink-0 border-primary/40 text-primary"><Globe className="h-3 w-3" /> App</Badge>
+                    ) : (
+                      <Badge variant="outline" className="gap-1 shrink-0 border-warning/40 text-warning"><Chrome className="h-3 w-3" /> Chrome</Badge>
+                    )}
+                    <span className="font-medium truncate">{l.label}</span>
+                    <span className="font-mono text-xs text-muted-foreground truncate">{l.sub}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs shrink-0">
+                    <span className="font-mono">{formatSeconds(l.duracao)}</span>
+                    {l.inativo > 0 && <span className="font-mono text-destructive">idle {formatSeconds(l.inativo)}</span>}
+                  </div>
+                </li>
+              ))}
             </ul>
           )}
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" /><CardTitle>Histórico — 30 dias</CardTitle></CardHeader>
