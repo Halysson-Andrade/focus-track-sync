@@ -52,7 +52,7 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) finish(); }}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Chrome className="h-5 w-5 text-primary" /> Configure a Extensão do Chrome
@@ -81,12 +81,16 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
               <Download className="h-4 w-4 mr-2" /> Baixar extensão (.zip)
             </Button>
             {downloaded && <p className="text-xs text-green-600">✓ Download iniciado.</p>}
+            <p className="text-xs text-muted-foreground">Verifique a pasta <b>Downloads</b> do seu computador.</p>
+
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-3">
             <h3 className="font-semibold">Passo 2 — Descompactar o ZIP</h3>
+            <UnzipIllustration />
+
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
               <b>⚠️ Importante:</b> o Chrome <u>não aceita o arquivo .zip diretamente</u>. Você precisa descompactá-lo em uma pasta antes do próximo passo.
             </div>
@@ -105,6 +109,8 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
         {step === 3 && (
           <div className="space-y-3">
             <h3 className="font-semibold">Passo 3 — Abrir página de extensões</h3>
+            <ChromeUrlIllustration />
+
             <p className="text-sm text-muted-foreground">Cole <code className="bg-muted px-1 rounded">chrome://extensions</code> na barra de endereço de uma nova aba (o link será copiado).</p>
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
               <code className="text-sm flex-1">chrome://extensions</code>
@@ -122,6 +128,9 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
         {step === 4 && (
           <div className="space-y-3">
             <h3 className="font-semibold">Passo 4 — Instalar e fazer login</h3>
+            <DevModeIllustration />
+            <SelectFolderIllustration />
+
             <ol className="list-decimal list-inside space-y-2 text-sm">
               <li>Em <code className="bg-muted px-1 rounded">chrome://extensions</code>, ative o <b>Modo do desenvolvedor</b> (canto superior direito).</li>
               <li>Clique em <b>Carregar sem compactação</b>.</li>
