@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -275,13 +275,11 @@ function UserCard({ snapshot, nowTs }: { snapshot: UserSnapshot; nowTs: number }
           <span className="font-mono font-semibold">{formatDuration(s.totalOnline)}</span>
         </div>
 
-        <Link
-          to="/"
-          search={{ user: s.profile.id } as never}
-          className="mt-3 inline-flex w-full items-center justify-center rounded-md border bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
-        >
-          <Eye className="h-3 w-3 mr-1" /> Ver dashboard
-        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
       </CardContent>
     </Card>
   );
