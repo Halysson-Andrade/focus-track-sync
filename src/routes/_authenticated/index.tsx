@@ -7,7 +7,8 @@ import { InactivityModal } from "@/components/InactivityModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle, MousePointer2 } from "lucide-react";
+import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle, MousePointer2, Chrome, Globe } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { formatDuration, formatHM } from "@/lib/format";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
@@ -25,6 +26,14 @@ type Registro = {
 type Pagina = {
   id: string; path: string; title: string | null; inicio: string; fim: string | null;
   duracao_segundos: number | null; inativo_segundos: number;
+};
+type NavExterna = {
+  id: string; url: string; domain: string; title: string | null; inicio: string; fim: string | null;
+  duracao_segundos: number | null; inativo_segundos: number;
+};
+type UnifiedLog = {
+  id: string; origem: "app" | "chrome"; label: string; sub: string;
+  inicio: string; fim: string | null; duracao: number; inativo: number;
 };
 
 function formatSeconds(s: number) {
@@ -47,6 +56,7 @@ function Dashboard() {
   // Data for the effective user (own session OR another user when admin)
   const [otherRecords, setOtherRecords] = useState<Registro[]>([]);
   const [pages, setPages] = useState<Pagina[]>([]);
+  const [externalNav, setExternalNav] = useState<NavExterna[]>([]);
 
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 1000);
@@ -72,16 +82,19 @@ function Dashboard() {
       .then(({ data }) => setOtherRecords((data ?? []) as Registro[]));
   }, [viewingOther, effectiveUserId, now.getMinutes()]);
 
-  // Load today's page navigation
+  // Load today's page navigation (app) + external (chrome extension)
   useEffect(() => {
     if (!effectiveUserId) return;
     const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    const since = startOfDay.toISOString();
     supabase.from("navegacao_paginas").select("*")
-      .eq("usuario_id", effectiveUserId)
-      .gte("inicio", startOfDay.toISOString())
-      .order("inicio", { ascending: true })
+      .eq("usuario_id", effectiveUserId).gte("inicio", since).order("inicio", { ascending: true })
       .then(({ data }) => setPages((data ?? []) as Pagina[]));
+    supabase.from("navegacao_externa").select("*")
+      .eq("usuario_id", effectiveUserId).gte("inicio", since).order("inicio", { ascending: true })
+      .then(({ data }) => setExternalNav((data ?? []) as NavExterna[]));
   }, [effectiveUserId, now.getMinutes()]);
+
 
   // 30-day history for effective user
   useEffect(() => {
@@ -137,6 +150,29 @@ function Dashboard() {
     });
     return Array.from(m.values()).sort((a, b) => b.total - a.total);
   }, [pages, now]);
+
+  // Unified log: merge app pages + external chrome nav, sorted desc by inicio
+  const unifiedLogs: UnifiedLog[] = useMemo(() => {
+    const nowTs = Date.now();
+    const appLogs: UnifiedLog[] = pages.map((p) => {
+      const dur = p.duracao_segundos ?? (p.fim ? (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000 : (nowTs - new Date(p.inicio).getTime()) / 1000);
+      return { id: `a:${p.id}`, origem: "app", label: p.title ?? p.path, sub: p.path, inicio: p.inicio, fim: p.fim, duracao: dur, inativo: p.inativo_segundos || 0 };
+    });
+    const extLogs: UnifiedLog[] = externalNav.map((n) => {
+      const dur = n.duracao_segundos ?? (n.fim ? (new Date(n.fim).getTime() - new Date(n.inicio).getTime()) / 1000 : (nowTs - new Date(n.inicio).getTime()) / 1000);
+      return { id: `e:${n.id}`, origem: "chrome", label: n.title ?? n.domain, sub: n.domain, inicio: n.inicio, fim: n.fim, duracao: dur, inativo: n.inativo_segundos || 0 };
+    });
+    return [...appLogs, ...extLogs].sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime());
+  }, [pages, externalNav, now]);
+
+  const sourceTotals = useMemo(() => {
+    const sum = (rows: { duracao: number }[]) => rows.reduce((a, r) => a + r.duracao, 0);
+    return {
+      app: sum(unifiedLogs.filter((l) => l.origem === "app")),
+      chrome: sum(unifiedLogs.filter((l) => l.origem === "chrome")),
+    };
+  }, [unifiedLogs]);
+
 
   const currentOpen = viewingOther ? otherRecords.find((r) => !r.fim) : session.current;
   const status = currentOpen?.status ?? "ENCERRADO";
@@ -321,36 +357,49 @@ function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Recent page visits log */}
+      {/* Unified navigation log */}
       <Card>
-        <CardHeader><CardTitle>Logs de navegação — últimas visitas</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Logs de navegação — últimas visitas</CardTitle>
+            <div className="flex items-center gap-2 text-xs">
+              <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/5">
+                <Globe className="h-3 w-3" /> App {formatSeconds(sourceTotals.app)}
+              </Badge>
+              <Badge variant="outline" className="gap-1 border-warning/30 bg-warning/5">
+                <Chrome className="h-3 w-3" /> Chrome {formatSeconds(sourceTotals.chrome)}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
         <CardContent>
-          {pages.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Sem logs.</p>
+          {unifiedLogs.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Sem logs. Instale a extensão para capturar navegação fora do app.</p>
           ) : (
             <ul className="space-y-1.5 text-sm">
-              {[...pages].reverse().slice(0, 25).map((p) => {
-                const dur = p.duracao_segundos ?? (p.fim ? (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000 : (Date.now() - new Date(p.inicio).getTime()) / 1000);
-                return (
-                  <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs text-muted-foreground">{formatHM(p.inicio)}</span>
-                      <span className="font-medium">{p.title ?? p.path}</span>
-                      <span className="font-mono text-xs text-muted-foreground">{p.path}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="font-mono">{formatSeconds(dur)}</span>
-                      {p.inativo_segundos > 0 && (
-                        <span className="font-mono text-destructive">idle {formatSeconds(p.inativo_segundos)}</span>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
+              {unifiedLogs.slice(0, 30).map((l) => (
+                <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">{formatHM(l.inicio)}</span>
+                    {l.origem === "app" ? (
+                      <Badge variant="outline" className="gap-1 shrink-0 border-primary/40 text-primary"><Globe className="h-3 w-3" /> App</Badge>
+                    ) : (
+                      <Badge variant="outline" className="gap-1 shrink-0 border-warning/40 text-warning"><Chrome className="h-3 w-3" /> Chrome</Badge>
+                    )}
+                    <span className="font-medium truncate">{l.label}</span>
+                    <span className="font-mono text-xs text-muted-foreground truncate">{l.sub}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs shrink-0">
+                    <span className="font-mono">{formatSeconds(l.duracao)}</span>
+                    {l.inativo > 0 && <span className="font-mono text-destructive">idle {formatSeconds(l.inativo)}</span>}
+                  </div>
+                </li>
+              ))}
             </ul>
           )}
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" /><CardTitle>Histórico — 30 dias</CardTitle></CardHeader>

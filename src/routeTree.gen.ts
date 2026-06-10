@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedRankingRouteImport } from './routes/_authenticated/ranking'
+import { Route as AuthenticatedOperacionalRouteImport } from './routes/_authenticated/operacional'
 import { Route as AuthenticatedExtensaoRouteImport } from './routes/_authenticated/extensao'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 
@@ -41,6 +42,12 @@ const AuthenticatedRankingRoute = AuthenticatedRankingRouteImport.update({
   path: '/ranking',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedOperacionalRoute =
+  AuthenticatedOperacionalRouteImport.update({
+    id: '/operacional',
+    path: '/operacional',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedExtensaoRoute = AuthenticatedExtensaoRouteImport.update({
   id: '/extensao',
   path: '/extensao',
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
+  '/operacional': typeof AuthenticatedOperacionalRoute
   '/ranking': typeof AuthenticatedRankingRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
 }
@@ -64,6 +72,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
+  '/operacional': typeof AuthenticatedOperacionalRoute
   '/ranking': typeof AuthenticatedRankingRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/': typeof AuthenticatedIndexRoute
@@ -74,21 +83,37 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/extensao': typeof AuthenticatedExtensaoRoute
+  '/_authenticated/operacional': typeof AuthenticatedOperacionalRoute
   '/_authenticated/ranking': typeof AuthenticatedRankingRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/admin' | '/extensao' | '/ranking' | '/relatorios'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/admin'
+    | '/extensao'
+    | '/operacional'
+    | '/ranking'
+    | '/relatorios'
   fileRoutesByTo: FileRoutesByTo
-  to: '/auth' | '/admin' | '/extensao' | '/ranking' | '/relatorios' | '/'
+  to:
+    | '/auth'
+    | '/admin'
+    | '/extensao'
+    | '/operacional'
+    | '/ranking'
+    | '/relatorios'
+    | '/'
   id:
     | '__root__'
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/admin'
     | '/_authenticated/extensao'
+    | '/_authenticated/operacional'
     | '/_authenticated/ranking'
     | '/_authenticated/relatorios'
     | '/_authenticated/'
@@ -136,6 +161,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRankingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/operacional': {
+      id: '/_authenticated/operacional'
+      path: '/operacional'
+      fullPath: '/operacional'
+      preLoaderRoute: typeof AuthenticatedOperacionalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/extensao': {
       id: '/_authenticated/extensao'
       path: '/extensao'
@@ -156,6 +188,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedExtensaoRoute: typeof AuthenticatedExtensaoRoute
+  AuthenticatedOperacionalRoute: typeof AuthenticatedOperacionalRoute
   AuthenticatedRankingRoute: typeof AuthenticatedRankingRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -164,6 +197,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedExtensaoRoute: AuthenticatedExtensaoRoute,
+  AuthenticatedOperacionalRoute: AuthenticatedOperacionalRoute,
   AuthenticatedRankingRoute: AuthenticatedRankingRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
