@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      navegacao_externa: {
+        Row: {
+          created_at: string
+          domain: string
+          duracao_segundos: number | null
+          fim: string | null
+          id: string
+          inativo_segundos: number
+          inicio: string
+          janela_focada: boolean
+          title: string | null
+          url: string
+          user_agent: string | null
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          duracao_segundos?: number | null
+          fim?: string | null
+          id?: string
+          inativo_segundos?: number
+          inicio?: string
+          janela_focada?: boolean
+          title?: string | null
+          url: string
+          user_agent?: string | null
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          duracao_segundos?: number | null
+          fim?: string | null
+          id?: string
+          inativo_segundos?: number
+          inicio?: string
+          janela_focada?: boolean
+          title?: string | null
+          url?: string
+          user_agent?: string | null
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       navegacao_paginas: {
         Row: {
           created_at: string
