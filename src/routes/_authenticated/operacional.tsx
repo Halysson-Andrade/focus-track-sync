@@ -64,7 +64,7 @@ function OperacionalPage() {
       const [r, na, ne] = await Promise.all([
         supabase.from("registros_atividade").select("id, usuario_id, status, inicio, fim, duracao_minutos").gte("inicio", since),
         supabase.from("navegacao_paginas").select("usuario_id, inicio, fim, duracao_segundos, inativo_segundos").gte("inicio", since),
-        supabase.from("navegacao_externa").select("usuario_id, inicio, fim, duracao_segundos, inativo_segundos").gte("inicio", since),
+        supabase.from("navegacao_externa").select("usuario_id, inicio, fim, duracao_segundos, inativo_segundos, url, title, domain").gte("inicio", since),
       ]);
       setRegistros((r.data ?? []) as Registro[]);
       setNavApp((na.data ?? []) as NavRow[]);
