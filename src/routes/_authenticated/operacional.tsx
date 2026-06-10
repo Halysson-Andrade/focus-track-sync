@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDuration, formatHM } from "@/lib/format";
-import { Activity, Coffee, Pause, Utensils, AlertTriangle, Circle, Search, Chrome, Globe, Eye } from "lucide-react";
+import { Activity, Coffee, Pause, Utensils, AlertTriangle, Circle, Search, Chrome, Globe, Eye, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/operacional")({
   head: () => ({ meta: [{ title: "Painel Operacional — Controle de Atividade" }] }),
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_authenticated/operacional")({
 
 type Profile = { id: string; nome: string; email: string };
 type Registro = { id: string; usuario_id: string; status: string; inicio: string; fim: string | null; duracao_minutos: number | null };
-type NavRow = { usuario_id: string; inicio: string; fim: string | null; duracao_segundos: number | null; inativo_segundos: number };
+type NavRow = { usuario_id: string; inicio: string; fim: string | null; duracao_segundos: number | null; inativo_segundos: number; url?: string; title?: string; domain?: string; path?: string };
 
 interface UserSnapshot {
   profile: Profile;
@@ -28,6 +28,8 @@ interface UserSnapshot {
   lastSeen: string | null;
   navSegSource: { app: number; ext: number };
   idleSeconds: number;
+  lastUrl: { url: string; title: string; domain: string } | null;
+  lastAppPage: { path: string; title: string } | null;
 }
 
 function OperacionalPage() {
@@ -62,8 +64,8 @@ function OperacionalPage() {
       const since = startOfDay.toISOString();
       const [r, na, ne] = await Promise.all([
         supabase.from("registros_atividade").select("id, usuario_id, status, inicio, fim, duracao_minutos").gte("inicio", since),
-        supabase.from("navegacao_paginas").select("usuario_id, inicio, fim, duracao_segundos, inativo_segundos").gte("inicio", since),
-        supabase.from("navegacao_externa").select("usuario_id, inicio, fim, duracao_segundos, inativo_segundos").gte("inicio", since),
+        supabase.from("navegacao_paginas").select("usuario_id, inicio, fim, duracao_segundos, inativo_segundos, path, title").gte("inicio", since),
+        supabase.from("navegacao_externa").select("usuario_id, inicio, fim, duracao_segundos, inativo_segundos, url, title, domain").gte("inicio", since),
       ]);
       setRegistros((r.data ?? []) as Registro[]);
       setNavApp((na.data ?? []) as NavRow[]);
@@ -96,6 +98,22 @@ function OperacionalPage() {
       const idleSeconds = [...myApp, ...myExt].reduce((a, n) => a + (n.inativo_segundos || 0), 0);
       const isOnline = !!open;
       const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
+      // última URL aberta (sem fim) ou a mais recente
+      const lastOpenExt = myExt
+        .filter((n) => !n.fim)
+        .sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime())[0];
+      const lastExt = lastOpenExt ?? myExt.sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime())[0];
+      const lastUrl = lastExt && lastExt.url
+        ? { url: lastExt.url, title: lastExt.title || lastExt.domain || lastExt.url, domain: lastExt.domain || "" }
+        : null;
+      // última página do app
+      const lastOpenApp = myApp
+        .filter((n) => !n.fim)
+        .sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime())[0];
+      const lastApp = lastOpenApp ?? myApp.sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime())[0];
+      const lastAppPage = lastApp && lastApp.path
+        ? { path: lastApp.path, title: lastApp.title || lastApp.path }
+        : null;
       return {
         profile: p,
         isOnline,
@@ -106,6 +124,8 @@ function OperacionalPage() {
         lastSeen,
         navSegSource: { app: sumSec(myApp), ext: sumSec(myExt) },
         idleSeconds,
+        lastUrl,
+        lastAppPage,
       };
     });
   }, [profiles, registros, navApp, navExt, now]);
@@ -254,6 +274,34 @@ function UserCard({ snapshot, nowTs }: { snapshot: UserSnapshot; nowTs: number }
           <Stat label="Almoço" value={s.totals.ALMOCO} variant="info" />
           <Stat label="Inativo" value={s.totals.INATIVO} variant="destructive" />
         </div>
+
+        {s.lastUrl ? (
+          <div className="mt-3 rounded-md border bg-muted/30 px-2 py-2 text-xs">
+            <div className="flex items-center gap-1 text-muted-foreground mb-0.5">
+              <ExternalLink className="h-3 w-3" />
+              <span className="uppercase tracking-wide text-[9px]">Navegando (Chrome)</span>
+            </div>
+            <a
+              href={s.lastUrl.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block truncate text-primary hover:underline font-medium"
+              title={s.lastUrl.url}
+            >
+              {s.lastUrl.title}
+            </a>
+            <div className="truncate text-[10px] text-muted-foreground">{s.lastUrl.domain}</div>
+          </div>
+        ) : s.lastAppPage ? (
+          <div className="mt-3 rounded-md border bg-muted/30 px-2 py-2 text-xs">
+            <div className="flex items-center gap-1 text-muted-foreground mb-0.5">
+              <Globe className="h-3 w-3" />
+              <span className="uppercase tracking-wide text-[9px]">No app</span>
+            </div>
+            <div className="block truncate font-medium">{s.lastAppPage.title}</div>
+            <div className="truncate text-[10px] text-muted-foreground">{s.lastAppPage.path}</div>
+          </div>
+        ) : null}
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-md border bg-muted/30 px-2 py-1.5">
