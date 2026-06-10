@@ -280,10 +280,7 @@ function UserCard({ snapshot, nowTs }: { snapshot: UserSnapshot; nowTs: number }
   );
 }
 
-      </CardContent>
-    </Card>
-  );
-}
+
 
 function Stat({ label, value, variant }: { label: string; value: number; variant: "success" | "warning" | "info" | "destructive" }) {
   const colors = {
