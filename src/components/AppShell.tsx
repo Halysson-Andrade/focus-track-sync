@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Activity, BarChart3, FileText, LogOut, Moon, Sun, Trophy, Users, Menu } from "lucide-react";
+import { Activity, BarChart3, Chrome, FileText, LogOut, Moon, Sun, Trophy, Users, Menu } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: Activity },
+  { to: "/extensao", label: "Extensão", icon: Chrome },
   { to: "/relatorios", label: "Relatórios", icon: FileText, admin: true },
   { to: "/ranking", label: "Ranking", icon: Trophy, admin: true },
   { to: "/admin", label: "Usuários", icon: Users, admin: true },
