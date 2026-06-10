@@ -6,7 +6,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { InactivityModal } from "@/components/InactivityModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle, MousePointer2 } from "lucide-react";
 import { formatDuration, formatHM } from "@/lib/format";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
@@ -18,22 +19,76 @@ export const Route = createFileRoute("/_authenticated/")({
   component: Dashboard,
 });
 
+type Registro = {
+  id: string; status: string; inicio: string; fim: string | null; duracao_minutos: number | null;
+};
+type Pagina = {
+  id: string; path: string; title: string | null; inicio: string; fim: string | null;
+  duracao_segundos: number | null; inativo_segundos: number;
+};
+
+function formatSeconds(s: number) {
+  if (!s || s < 60) return `${Math.round(s)}s`;
+  return formatDuration(s / 60);
+}
+
 function Dashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
   const [now, setNow] = useState(new Date());
   const [history30, setHistory30] = useState<{ date: string; ativo: number; pausa: number; almoco: number; inativo: number }[]>([]);
+
+  // Admin: filter by target user
+  const [users, setUsers] = useState<{ id: string; nome: string }[]>([]);
+  const [targetUserId, setTargetUserId] = useState<string>("");
+  const effectiveUserId = isAdmin && targetUserId ? targetUserId : user?.id;
+  const viewingOther = isAdmin && targetUserId && targetUserId !== user?.id;
+
+  // Data for the effective user (own session OR another user when admin)
+  const [otherRecords, setOtherRecords] = useState<Registro[]>([]);
+  const [pages, setPages] = useState<Pagina[]>([]);
 
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(i);
   }, []);
 
+  // Load users list for admin filter
   useEffect(() => {
-    if (!user?.id) return;
+    if (!isAdmin) return;
+    supabase.from("profiles").select("id, nome").eq("ativo", true).order("nome").then(({ data }) => {
+      setUsers((data ?? []) as { id: string; nome: string }[]);
+    });
+  }, [isAdmin]);
+
+  // Load today's registros for "other user" view
+  useEffect(() => {
+    if (!viewingOther || !effectiveUserId) { setOtherRecords([]); return; }
+    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    supabase.from("registros_atividade").select("*")
+      .eq("usuario_id", effectiveUserId)
+      .gte("inicio", startOfDay.toISOString())
+      .order("inicio", { ascending: true })
+      .then(({ data }) => setOtherRecords((data ?? []) as Registro[]));
+  }, [viewingOther, effectiveUserId, now.getMinutes()]);
+
+  // Load today's page navigation
+  useEffect(() => {
+    if (!effectiveUserId) return;
+    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    supabase.from("navegacao_paginas").select("*")
+      .eq("usuario_id", effectiveUserId)
+      .gte("inicio", startOfDay.toISOString())
+      .order("inicio", { ascending: true })
+      .then(({ data }) => setPages((data ?? []) as Pagina[]));
+  }, [effectiveUserId, now.getMinutes()]);
+
+  // 30-day history for effective user
+  useEffect(() => {
+    if (!effectiveUserId) return;
     const since = new Date(); since.setDate(since.getDate() - 30); since.setHours(0,0,0,0);
     supabase.from("registros_atividade").select("*")
-      .eq("usuario_id", user.id)
+      .eq("usuario_id", effectiveUserId)
       .gte("inicio", since.toISOString())
       .then(({ data }) => {
         const map = new Map<string, { ativo: number; pausa: number; almoco: number; inativo: number }>();
@@ -52,20 +107,39 @@ function Dashboard() {
           .sort((a, b) => a.date.localeCompare(b.date));
         setHistory30(arr);
       });
-  }, [user?.id, session.current?.id]);
+  }, [effectiveUserId, session.current?.id]);
+
+  const todayRecords = viewingOther ? otherRecords : session.todayRecords;
 
   const totals = useMemo(() => {
     const t = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
     const nowTs = Date.now();
-    session.todayRecords.forEach((r) => {
+    todayRecords.forEach((r) => {
       const dur = r.duracao_minutos ?? (r.fim ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000 : (nowTs - new Date(r.inicio).getTime()) / 60000);
       if (r.status in t) t[r.status as keyof typeof t] += dur;
     });
     return t;
-  }, [session.todayRecords, now]);
+  }, [todayRecords, now]);
 
   const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
-  const status = session.current?.status ?? "ENCERRADO";
+
+  // Aggregate page time
+  const pageAgg = useMemo(() => {
+    const m = new Map<string, { path: string; title: string; total: number; idle: number; visits: number }>();
+    pages.forEach((p) => {
+      const dur = p.duracao_segundos ?? (p.fim ? (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000 : (Date.now() - new Date(p.inicio).getTime()) / 1000);
+      const key = p.path;
+      if (!m.has(key)) m.set(key, { path: p.path, title: p.title ?? p.path, total: 0, idle: 0, visits: 0 });
+      const b = m.get(key)!;
+      b.total += dur;
+      b.idle += p.inativo_segundos || 0;
+      b.visits += 1;
+    });
+    return Array.from(m.values()).sort((a, b) => b.total - a.total);
+  }, [pages, now]);
+
+  const currentOpen = viewingOther ? otherRecords.find((r) => !r.fim) : session.current;
+  const status = currentOpen?.status ?? "ENCERRADO";
 
   const pieData = [
     { name: "Ativo", value: totals.ATIVO, color: "var(--color-success)" },
@@ -78,16 +152,19 @@ function Dashboard() {
   const isActive = status === "ATIVO";
   const isPaused = status === "PAUSA" || status === "ALMOCO" || status === "INATIVO";
 
+  const selectedUser = users.find((u) => u.id === targetUserId);
+  const displayName = viewingOther ? (selectedUser?.nome ?? "Usuário") : (profile?.nome ?? "...");
+
   return (
     <div className="space-y-6">
-      <InactivityModal open={session.showInactive} onResume={session.resume} />
+      {!viewingOther && <InactivityModal open={session.showInactive} onResume={session.resume} />}
 
       {/* Header card */}
       <Card>
         <CardContent className="flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">Bem-vindo,</p>
-            <h1 className="text-2xl font-bold">{profile?.nome ?? "..."}</h1>
+            <p className="text-sm text-muted-foreground">{viewingOther ? "Visualizando" : "Bem-vindo,"}</p>
+            <h1 className="text-2xl font-bold">{displayName}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span>{now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</span>
               <span className="font-mono text-lg font-semibold text-foreground">{now.toLocaleTimeString("pt-BR")}</span>
@@ -95,34 +172,56 @@ function Dashboard() {
           </div>
           <div className="flex flex-col items-start gap-3 md:items-end">
             <StatusBadge status={status} />
-            {session.current && (
-              <span className="text-xs text-muted-foreground">desde {formatHM(session.current.inicio)}</span>
+            {currentOpen && (
+              <span className="text-xs text-muted-foreground">desde {formatHM(currentOpen.inicio)}</span>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Controls */}
-      <Card>
-        <CardHeader><CardTitle>Controles</CardTitle></CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button onClick={session.start} disabled={!canStart} size="lg">
-            <Play className="mr-2 h-4 w-4" /> Iniciar Expediente
-          </Button>
-          <Button onClick={session.pause} disabled={!isActive} variant="secondary" size="lg">
-            <Pause className="mr-2 h-4 w-4" /> Pausa
-          </Button>
-          <Button onClick={session.lunch} disabled={!isActive} variant="secondary" size="lg">
-            <Utensils className="mr-2 h-4 w-4" /> Almoço
-          </Button>
-          <Button onClick={session.resume} disabled={!isPaused} variant="default" size="lg">
-            <Coffee className="mr-2 h-4 w-4" /> Retornar
-          </Button>
-          <Button onClick={session.stop} disabled={canStart} variant="destructive" size="lg">
-            <Square className="mr-2 h-4 w-4" /> Encerrar
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Admin filter */}
+      {isAdmin && (
+        <Card>
+          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="text-sm font-medium">Filtrar dashboard por usuário</div>
+            <div className="flex items-center gap-2">
+              <Select value={targetUserId || "self"} onValueChange={(v) => setTargetUserId(v === "self" ? "" : v)}>
+                <SelectTrigger className="w-72"><SelectValue placeholder="Selecionar usuário" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="self">Eu mesmo ({profile?.nome ?? "..."})</SelectItem>
+                  {users.filter((u) => u.id !== user?.id).map((u) => (
+                    <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Controls — only when viewing own dashboard */}
+      {!viewingOther && (
+        <Card>
+          <CardHeader><CardTitle>Controles</CardTitle></CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Button onClick={session.start} disabled={!canStart} size="lg">
+              <Play className="mr-2 h-4 w-4" /> Iniciar Expediente
+            </Button>
+            <Button onClick={session.pause} disabled={!isActive} variant="secondary" size="lg">
+              <Pause className="mr-2 h-4 w-4" /> Pausa
+            </Button>
+            <Button onClick={session.lunch} disabled={!isActive} variant="secondary" size="lg">
+              <Utensils className="mr-2 h-4 w-4" /> Almoço
+            </Button>
+            <Button onClick={session.resume} disabled={!isPaused} variant="default" size="lg">
+              <Coffee className="mr-2 h-4 w-4" /> Retornar
+            </Button>
+            <Button onClick={session.stop} disabled={canStart} variant="destructive" size="lg">
+              <Square className="mr-2 h-4 w-4" /> Encerrar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -155,25 +254,103 @@ function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Linha do tempo (hoje)</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Jornada de hoje — linha do tempo</CardTitle></CardHeader>
           <CardContent>
-            {session.todayRecords.length === 0 ? (
+            {todayRecords.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Sem registros.</p>
             ) : (
-              <ul className="space-y-2">
-                {session.todayRecords.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
-                    <div className="flex items-center gap-3"><StatusBadge status={r.status} /></div>
-                    <div className="font-mono text-xs text-muted-foreground">
-                      {formatHM(r.inicio)} → {r.fim ? formatHM(r.fim) : "agora"}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <ol className="relative ml-3 space-y-3 border-l border-border pl-5">
+                {todayRecords.map((r) => {
+                  const dur = r.duracao_minutos ?? (r.fim ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000 : (Date.now() - new Date(r.inicio).getTime()) / 60000);
+                  return (
+                    <li key={r.id} className="relative">
+                      <span className="absolute -left-[26px] top-1.5 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+                        <div className="flex items-center gap-3">
+                          <StatusBadge status={r.status} />
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {formatHM(r.inicio)} → {r.fim ? formatHM(r.fim) : "agora"}
+                          </span>
+                        </div>
+                        <span className="font-mono text-xs font-semibold">{formatDuration(dur)}</span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Page navigation tracking */}
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2"><MousePointer2 className="h-4 w-4 text-primary" /><CardTitle>Navegação monitorada — hoje</CardTitle></CardHeader>
+        <CardContent>
+          {pageAgg.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma navegação registrada.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="py-2 pr-4">Página</th>
+                    <th className="py-2 pr-4">Visitas</th>
+                    <th className="py-2 pr-4">Tempo total</th>
+                    <th className="py-2 pr-4">Inativo</th>
+                    <th className="py-2">Ativo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageAgg.map((p) => (
+                    <tr key={p.path} className="border-b border-border/50">
+                      <td className="py-2 pr-4">
+                        <div className="font-medium">{p.title}</div>
+                        <div className="font-mono text-xs text-muted-foreground">{p.path}</div>
+                      </td>
+                      <td className="py-2 pr-4">{p.visits}</td>
+                      <td className="py-2 pr-4 font-mono">{formatSeconds(p.total)}</td>
+                      <td className="py-2 pr-4 font-mono text-destructive">{formatSeconds(p.idle)}</td>
+                      <td className="py-2 font-mono text-success">{formatSeconds(Math.max(0, p.total - p.idle))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Recent page visits log */}
+      <Card>
+        <CardHeader><CardTitle>Logs de navegação — últimas visitas</CardTitle></CardHeader>
+        <CardContent>
+          {pages.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Sem logs.</p>
+          ) : (
+            <ul className="space-y-1.5 text-sm">
+              {[...pages].reverse().slice(0, 25).map((p) => {
+                const dur = p.duracao_segundos ?? (p.fim ? (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000 : (Date.now() - new Date(p.inicio).getTime()) / 1000);
+                return (
+                  <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-xs text-muted-foreground">{formatHM(p.inicio)}</span>
+                      <span className="font-medium">{p.title ?? p.path}</span>
+                      <span className="font-mono text-xs text-muted-foreground">{p.path}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="font-mono">{formatSeconds(dur)}</span>
+                      {p.inativo_segundos > 0 && (
+                        <span className="font-mono text-destructive">idle {formatSeconds(p.inativo_segundos)}</span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" /><CardTitle>Histórico — 30 dias</CardTitle></CardHeader>
