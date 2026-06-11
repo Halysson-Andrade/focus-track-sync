@@ -341,7 +341,7 @@ function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Jornada de hoje — linha do tempo</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Jornada {isToday ? "de hoje" : "do dia"} — linha do tempo</CardTitle></CardHeader>
           <CardContent>
             {todayRecords.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Sem registros.</p>
