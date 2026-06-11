@@ -28,9 +28,28 @@ async function getActiveWin() {
 
 const store = new Store({ name: "monitor-session" });
 const supabase = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
+  auth: { persistSession: false, autoRefreshToken: true },
   realtime: { transport: WebSocket },
 });
+
+// Persiste tokens sempre que a sessão muda (login e refresh automático). Sem
+// isso, o access token expira (~1h) e os INSERTs em uso_aplicativos passam a
+// falhar silenciosamente (RLS bloqueia sem JWT válido) — os logs param.
+supabase.auth.onAuthStateChange((_event, session) => {
+  if (session?.access_token && session?.refresh_token) {
+    store.set("session", {
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+  }
+});
+// Mantém o token renovado enquanto o app está aberto (ambiente não-browser não
+// dispara o auto-refresh sozinho).
+try {
+  supabase.auth.startAutoRefresh();
+} catch {
+  /* noop */
+}
 
 // Restaura sessão salva
 (async () => {
@@ -53,6 +72,8 @@ let monitoring = false;
 let pollTimer = null;
 let flushTimer = null;
 let current = null; // { id, process_name, app_label, executable_path, enteredAt, idleAccum, lastIdleStart }
+let syncedCount = 0; // registros (uso_aplicativos) gravados com sucesso nesta sessão
+let lastError = null; // último erro de sincronização (mostrado na UI para diagnóstico)
 
 const autoLauncher = new AutoLaunch({ name: "Focus Track Monitor", isHidden: true });
 
@@ -63,7 +84,12 @@ function createWindow() {
     resizable: false,
     show: false,
     autoHideMenuBar: true,
-    icon: path.join(__dirname, "..", "assets", "icon.png"),
+    icon: path.join(
+      __dirname,
+      "..",
+      "assets",
+      process.platform === "win32" ? "icon.ico" : "icon.png",
+    ),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -81,7 +107,13 @@ function createWindow() {
 
 function createTray() {
   const iconPath = path.join(__dirname, "..", "assets", "tray.png");
-  const img = nativeImage.createFromPath(iconPath);
+  let img = nativeImage.createFromPath(iconPath);
+  // A bandeja do SO usa ~16px (Win) / ~18px (macOS); redimensionar evita o
+  // ícone borrado quando a arte de origem é grande.
+  if (!img.isEmpty()) {
+    const size = process.platform === "darwin" ? 18 : 16;
+    img = img.resize({ width: size, height: size, quality: "best" });
+  }
   tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
   tray.setToolTip("Focus Track Monitor");
   const menu = Menu.buildFromTemplate([
@@ -163,7 +195,11 @@ async function closeCurrent() {
 
 async function openRow(info) {
   const userId = await getUserId();
-  if (!userId) return;
+  if (!userId) {
+    lastError = "Sessão expirada — faça login novamente.";
+    sendStatus();
+    return;
+  }
   const processName = (info.owner?.name || info.owner?.path || "unknown").toString();
   const exePath = info.owner?.path || null;
   const label = labelFor(processName);
@@ -192,11 +228,18 @@ async function openRow(info) {
       .single();
     if (error) {
       console.error("openRow:", error.message);
+      lastError = error.message;
+      sendStatus();
       return;
     }
     if (data && current && current.enteredAt === now) current.id = data.id;
+    syncedCount += 1;
+    lastError = null;
+    sendStatus();
   } catch (e) {
     console.error("openRow:", e.message);
+    lastError = e.message;
+    sendStatus();
   }
 }
 
@@ -278,6 +321,8 @@ function sendStatus() {
   win.webContents.send("status", {
     monitoring,
     current: current ? { label: current.app_label, process: current.process_name } : null,
+    synced: syncedCount,
+    lastError,
   });
 }
 
@@ -316,6 +361,8 @@ ipcMain.handle("monitor:stop", async () => {
 ipcMain.handle("monitor:status", () => ({
   monitoring,
   current: current ? { label: current.app_label, process: current.process_name } : null,
+  synced: syncedCount,
+  lastError,
 }));
 
 ipcMain.handle("autolaunch:get", async () => {

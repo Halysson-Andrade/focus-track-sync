@@ -147,6 +147,8 @@
       <div style="margin: 14px 0 6px; font-size: 12px; color: #94a3b8">Aplicativo ativo</div>
       <div id="current-app" class="current">—</div>
       <div id="current-proc" class="proc"></div>
+      <div id="sync-info" class="proc" style="margin-top: 8px"></div>
+      <div id="sync-err" class="err"></div>
 
       <div style="height: 14px"></div>
       <div class="row">
@@ -191,6 +193,8 @@
         $("btn-toggle").className = s.monitoring ? "danger" : "";
         $("current-app").textContent = s.current?.label || "—";
         $("current-proc").textContent = s.current?.process || "";
+        $("sync-info").textContent = s.synced != null ? "Registros enviados: " + s.synced : "";
+        $("sync-err").textContent = s.lastError || "";
       }
 
       $("btn-login").onclick = async () => {
