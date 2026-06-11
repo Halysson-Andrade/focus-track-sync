@@ -14,33 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      monitor_idle_whitelist: {
-        Row: {
-          ativo: boolean
-          created_at: string
-          id: string
-          identificador: string
-          label: string | null
-          tipo: string
-        }
-        Insert: {
-          ativo?: boolean
-          created_at?: string
-          id?: string
-          identificador: string
-          label?: string | null
-          tipo: string
-        }
-        Update: {
-          ativo?: boolean
-          created_at?: string
-          id?: string
-          identificador?: string
-          label?: string | null
-          tipo?: string
-        }
-        Relationships: []
-      }
       navegacao_externa: {
         Row: {
           created_at: string
