@@ -58,13 +58,21 @@ export function useCurrentSession(userId: string | undefined) {
 
   // Activity listeners
   useEffect(() => {
-    const handler = () => { lastActivityRef.current = Date.now(); };
-    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "focus"];
-    events.forEach((e) => window.addEventListener(e, handler, { passive: true }));
-    document.addEventListener("visibilitychange", handler);
+    const bump = () => { lastActivityRef.current = Date.now(); };
+    const onVisibility = () => {
+      // When the tab becomes visible again, give a fresh grace window —
+      // we cannot observe activity in other windows/apps, so don't punish
+      // the user for working elsewhere.
+      if (!document.hidden) lastActivityRef.current = Date.now();
+    };
+    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
+    events.forEach((e) => window.addEventListener(e, bump, { passive: true }));
+    window.addEventListener("focus", onVisibility);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      events.forEach((e) => window.removeEventListener(e, handler));
-      document.removeEventListener("visibilitychange", handler);
+      events.forEach((e) => window.removeEventListener(e, bump));
+      window.removeEventListener("focus", onVisibility);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
@@ -98,6 +106,10 @@ export function useCurrentSession(userId: string | undefined) {
       return;
     }
     checkRef.current = window.setInterval(async () => {
+      // Pause the check while the tab is hidden — we can't see activity in
+      // other windows. Visibility handler will reset the counter when the
+      // user returns, giving them the full grace window.
+      if (document.hidden) return;
       const elapsed = Date.now() - lastActivityRef.current;
       if (elapsed >= INACTIVITY_LIMIT_MS) {
         notify("Inatividade detectada", "Você foi marcado como inativo.");
