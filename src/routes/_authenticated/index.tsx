@@ -232,14 +232,48 @@ function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Admin filter */}
-      {isAdmin && (
-        <Card>
-          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm font-medium">Filtrar dashboard por usuário</div>
-            <div className="flex items-center gap-2">
+      {/* Day + (admin) user filter */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm font-medium">
+            {isToday ? "Visualizando dados de hoje" : `Visualizando ${selectedDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}`}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline" size="icon"
+              onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); }}
+              aria-label="Dia anterior"
+            ><ChevronLeft className="h-4 w-4" /></Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-[220px] justify-start text-left font-normal")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(d) => { if (d) { const x = new Date(d); x.setHours(0,0,0,0); setSelectedDate(x); } }}
+                  disabled={(d) => d > new Date()}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+            <Button
+              variant="outline" size="icon"
+              onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); if (d <= startOfToday) setSelectedDate(d); }}
+              disabled={isToday}
+              aria-label="Próximo dia"
+            ><ChevronRight className="h-4 w-4" /></Button>
+            {!isToday && (
+              <Button variant="ghost" size="sm" onClick={() => setSelectedDate(startOfToday)}>Hoje</Button>
+            )}
+            {isAdmin && (
               <Select value={targetUserId || "self"} onValueChange={(v) => setTargetUserId(v === "self" ? "" : v)}>
-                <SelectTrigger className="w-72"><SelectValue placeholder="Selecionar usuário" /></SelectTrigger>
+                <SelectTrigger className="w-60"><SelectValue placeholder="Selecionar usuário" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="self">Eu mesmo ({profile?.nome ?? "..."})</SelectItem>
                   {users.filter((u) => u.id !== user?.id).map((u) => (
@@ -247,10 +281,10 @@ function Dashboard() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Controls — only when viewing own dashboard */}
       {!viewingOther && (
