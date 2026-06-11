@@ -512,26 +512,81 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
   };
 
   const nowTs = Date.now();
-  // Fixed axis: 00:00 → 24:00 of the day of the first record
+  // Day window: 00:00 → 24:00 of the day of the first record
   const dayBase = new Date(records[0]?.inicio ?? Date.now());
   dayBase.setHours(0, 0, 0, 0);
   const axisStart = dayBase.getTime();
   const axisEnd = axisStart + 24 * 3600_000;
-  const span = axisEnd - axisStart;
   const clamp = (ts: number) => Math.max(axisStart, Math.min(axisEnd, ts));
-  const pct = (ts: number) => ((clamp(ts) - axisStart) / span) * 100;
 
-  const majorTicks: number[] = [];
-  for (let h = 0; h <= 24; h += 3) majorTicks.push(axisStart + h * 3600_000);
-  const minorTicks: number[] = [];
-  for (let h = 0; h <= 24; h += 1) minorTicks.push(axisStart + h * 3600_000);
-
-  // First start / last end of worked (ATIVO) records — always highlighted
-  const ativoRecs = records.filter((r) => r.status === "ATIVO");
-  const ativoStart = ativoRecs.length ? Math.min(...ativoRecs.map((r) => new Date(r.inicio).getTime())) : null;
-  const ativoEnd = ativoRecs.length
-    ? Math.max(...ativoRecs.map((r) => (r.fim ? new Date(r.fim).getTime() : nowTs)))
+  // Dynamic piecewise scale: the worked window expands to fill ~70% of the track,
+  // while the idle periods before/after compress into the remaining 30%.
+  const ativoRecsAll = records.filter((r) => r.status === "ATIVO");
+  const workStartTs = ativoRecsAll.length
+    ? Math.min(...ativoRecsAll.map((r) => new Date(r.inicio).getTime()))
     : null;
+  const workEndTs = ativoRecsAll.length
+    ? Math.max(...ativoRecsAll.map((r) => (r.fim ? new Date(r.fim).getTime() : nowTs)))
+    : null;
+
+  // Expand work window by 30min padding on each side for breathing room
+  const pad = 30 * 60_000;
+  const wStart = workStartTs != null ? Math.max(axisStart, workStartTs - pad) : axisStart;
+  const wEnd = workEndTs != null ? Math.min(axisEnd, workEndTs + pad) : axisEnd;
+  const hasWork = workStartTs != null && workEndTs != null && wEnd > wStart;
+
+  // Width allocation (in % of track)
+  const WORK_PCT = hasWork ? 72 : 100;
+  const beforeDur = wStart - axisStart;
+  const afterDur = axisEnd - wEnd;
+  const idleTotal = beforeDur + afterDur;
+  const idlePct = 100 - WORK_PCT;
+  const beforePct = hasWork && idleTotal > 0 ? (beforeDur / idleTotal) * idlePct : 0;
+  const afterPct = hasWork && idleTotal > 0 ? (afterDur / idleTotal) * idlePct : 0;
+  const workDur = Math.max(1, wEnd - wStart);
+
+  const pct = (tsRaw: number) => {
+    const ts = clamp(tsRaw);
+    if (!hasWork) return ((ts - axisStart) / (axisEnd - axisStart)) * 100;
+    if (ts <= wStart) {
+      return beforeDur > 0 ? ((ts - axisStart) / beforeDur) * beforePct : 0;
+    }
+    if (ts >= wEnd) {
+      return beforePct + WORK_PCT + (afterDur > 0 ? ((ts - wEnd) / afterDur) * afterPct : 0);
+    }
+    return beforePct + ((ts - wStart) / workDur) * WORK_PCT;
+  };
+
+  // Inverse: % -> timestamp (for hover)
+  const tsFromPct = (p: number) => {
+    if (!hasWork) return axisStart + (p / 100) * (axisEnd - axisStart);
+    if (p <= beforePct) {
+      return axisStart + (beforePct > 0 ? (p / beforePct) * beforeDur : 0);
+    }
+    if (p >= beforePct + WORK_PCT) {
+      const rem = p - (beforePct + WORK_PCT);
+      return wEnd + (afterPct > 0 ? (rem / afterPct) * afterDur : 0);
+    }
+    return wStart + ((p - beforePct) / WORK_PCT) * workDur;
+  };
+
+  // Ticks: hourly inside the work window (dense), every 3h outside (sparse)
+  const majorTicks: number[] = [];
+  const minorTicks: number[] = [];
+  for (let h = 0; h <= 24; h += 1) {
+    const t = axisStart + h * 3600_000;
+    const insideWork = hasWork && t >= wStart && t <= wEnd;
+    if (insideWork) {
+      minorTicks.push(t);
+      if (h % 1 === 0) majorTicks.push(t);
+    } else if (h % 3 === 0) {
+      majorTicks.push(t);
+    }
+  }
+
+  // Highlighted worked window (reuses already-computed bounds)
+  const ativoStart = workStartTs;
+  const ativoEnd = workEndTs;
 
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [hover, setHover] = useState<{ x: number; ts: number; rec: Registro | null } | null>(null);
@@ -540,7 +595,8 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
     const el = trackRef.current; if (!el) return;
     const rect = el.getBoundingClientRect();
     const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    const ts = axisStart + (x / rect.width) * span;
+    const p = (x / rect.width) * 100;
+    const ts = tsFromPct(p);
     const rec = records.find((r) => {
       const s = new Date(r.inicio).getTime();
       const en = r.fim ? new Date(r.fim).getTime() : nowTs;
@@ -563,8 +619,22 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
         onMouseLeave={() => setHover(null)}
         className="relative h-16 w-full overflow-hidden rounded-md border border-border bg-muted/30"
       >
+        {/* Highlighted "zoom" band over the worked window */}
+        {hasWork && (
+          <div
+            className="absolute top-0 bottom-0 bg-success/5"
+            style={{
+              left: `${beforePct}%`,
+              width: `${WORK_PCT}%`,
+              borderLeft: "1px dashed color-mix(in oklch, var(--color-success) 40%, transparent)",
+              borderRight: "1px dashed color-mix(in oklch, var(--color-success) 40%, transparent)",
+            }}
+          />
+        )}
+
         {/* central baseline reinforcing the worked-time band */}
         <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-border/60" />
+
 
         {/* hour minor gridlines */}
         {minorTicks.map((t) => (
