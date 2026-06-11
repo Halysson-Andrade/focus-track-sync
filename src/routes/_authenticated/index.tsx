@@ -53,6 +53,7 @@ function Dashboard() {
   // Selected day (defaults to today). When != today, dashboard shows historic data.
   const startOfToday = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday);
+  const [openDomain, setOpenDomain] = useState<string | null>(null);
   const isToday = selectedDate.getTime() === startOfToday.getTime();
   const dayRange = useMemo(() => {
     const s = new Date(selectedDate); s.setHours(0,0,0,0);
