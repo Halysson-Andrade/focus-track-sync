@@ -5,25 +5,40 @@ async function getSession() {
   return session || null;
 }
 
+function el(tag, props = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") node.className = v;
+    else if (k === "style") node.setAttribute("style", v);
+    else node[k] = v;
+  }
+  for (const c of children) {
+    node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  }
+  return node;
+}
+
 function renderLogin(msg) {
-  root.innerHTML = `
-    ${msg ? `<div class="status err">${msg}</div>` : ""}
-    <label>Email</label>
-    <input id="email" type="email" autocomplete="email" />
-    <label>Senha</label>
-    <input id="password" type="password" autocomplete="current-password" />
-    <button id="login">Entrar</button>
-    <div class="muted">Use o mesmo login do painel.</div>
-  `;
+  root.replaceChildren();
+  if (msg) root.appendChild(el("div", { class: "status err", textContent: String(msg) }));
+  root.appendChild(el("label", { textContent: "Email" }));
+  root.appendChild(el("input", { id: "email", type: "email", autocomplete: "email" }));
+  root.appendChild(el("label", { textContent: "Senha" }));
+  root.appendChild(el("input", { id: "password", type: "password", autocomplete: "current-password" }));
+  root.appendChild(el("button", { id: "login", textContent: "Entrar" }));
+  root.appendChild(el("div", { class: "muted", textContent: "Use o mesmo login do painel." }));
   document.getElementById("login").onclick = doLogin;
 }
 
 function renderLogged(session) {
-  root.innerHTML = `
-    <div class="status ok">Conectado como <b>${session.user.email}</b></div>
-    <div class="muted">A navegação está sendo registrada em segundo plano.</div>
-    <button class="secondary" id="logout" style="margin-top:14px">Sair</button>
-  `;
+  root.replaceChildren();
+  const status = el("div", { class: "status ok" }, [
+    "Conectado como ",
+    el("b", { textContent: String(session?.user?.email ?? "") }),
+  ]);
+  root.appendChild(status);
+  root.appendChild(el("div", { class: "muted", textContent: "A navegação está sendo registrada em segundo plano." }));
+  root.appendChild(el("button", { class: "secondary", id: "logout", style: "margin-top:14px", textContent: "Sair" }));
   document.getElementById("logout").onclick = async () => {
     await chrome.storage.local.remove("session");
     chrome.runtime.sendMessage({ type: "LOGGED_OUT" });
