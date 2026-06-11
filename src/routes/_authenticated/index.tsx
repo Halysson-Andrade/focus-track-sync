@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext, PaginationEllipsis } from "@/components/ui/pagination";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatHM } from "@/lib/format";
 import {
@@ -329,10 +332,10 @@ function Dashboard() {
             <Button onClick={session.start} disabled={!canStart} size="lg">
               <Play className="mr-2 h-4 w-4" /> Iniciar Expediente
             </Button>
-            <Button onClick={session.pause} disabled={!isActive} variant="secondary" size="lg">
+            <Button onClick={() => setBreakDialog({ kind: "PAUSA" })} disabled={!isActive} variant="secondary" size="lg">
               <Pause className="mr-2 h-4 w-4" /> Pausa
             </Button>
-            <Button onClick={session.lunch} disabled={!isActive} variant="secondary" size="lg">
+            <Button onClick={() => setBreakDialog({ kind: "ALMOCO" })} disabled={!isActive} variant="secondary" size="lg">
               <Utensils className="mr-2 h-4 w-4" /> Almoço
             </Button>
             <Button onClick={session.resume} disabled={!isPaused} variant="default" size="lg">
