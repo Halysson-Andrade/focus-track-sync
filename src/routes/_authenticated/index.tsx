@@ -286,8 +286,8 @@ function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Controls — only when viewing own dashboard */}
-      {!viewingOther && (
+      {/* Controls — only when viewing own dashboard for today */}
+      {!viewingOther && isToday && (
         <Card>
           <CardHeader><CardTitle>Controles</CardTitle></CardHeader>
           <CardContent className="flex flex-wrap gap-3">
