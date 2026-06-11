@@ -60,13 +60,29 @@ function isTrackable(url) {
   return url.startsWith("http://") || url.startsWith("https://");
 }
 
+// Fecha qualquer linha aberta que ficou "órfã" após o service worker reiniciar.
+async function closeStaleRow() {
+  try {
+    const { openRow } = await chrome.storage.session.get("openRow");
+    if (!openRow || (currentRow && currentRow.id === openRow.id)) return;
+    await chrome.storage.session.remove("openRow");
+    const now = Date.now();
+    const dur = Math.max(0, (now - openRow.enteredAt) / 1000);
+    await api(`navegacao_externa?id=eq.${openRow.id}`, "PATCH", {
+      fim: new Date(now).toISOString(),
+      duracao_segundos: dur,
+    });
+  } catch {}
+}
+
 async function closeCurrent() {
-  if (!currentRow || !currentRow.id) { currentRow = null; return; }
+  if (!currentRow || !currentRow.id) { currentRow = null; await closeStaleRow(); return; }
   const now = Date.now();
   const dur = (now - currentRow.enteredAt) / 1000;
   const idle = currentRow.idleAccum / 1000;
   const id = currentRow.id;
   currentRow = null;
+  try { await chrome.storage.session.remove("openRow"); } catch {}
   try {
     await api(`navegacao_externa?id=eq.${id}`, "PATCH", {
       fim: new Date(now).toISOString(),
@@ -95,7 +111,17 @@ async function openRow(tab) {
     });
     if (res && res.ok) {
       const [row] = await res.json();
-      if (row && currentRow && currentRow.url === tab.url) currentRow.id = row.id;
+      if (row && currentRow && currentRow.url === tab.url) {
+        currentRow.id = row.id;
+        try { await chrome.storage.session.set({ openRow: { id: row.id, enteredAt: now } }); } catch {}
+      } else if (row) {
+        // currentRow mudou enquanto criávamos — fecha imediatamente
+        try {
+          await api(`navegacao_externa?id=eq.${row.id}`, "PATCH", {
+            fim: new Date().toISOString(), duracao_segundos: 0,
+          });
+        } catch {}
+      }
     }
   } catch {}
 }
