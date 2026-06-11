@@ -190,6 +190,48 @@ export type Database = {
         }
         Relationships: []
       }
+      uso_aplicativos: {
+        Row: {
+          app_label: string | null
+          created_at: string
+          duracao_segundos: number | null
+          executable_path: string | null
+          fim: string | null
+          id: string
+          inativo_segundos: number | null
+          inicio: string
+          platform: string | null
+          process_name: string
+          usuario_id: string
+        }
+        Insert: {
+          app_label?: string | null
+          created_at?: string
+          duracao_segundos?: number | null
+          executable_path?: string | null
+          fim?: string | null
+          id?: string
+          inativo_segundos?: number | null
+          inicio?: string
+          platform?: string | null
+          process_name: string
+          usuario_id: string
+        }
+        Update: {
+          app_label?: string | null
+          created_at?: string
+          duracao_segundos?: number | null
+          executable_path?: string | null
+          fim?: string | null
+          id?: string
+          inativo_segundos?: number | null
+          inicio?: string
+          platform?: string | null
+          process_name?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
