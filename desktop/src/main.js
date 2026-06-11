@@ -3,6 +3,7 @@ const path = require("path");
 const Store = require("electron-store");
 const AutoLaunch = require("auto-launch");
 const { createClient } = require("@supabase/supabase-js");
+const WebSocket = require("ws");
 const cfg = require("./config");
 const { labelFor } = require("./app-labels");
 
@@ -19,6 +20,7 @@ async function getActiveWin() {
 const store = new Store({ name: "monitor-session" });
 const supabase = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
+  realtime: { transport: WebSocket },
 });
 
 // Restaura sessão salva
