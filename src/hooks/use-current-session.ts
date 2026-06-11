@@ -15,6 +15,10 @@ export interface Registro {
 }
 
 const INACTIVITY_LIMIT_MS = 10 * 60 * 1000; // 10 min
+// Janela para considerar a extensão "presente": precisa ser maior que o
+// limite de inatividade, senão a checagem se desativa justamente quando
+// os heartbeats param (almoço / máquina bloqueada).
+const EXT_PRESENCE_WINDOW_MS = INACTIVITY_LIMIT_MS + 5 * 60 * 1000;
 
 function notify(title: string, body: string) {
   try {
