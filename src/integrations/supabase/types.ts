@@ -199,6 +199,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_active: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       activity_status: "ATIVO" | "PAUSA" | "ALMOCO" | "INATIVO" | "ENCERRADO"
