@@ -295,25 +295,7 @@ function Dashboard() {
             {todayRecords.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Sem registros.</p>
             ) : (
-              <ol className="relative ml-3 space-y-3 border-l border-border pl-5">
-                {todayRecords.map((r) => {
-                  const dur = r.duracao_minutos ?? (r.fim ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000 : (Date.now() - new Date(r.inicio).getTime()) / 60000);
-                  return (
-                    <li key={r.id} className="relative">
-                      <span className="absolute -left-[26px] top-1.5 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
-                        <div className="flex items-center gap-3">
-                          <StatusBadge status={r.status} />
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {formatHM(r.inicio)} → {r.fim ? formatHM(r.fim) : "agora"}
-                          </span>
-                        </div>
-                        <span className="font-mono text-xs font-semibold">{formatDuration(dur)}</span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+              <HorizontalTimeline records={todayRecords} />
             )}
           </CardContent>
         </Card>
