@@ -191,7 +191,7 @@ function Dashboard() {
   }, [unifiedLogs]);
 
 
-  const currentOpen = viewingOther ? otherRecords.find((r) => !r.fim) : session.current;
+  const currentOpen = (isToday && !viewingOther) ? session.current : (todayRecords.find((r) => !r.fim) ?? null);
   const status = currentOpen?.status ?? "ENCERRADO";
 
   const pieData = [
