@@ -97,8 +97,6 @@ function Dashboard() {
 
 
   // 30-day history for effective user
-  const [history30, setHistory30Raw] = useState<typeof history30>([]);
-  void history30; // (re-declared below — keep existing state)
   useEffect(() => {
     if (!effectiveUserId) return;
     const since = new Date(); since.setDate(since.getDate() - 30); since.setHours(0,0,0,0);
