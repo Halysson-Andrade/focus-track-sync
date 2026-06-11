@@ -24,6 +24,13 @@ jobs:
         with:
           node-version: "20"
 
+      # Python 3.11 fornece o módulo `distutils` que o node-gyp (bundled no
+      # active-win) ainda importa. Runners trazem Python 3.12+ por padrão, que
+      # removeu o distutils — sem isso o rebuild nativo do active-win falha.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Install dependencies
         run: npm install
 
