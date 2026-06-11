@@ -322,7 +322,7 @@ function Dashboard() {
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Distribuição de hoje</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Distribuição {isToday ? "de hoje" : "do dia"}</CardTitle></CardHeader>
           <CardContent>
             {pieData.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Nenhum dado hoje.</p>
