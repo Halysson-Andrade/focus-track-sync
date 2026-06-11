@@ -13,6 +13,9 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    # macOS é best-effort: o empacotamento do .dmg costuma falhar no hdiutil
+    # dos runners (Apple Silicon). Não pode bloquear a publicação do .exe.
+    continue-on-error: ${{ matrix.os == 'macos-latest' }}
     defaults:
       run:
         working-directory: desktop
