@@ -387,39 +387,75 @@ function Dashboard() {
       <Card>
         <CardHeader className="flex flex-row items-center gap-2"><MousePointer2 className="h-4 w-4 text-primary" /><CardTitle>Navegação monitorada — {isToday ? "hoje" : "no dia"}</CardTitle></CardHeader>
         <CardContent>
-          {pageAgg.length === 0 ? (
+          {domainAgg.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma navegação registrada.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="py-2 pr-4">Página</th>
-                    <th className="py-2 pr-4">Visitas</th>
-                    <th className="py-2 pr-4">Tempo total</th>
-                    <th className="py-2 pr-4">Inativo</th>
-                    <th className="py-2">Ativo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageAgg.map((p) => (
-                    <tr key={p.path} className="border-b border-border/50">
-                      <td className="py-2 pr-4">
-                        <div className="font-medium">{p.title}</div>
-                        <div className="font-mono text-xs text-muted-foreground">{p.path}</div>
-                      </td>
-                      <td className="py-2 pr-4">{p.visits}</td>
-                      <td className="py-2 pr-4 font-mono">{formatSeconds(p.total)}</td>
-                      <td className="py-2 pr-4 font-mono text-destructive">{formatSeconds(p.idle)}</td>
-                      <td className="py-2 font-mono text-success">{formatSeconds(Math.max(0, p.total - p.idle))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ul className="divide-y divide-border">
+              {domainAgg.map((d) => {
+                const isOpen = openDomain === d.domain;
+                const ativo = Math.max(0, d.total - d.idle);
+                const pctActive = d.total > 0 ? (ativo / d.total) * 100 : 0;
+                return (
+                  <li key={d.domain} className="py-2">
+                    <button
+                      type="button"
+                      onClick={() => setOpenDomain(isOpen ? null : d.domain)}
+                      className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted/40"
+                    >
+                      <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${d.origem === "app" ? "border-primary/40 text-primary" : d.origem === "chrome" ? "border-warning/40 text-warning" : "border-border text-muted-foreground"}`}>
+                        {d.origem === "app" ? <Globe className="h-3.5 w-3.5" /> : <Chrome className="h-3.5 w-3.5" />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-medium">{d.domain}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">{d.visits} {d.visits === 1 ? "visita" : "visitas"} · {d.pages.length} {d.pages.length === 1 ? "página" : "páginas"}</span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div className="h-full bg-success" style={{ width: `${pctActive}%` }} />
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs">
+                        <span className="font-mono text-sm">{formatSeconds(d.total)}</span>
+                        <span className="font-mono text-success">ativo {formatSeconds(ativo)}</span>
+                        {d.idle > 0 && <span className="font-mono text-destructive">idle {formatSeconds(d.idle)}</span>}
+                      </div>
+                      <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {isOpen && (
+                      <div className="mt-1 ml-10 overflow-x-auto rounded-md border border-border/60 bg-muted/20">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-border/60 text-left uppercase tracking-wider text-muted-foreground">
+                              <th className="px-3 py-1.5">Página</th>
+                              <th className="px-3 py-1.5">Visitas</th>
+                              <th className="px-3 py-1.5">Tempo</th>
+                              <th className="px-3 py-1.5">Ativo</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {d.pages.map((p) => (
+                              <tr key={p.path} className="border-b border-border/40 last:border-b-0">
+                                <td className="px-3 py-1.5">
+                                  <div className="truncate font-medium">{p.label}</div>
+                                  <div className="truncate font-mono text-[10px] text-muted-foreground">{p.path}</div>
+                                </td>
+                                <td className="px-3 py-1.5 font-mono">{p.visits}</td>
+                                <td className="px-3 py-1.5 font-mono">{formatSeconds(p.total)}</td>
+                                <td className="px-3 py-1.5 font-mono text-success">{formatSeconds(Math.max(0, p.total - p.idle))}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </CardContent>
       </Card>
+
 
       {/* Unified navigation log */}
       <Card>
