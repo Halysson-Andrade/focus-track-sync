@@ -16,6 +16,7 @@ import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authentic
 import { Route as AuthenticatedRankingRouteImport } from './routes/_authenticated/ranking'
 import { Route as AuthenticatedOperacionalRouteImport } from './routes/_authenticated/operacional'
 import { Route as AuthenticatedExtensaoRouteImport } from './routes/_authenticated/extensao'
+import { Route as AuthenticatedDesktopRouteImport } from './routes/_authenticated/desktop'
 import { Route as AuthenticatedChangePasswordRouteImport } from './routes/_authenticated/change-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 
@@ -54,6 +55,11 @@ const AuthenticatedExtensaoRoute = AuthenticatedExtensaoRouteImport.update({
   path: '/extensao',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDesktopRoute = AuthenticatedDesktopRouteImport.update({
+  id: '/desktop',
+  path: '/desktop',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedChangePasswordRoute =
   AuthenticatedChangePasswordRouteImport.update({
     id: '/change-password',
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/change-password': typeof AuthenticatedChangePasswordRoute
+  '/desktop': typeof AuthenticatedDesktopRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
   '/operacional': typeof AuthenticatedOperacionalRoute
   '/ranking': typeof AuthenticatedRankingRoute
@@ -80,6 +87,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/change-password': typeof AuthenticatedChangePasswordRoute
+  '/desktop': typeof AuthenticatedDesktopRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
   '/operacional': typeof AuthenticatedOperacionalRoute
   '/ranking': typeof AuthenticatedRankingRoute
@@ -92,6 +100,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/change-password': typeof AuthenticatedChangePasswordRoute
+  '/_authenticated/desktop': typeof AuthenticatedDesktopRoute
   '/_authenticated/extensao': typeof AuthenticatedExtensaoRoute
   '/_authenticated/operacional': typeof AuthenticatedOperacionalRoute
   '/_authenticated/ranking': typeof AuthenticatedRankingRoute
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/admin'
     | '/change-password'
+    | '/desktop'
     | '/extensao'
     | '/operacional'
     | '/ranking'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/admin'
     | '/change-password'
+    | '/desktop'
     | '/extensao'
     | '/operacional'
     | '/ranking'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/admin'
     | '/_authenticated/change-password'
+    | '/_authenticated/desktop'
     | '/_authenticated/extensao'
     | '/_authenticated/operacional'
     | '/_authenticated/ranking'
@@ -188,6 +200,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedExtensaoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/desktop': {
+      id: '/_authenticated/desktop'
+      path: '/desktop'
+      fullPath: '/desktop'
+      preLoaderRoute: typeof AuthenticatedDesktopRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/change-password': {
       id: '/_authenticated/change-password'
       path: '/change-password'
@@ -208,6 +227,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedChangePasswordRoute: typeof AuthenticatedChangePasswordRoute
+  AuthenticatedDesktopRoute: typeof AuthenticatedDesktopRoute
   AuthenticatedExtensaoRoute: typeof AuthenticatedExtensaoRoute
   AuthenticatedOperacionalRoute: typeof AuthenticatedOperacionalRoute
   AuthenticatedRankingRoute: typeof AuthenticatedRankingRoute
@@ -218,6 +238,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedChangePasswordRoute: AuthenticatedChangePasswordRoute,
+  AuthenticatedDesktopRoute: AuthenticatedDesktopRoute,
   AuthenticatedExtensaoRoute: AuthenticatedExtensaoRoute,
   AuthenticatedOperacionalRoute: AuthenticatedOperacionalRoute,
   AuthenticatedRankingRoute: AuthenticatedRankingRoute,
@@ -235,3 +256,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
