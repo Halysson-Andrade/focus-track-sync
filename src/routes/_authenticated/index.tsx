@@ -410,6 +410,7 @@ function Dashboard() {
                 <Bar dataKey="pausa" stackId="a" name="Pausa" fill="var(--color-warning)" />
                 <Bar dataKey="almoco" stackId="a" name="Almoço" fill="var(--color-info)" />
                 <Bar dataKey="inativo" stackId="a" name="Inativo" fill="var(--color-destructive)" />
+                <Bar dataKey="offline" stackId="a" name="Offline" fill="var(--color-muted-foreground)" fillOpacity={0.35} />
               </BarChart>
             </ResponsiveContainer>
           )}
