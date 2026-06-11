@@ -122,10 +122,11 @@ export function useCurrentSession(userId: string | undefined) {
       return;
     }
     checkRef.current = window.setInterval(async () => {
-      // Pause the check while the tab is hidden — we can't see activity in
-      // other windows. Visibility handler will reset the counter when the
-      // user returns, giving them the full grace window.
-      if (document.hidden) return;
+      // Com a extensão ativa (heartbeats recentes em até 3 min), checamos
+      // mesmo com a aba oculta — a extensão sabe se o sistema está ocioso.
+      // Sem extensão, mantém o comportamento antigo (pausa quando oculto).
+      const hasExtension = Date.now() - lastExtHeartbeatRef.current < 3 * 60 * 1000;
+      if (document.hidden && !hasExtension) return;
       const elapsed = Date.now() - lastActivityRef.current;
       if (elapsed >= INACTIVITY_LIMIT_MS) {
         notify("Inatividade detectada", "Você foi marcado como inativo.");
