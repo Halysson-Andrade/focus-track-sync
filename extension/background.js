@@ -165,10 +165,49 @@ chrome.alarms.onAlarm.addListener(async (a) => {
   } catch {}
 });
 
-chrome.runtime.onMessage.addListener((msg) => {
+const APP_URL_PATTERNS = [
+  "https://focus-track-sync.lovable.app/*",
+  "https://*.lovable.app/*",
+  "https://*.lovableproject.com/*",
+];
+
+async function broadcastHeartbeat() {
+  // Só envia se o sistema está ativo — não queremos manter sessão "viva"
+  // enquanto o usuário está realmente ocioso/com a máquina bloqueada.
+  if (lastSystemState !== "active") return;
+  try {
+    const tabs = await chrome.tabs.query({ url: APP_URL_PATTERNS });
+    for (const t of tabs) {
+      try { await chrome.tabs.sendMessage(t.id, { type: "EXT_HEARTBEAT" }); } catch {}
+    }
+  } catch {}
+}
+
+// Heartbeat frequente para o app (1 min). Combinado com qualquer troca de
+// aba abaixo, o app não marca inatividade enquanto a extensão estiver vendo
+// atividade em outras abas/janelas.
+chrome.alarms.create("appHeartbeat", { periodInMinutes: 1 });
+chrome.alarms.onAlarm.addListener(async (a) => {
+  if (a.name === "appHeartbeat") await broadcastHeartbeat();
+});
+
+// Troca de aba / mudança de URL / foco de janela = sinal de atividade.
+chrome.tabs.onActivated.addListener(() => { broadcastHeartbeat(); });
+chrome.tabs.onUpdated.addListener((_id, change) => {
+  if (change.url || change.title) broadcastHeartbeat();
+});
+chrome.windows.onFocusChanged.addListener((winId) => {
+  if (winId !== chrome.windows.WINDOW_ID_NONE) broadcastHeartbeat();
+});
+
+chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg.type === "LOGGED_OUT") { closeCurrent(); }
   if (msg.type === "LOGGED_IN") {
     chrome.tabs.query({ active: true, lastFocusedWindow: true }, ([tab]) => { if (tab) handleActive(tab); });
+  }
+  if (msg.type === "PAGE_READY" && sender.tab?.id) {
+    // Empurra um heartbeat imediato para a aba que acabou de carregar o app.
+    try { chrome.tabs.sendMessage(sender.tab.id, { type: "EXT_HEARTBEAT" }); } catch {}
   }
 });
 
@@ -180,3 +219,4 @@ chrome.runtime.onInstalled.addListener(async () => {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (tab) handleActive(tab);
 });
+
