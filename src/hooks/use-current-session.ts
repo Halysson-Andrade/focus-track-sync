@@ -30,6 +30,9 @@ export function useCurrentSession(userId: string | undefined) {
   const [showInactive, setShowInactive] = useState(false);
   const lastActivityRef = useRef<number>(Date.now());
   const checkRef = useRef<number | null>(null);
+  // Quando a extensão envia heartbeats, sabemos o estado real do sistema
+  // mesmo com a aba oculta — então não precisamos "perdoar" a ausência.
+  const lastExtHeartbeatRef = useRef<number>(0);
 
   const refresh = useCallback(async () => {
     if (!userId) return;
