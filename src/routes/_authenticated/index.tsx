@@ -97,6 +97,8 @@ function Dashboard() {
 
 
   // 30-day history for effective user
+  const [history30, setHistory30Raw] = useState<typeof history30>([]);
+  void history30; // (re-declared below — keep existing state)
   useEffect(() => {
     if (!effectiveUserId) return;
     const since = new Date(); since.setDate(since.getDate() - 30); since.setHours(0,0,0,0);
@@ -104,23 +106,33 @@ function Dashboard() {
       .eq("usuario_id", effectiveUserId)
       .gte("inicio", since.toISOString())
       .then(({ data }) => {
-        const map = new Map<string, { ativo: number; pausa: number; almoco: number; inativo: number }>();
+        const map = new Map<string, { ativo: number; pausa: number; almoco: number; inativo: number; firstStart: number; lastEnd: number }>();
+        const nowTs = Date.now();
         (data ?? []).forEach((r: any) => {
+          const startMs = new Date(r.inicio).getTime();
+          const endMs = r.fim ? new Date(r.fim).getTime() : nowTs;
           const day = new Date(r.inicio).toLocaleDateString("pt-BR");
-          if (!map.has(day)) map.set(day, { ativo: 0, pausa: 0, almoco: 0, inativo: 0 });
+          if (!map.has(day)) map.set(day, { ativo: 0, pausa: 0, almoco: 0, inativo: 0, firstStart: startMs, lastEnd: endMs });
           const bucket = map.get(day)!;
-          const dur = r.duracao_minutos ?? (r.fim ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000 : 0);
+          bucket.firstStart = Math.min(bucket.firstStart, startMs);
+          bucket.lastEnd = Math.max(bucket.lastEnd, endMs);
+          const dur = r.duracao_minutos ?? (endMs - startMs) / 60000;
           if (r.status === "ATIVO") bucket.ativo += dur;
           else if (r.status === "PAUSA") bucket.pausa += dur;
           else if (r.status === "ALMOCO") bucket.almoco += dur;
           else if (r.status === "INATIVO") bucket.inativo += dur;
         });
         const arr = Array.from(map.entries())
-          .map(([date, v]) => ({ date, ...v }))
+          .map(([date, v]) => {
+            const span = Math.max(0, (v.lastEnd - v.firstStart) / 60000);
+            const offline = Math.max(0, span - (v.ativo + v.pausa + v.almoco + v.inativo));
+            return { date, ativo: v.ativo, pausa: v.pausa, almoco: v.almoco, inativo: v.inativo, offline };
+          })
           .sort((a, b) => a.date.localeCompare(b.date));
         setHistory30(arr);
       });
   }, [effectiveUserId, session.current?.id]);
+
 
   const todayRecords = viewingOther ? otherRecords : session.todayRecords;
 
