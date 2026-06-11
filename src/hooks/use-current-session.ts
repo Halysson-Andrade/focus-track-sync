@@ -63,10 +63,11 @@ export function useCurrentSession(userId: string | undefined) {
   useEffect(() => {
     const bump = () => { lastActivityRef.current = Date.now(); };
     const onVisibility = () => {
-      // When the tab becomes visible again, give a fresh grace window —
-      // we cannot observe activity in other windows/apps, so don't punish
-      // the user for working elsewhere.
-      if (!document.hidden) lastActivityRef.current = Date.now();
+      // Ao voltar à aba: só "perdoa" a ausência se NÃO houver extensão ativa.
+      // Com extensão, os heartbeats já cobrem atividade em outras janelas —
+      // se eles pararam (almoço, máquina bloqueada), a ausência conta.
+      const hasExtension = Date.now() - lastExtHeartbeatRef.current < 3 * 60 * 1000;
+      if (!document.hidden && !hasExtension) lastActivityRef.current = Date.now();
     };
     // Heartbeat enviado pela extensão (content script -> postMessage) quando
     // o sistema está ativo ou houve troca de aba em outra janela.
@@ -75,6 +76,7 @@ export function useCurrentSession(userId: string | undefined) {
       const d = e.data;
       if (d && d.source === "monitor-atividade" && d.type === "HEARTBEAT") {
         lastActivityRef.current = Date.now();
+        lastExtHeartbeatRef.current = Date.now();
       }
     };
     const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
