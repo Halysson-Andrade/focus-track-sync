@@ -7,11 +7,14 @@ import { InactivityModal } from "@/components/InactivityModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle, MousePointer2, Chrome, Globe } from "lucide-react";
+import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle, MousePointer2, Chrome, Globe, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { formatDuration, formatHM } from "@/lib/format";
 import {
-  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -45,7 +48,18 @@ function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
   const [now, setNow] = useState(new Date());
-  const [history30, setHistory30] = useState<{ date: string; ativo: number; pausa: number; almoco: number; inativo: number; offline: number }[]>([]);
+  const [history30, setHistory30] = useState<{ date: Date; records: Registro[] }[]>([]);
+
+  // Selected day (defaults to today). When != today, dashboard shows historic data.
+  const startOfToday = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const [selectedDate, setSelectedDate] = useState<Date>(startOfToday);
+  const isToday = selectedDate.getTime() === startOfToday.getTime();
+  const dayRange = useMemo(() => {
+    const s = new Date(selectedDate); s.setHours(0,0,0,0);
+    const e = new Date(s); e.setDate(e.getDate() + 1);
+    return { start: s.toISOString(), end: e.toISOString() };
+  }, [selectedDate]);
+  const [dayRecords, setDayRecords] = useState<Registro[]>([]);
 
   // Admin: filter by target user
   const [users, setUsers] = useState<{ id: string; nome: string }[]>([]);
@@ -71,68 +85,61 @@ function Dashboard() {
     });
   }, [isAdmin]);
 
-  // Load today's registros for "other user" view
+  // Load registros for the selected day (used when viewing another user OR another day)
   useEffect(() => {
-    if (!viewingOther || !effectiveUserId) { setOtherRecords([]); return; }
-    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    if (!effectiveUserId) { setDayRecords([]); return; }
+    // When viewing own + today, the realtime session hook already provides records — keep it in sync via setter too.
+    if (isToday && !viewingOther) { setDayRecords([]); return; }
     supabase.from("registros_atividade").select("*")
       .eq("usuario_id", effectiveUserId)
-      .gte("inicio", startOfDay.toISOString())
+      .gte("inicio", dayRange.start)
+      .lt("inicio", dayRange.end)
       .order("inicio", { ascending: true })
-      .then(({ data }) => setOtherRecords((data ?? []) as Registro[]));
-  }, [viewingOther, effectiveUserId, now.getMinutes()]);
+      .then(({ data }) => setDayRecords((data ?? []) as Registro[]));
+    // when looking at today (own/other), also poll
+  }, [effectiveUserId, viewingOther, isToday, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
 
-  // Load today's page navigation (app) + external (chrome extension)
+  // Page navigation (app) + external (chrome extension) — for the selected day
   useEffect(() => {
     if (!effectiveUserId) return;
-    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
-    const since = startOfDay.toISOString();
     supabase.from("navegacao_paginas").select("*")
-      .eq("usuario_id", effectiveUserId).gte("inicio", since).order("inicio", { ascending: true })
+      .eq("usuario_id", effectiveUserId).gte("inicio", dayRange.start).lt("inicio", dayRange.end)
+      .order("inicio", { ascending: true })
       .then(({ data }) => setPages((data ?? []) as Pagina[]));
     supabase.from("navegacao_externa").select("*")
-      .eq("usuario_id", effectiveUserId).gte("inicio", since).order("inicio", { ascending: true })
+      .eq("usuario_id", effectiveUserId).gte("inicio", dayRange.start).lt("inicio", dayRange.end)
+      .order("inicio", { ascending: true })
       .then(({ data }) => setExternalNav((data ?? []) as NavExterna[]));
-  }, [effectiveUserId, now.getMinutes()]);
+  }, [effectiveUserId, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
 
-
-  // 30-day history for effective user
+  // 30-day history for effective user — keep raw records grouped per day for the per-day timelines
   useEffect(() => {
-    if (!effectiveUserId) return;
+    if (!effectiveUserId) { setHistory30([]); return; }
     const since = new Date(); since.setDate(since.getDate() - 30); since.setHours(0,0,0,0);
     supabase.from("registros_atividade").select("*")
       .eq("usuario_id", effectiveUserId)
       .gte("inicio", since.toISOString())
+      .order("inicio", { ascending: true })
       .then(({ data }) => {
-        const map = new Map<string, { ativo: number; pausa: number; almoco: number; inativo: number; firstStart: number; lastEnd: number }>();
-        const nowTs = Date.now();
+        const map = new Map<string, Registro[]>();
         (data ?? []).forEach((r: any) => {
-          const startMs = new Date(r.inicio).getTime();
-          const endMs = r.fim ? new Date(r.fim).getTime() : nowTs;
-          const day = new Date(r.inicio).toLocaleDateString("pt-BR");
-          if (!map.has(day)) map.set(day, { ativo: 0, pausa: 0, almoco: 0, inativo: 0, firstStart: startMs, lastEnd: endMs });
-          const bucket = map.get(day)!;
-          bucket.firstStart = Math.min(bucket.firstStart, startMs);
-          bucket.lastEnd = Math.max(bucket.lastEnd, endMs);
-          const dur = r.duracao_minutos ?? (endMs - startMs) / 60000;
-          if (r.status === "ATIVO") bucket.ativo += dur;
-          else if (r.status === "PAUSA") bucket.pausa += dur;
-          else if (r.status === "ALMOCO") bucket.almoco += dur;
-          else if (r.status === "INATIVO") bucket.inativo += dur;
+          const d = new Date(r.inicio); d.setHours(0,0,0,0);
+          const key = d.toISOString();
+          if (!map.has(key)) map.set(key, []);
+          map.get(key)!.push(r as Registro);
         });
         const arr = Array.from(map.entries())
-          .map(([date, v]) => {
-            const span = Math.max(0, (v.lastEnd - v.firstStart) / 60000);
-            const offline = Math.max(0, span - (v.ativo + v.pausa + v.almoco + v.inativo));
-            return { date, ativo: v.ativo, pausa: v.pausa, almoco: v.almoco, inativo: v.inativo, offline };
-          })
-          .sort((a, b) => a.date.localeCompare(b.date));
+          .map(([k, records]) => ({ date: new Date(k), records }))
+          .sort((a, b) => b.date.getTime() - a.date.getTime());
         setHistory30(arr);
       });
   }, [effectiveUserId, session.current?.id]);
 
 
-  const todayRecords = viewingOther ? otherRecords : session.todayRecords;
+  // Records to display on the board for the selected day
+  const todayRecords: Registro[] = (isToday && !viewingOther) ? session.todayRecords : dayRecords;
+  // Used as a fallback for the "other user today" legacy var
+  void otherRecords;
 
   const totals = useMemo(() => {
     const t = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
@@ -184,7 +191,7 @@ function Dashboard() {
   }, [unifiedLogs]);
 
 
-  const currentOpen = viewingOther ? otherRecords.find((r) => !r.fim) : session.current;
+  const currentOpen = (isToday && !viewingOther) ? session.current : (todayRecords.find((r) => !r.fim) ?? null);
   const status = currentOpen?.status ?? "ENCERRADO";
 
   const pieData = [
@@ -225,14 +232,48 @@ function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Admin filter */}
-      {isAdmin && (
-        <Card>
-          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm font-medium">Filtrar dashboard por usuário</div>
-            <div className="flex items-center gap-2">
+      {/* Day + (admin) user filter */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm font-medium">
+            {isToday ? "Visualizando dados de hoje" : `Visualizando ${selectedDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}`}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline" size="icon"
+              onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); }}
+              aria-label="Dia anterior"
+            ><ChevronLeft className="h-4 w-4" /></Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-[220px] justify-start text-left font-normal")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(d) => { if (d) { const x = new Date(d); x.setHours(0,0,0,0); setSelectedDate(x); } }}
+                  disabled={(d) => d > new Date()}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+            <Button
+              variant="outline" size="icon"
+              onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); if (d <= startOfToday) setSelectedDate(d); }}
+              disabled={isToday}
+              aria-label="Próximo dia"
+            ><ChevronRight className="h-4 w-4" /></Button>
+            {!isToday && (
+              <Button variant="ghost" size="sm" onClick={() => setSelectedDate(startOfToday)}>Hoje</Button>
+            )}
+            {isAdmin && (
               <Select value={targetUserId || "self"} onValueChange={(v) => setTargetUserId(v === "self" ? "" : v)}>
-                <SelectTrigger className="w-72"><SelectValue placeholder="Selecionar usuário" /></SelectTrigger>
+                <SelectTrigger className="w-60"><SelectValue placeholder="Selecionar usuário" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="self">Eu mesmo ({profile?.nome ?? "..."})</SelectItem>
                   {users.filter((u) => u.id !== user?.id).map((u) => (
@@ -240,13 +281,13 @@ function Dashboard() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Controls — only when viewing own dashboard */}
-      {!viewingOther && (
+      {/* Controls — only when viewing own dashboard for today */}
+      {!viewingOther && isToday && (
         <Card>
           <CardHeader><CardTitle>Controles</CardTitle></CardHeader>
           <CardContent className="flex flex-wrap gap-3">
@@ -281,7 +322,7 @@ function Dashboard() {
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Distribuição de hoje</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Distribuição {isToday ? "de hoje" : "do dia"}</CardTitle></CardHeader>
           <CardContent>
             {pieData.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Nenhum dado hoje.</p>
@@ -300,7 +341,7 @@ function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Jornada de hoje — linha do tempo</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Jornada {isToday ? "de hoje" : "do dia"} — linha do tempo</CardTitle></CardHeader>
           <CardContent>
             {todayRecords.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Sem registros.</p>
@@ -313,7 +354,7 @@ function Dashboard() {
 
       {/* Page navigation tracking */}
       <Card>
-        <CardHeader className="flex flex-row items-center gap-2"><MousePointer2 className="h-4 w-4 text-primary" /><CardTitle>Navegação monitorada — hoje</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center gap-2"><MousePointer2 className="h-4 w-4 text-primary" /><CardTitle>Navegação monitorada — {isToday ? "hoje" : "no dia"}</CardTitle></CardHeader>
         <CardContent>
           {pageAgg.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma navegação registrada.</p>
@@ -394,25 +435,43 @@ function Dashboard() {
 
 
       <Card>
-        <CardHeader className="flex flex-row items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" /><CardTitle>Histórico — 30 dias</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" /><CardTitle>Histórico — últimos 30 dias</CardTitle></CardHeader>
         <CardContent>
           {history30.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">Sem histórico.</p>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={history30}>
-                <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} />
-                <YAxis tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 60)}h`} />
-                <Tooltip formatter={(v: number) => formatDuration(v)} />
-                <Legend />
-                <Bar dataKey="ativo" stackId="a" name="Ativo" fill="var(--color-success)" />
-                <Bar dataKey="pausa" stackId="a" name="Pausa" fill="var(--color-warning)" />
-                <Bar dataKey="almoco" stackId="a" name="Almoço" fill="var(--color-info)" />
-                <Bar dataKey="inativo" stackId="a" name="Inativo" fill="var(--color-destructive)" />
-                <Bar dataKey="offline" stackId="a" name="Offline" fill="var(--color-muted-foreground)" fillOpacity={0.35} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="space-y-5">
+              {history30.map((day) => {
+                const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
+                day.records.forEach((r) => {
+                  const dur = r.duracao_minutos ?? (r.fim ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000 : 0);
+                  if (r.status in totals) totals[r.status as keyof typeof totals] += dur;
+                });
+                const isSelected = day.date.getTime() === selectedDate.getTime();
+                return (
+                  <div
+                    key={day.date.toISOString()}
+                    className={cn("rounded-lg border p-4 transition-colors", isSelected ? "border-primary bg-primary/5" : "border-border bg-muted/10 hover:bg-muted/20")}
+                  >
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <button
+                        onClick={() => setSelectedDate(day.date)}
+                        className="text-left text-sm font-semibold hover:text-primary"
+                      >
+                        {day.date.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                      </button>
+                      <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-muted-foreground">
+                        <span className="text-success">A {formatDuration(totals.ATIVO)}</span>
+                        <span className="text-warning">P {formatDuration(totals.PAUSA)}</span>
+                        <span className="text-info">Al {formatDuration(totals.ALMOCO)}</span>
+                        <span className="text-destructive">I {formatDuration(totals.INATIVO)}</span>
+                      </div>
+                    </div>
+                    <HorizontalTimeline records={day.records} />
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
