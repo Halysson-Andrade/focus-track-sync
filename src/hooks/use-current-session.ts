@@ -70,7 +70,7 @@ export function useCurrentSession(userId: string | undefined) {
       // Ao voltar à aba: só "perdoa" a ausência se NÃO houver extensão ativa.
       // Com extensão, os heartbeats já cobrem atividade em outras janelas —
       // se eles pararam (almoço, máquina bloqueada), a ausência conta.
-      const hasExtension = Date.now() - lastExtHeartbeatRef.current < 3 * 60 * 1000;
+      const hasExtension = lastExtHeartbeatRef.current > 0 && Date.now() - lastExtHeartbeatRef.current < EXT_PRESENCE_WINDOW_MS;
       if (!document.hidden && !hasExtension) lastActivityRef.current = Date.now();
     };
     // Heartbeat enviado pela extensão (content script -> postMessage) quando
@@ -129,7 +129,7 @@ export function useCurrentSession(userId: string | undefined) {
       // Com a extensão ativa (heartbeats recentes em até 3 min), checamos
       // mesmo com a aba oculta — a extensão sabe se o sistema está ocioso.
       // Sem extensão, mantém o comportamento antigo (pausa quando oculto).
-      const hasExtension = Date.now() - lastExtHeartbeatRef.current < 3 * 60 * 1000;
+      const hasExtension = lastExtHeartbeatRef.current > 0 && Date.now() - lastExtHeartbeatRef.current < EXT_PRESENCE_WINDOW_MS;
       if (document.hidden && !hasExtension) return;
       const elapsed = Date.now() - lastActivityRef.current;
       if (elapsed >= INACTIVITY_LIMIT_MS) {
