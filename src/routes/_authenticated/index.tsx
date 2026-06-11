@@ -61,8 +61,8 @@ function Dashboard() {
   const startOfToday = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday);
   const [openDomain, setOpenDomain] = useState<string | null>(null);
-  const [logPage, setLogPage] = useState(1);
-  const [logPageSize, setLogPageSize] = useState(10);
+  // (logs consolidados — paginação removida; detalhe vai por exportação)
+
   const isToday = selectedDate.getTime() === startOfToday.getTime();
   const dayRange = useMemo(() => {
     const s = new Date(selectedDate); s.setHours(0,0,0,0);
