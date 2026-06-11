@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrentSession } from "@/hooks/use-current-session";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -45,7 +45,7 @@ function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
   const [now, setNow] = useState(new Date());
-  const [history30, setHistory30] = useState<{ date: string; ativo: number; pausa: number; almoco: number; inativo: number }[]>([]);
+  const [history30, setHistory30] = useState<{ date: string; ativo: number; pausa: number; almoco: number; inativo: number; offline: number }[]>([]);
 
   // Admin: filter by target user
   const [users, setUsers] = useState<{ id: string; nome: string }[]>([]);
@@ -104,23 +104,33 @@ function Dashboard() {
       .eq("usuario_id", effectiveUserId)
       .gte("inicio", since.toISOString())
       .then(({ data }) => {
-        const map = new Map<string, { ativo: number; pausa: number; almoco: number; inativo: number }>();
+        const map = new Map<string, { ativo: number; pausa: number; almoco: number; inativo: number; firstStart: number; lastEnd: number }>();
+        const nowTs = Date.now();
         (data ?? []).forEach((r: any) => {
+          const startMs = new Date(r.inicio).getTime();
+          const endMs = r.fim ? new Date(r.fim).getTime() : nowTs;
           const day = new Date(r.inicio).toLocaleDateString("pt-BR");
-          if (!map.has(day)) map.set(day, { ativo: 0, pausa: 0, almoco: 0, inativo: 0 });
+          if (!map.has(day)) map.set(day, { ativo: 0, pausa: 0, almoco: 0, inativo: 0, firstStart: startMs, lastEnd: endMs });
           const bucket = map.get(day)!;
-          const dur = r.duracao_minutos ?? (r.fim ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000 : 0);
+          bucket.firstStart = Math.min(bucket.firstStart, startMs);
+          bucket.lastEnd = Math.max(bucket.lastEnd, endMs);
+          const dur = r.duracao_minutos ?? (endMs - startMs) / 60000;
           if (r.status === "ATIVO") bucket.ativo += dur;
           else if (r.status === "PAUSA") bucket.pausa += dur;
           else if (r.status === "ALMOCO") bucket.almoco += dur;
           else if (r.status === "INATIVO") bucket.inativo += dur;
         });
         const arr = Array.from(map.entries())
-          .map(([date, v]) => ({ date, ...v }))
+          .map(([date, v]) => {
+            const span = Math.max(0, (v.lastEnd - v.firstStart) / 60000);
+            const offline = Math.max(0, span - (v.ativo + v.pausa + v.almoco + v.inativo));
+            return { date, ativo: v.ativo, pausa: v.pausa, almoco: v.almoco, inativo: v.inativo, offline };
+          })
           .sort((a, b) => a.date.localeCompare(b.date));
         setHistory30(arr);
       });
   }, [effectiveUserId, session.current?.id]);
+
 
   const todayRecords = viewingOther ? otherRecords : session.todayRecords;
 
@@ -400,6 +410,7 @@ function Dashboard() {
                 <Bar dataKey="pausa" stackId="a" name="Pausa" fill="var(--color-warning)" />
                 <Bar dataKey="almoco" stackId="a" name="Almoço" fill="var(--color-info)" />
                 <Bar dataKey="inativo" stackId="a" name="Inativo" fill="var(--color-destructive)" />
+                <Bar dataKey="offline" stackId="a" name="Offline" fill="var(--color-muted-foreground)" fillOpacity={0.35} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -437,11 +448,13 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
     INATIVO: "var(--color-destructive)",
     ENCERRADO: "var(--color-muted)",
   };
+  const labelByStatus: Record<string, string> = {
+    ATIVO: "Ativo", PAUSA: "Pausa", ALMOCO: "Almoço", INATIVO: "Inativo", ENCERRADO: "Encerrado",
+  };
 
   const nowTs = Date.now();
   const startTs = Math.min(...records.map((r) => new Date(r.inicio).getTime()));
   const endTsRaw = Math.max(...records.map((r) => (r.fim ? new Date(r.fim).getTime() : nowTs)));
-  // Anchor to whole hours for a cleaner axis
   const HOUR = 3600_000;
   const axisStart = Math.floor(startTs / HOUR) * HOUR;
   const axisEnd = Math.ceil(endTsRaw / HOUR) * HOUR;
@@ -450,48 +463,72 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
   const ticks: number[] = [];
   for (let t = axisStart; t <= axisEnd; t += HOUR) ticks.push(t);
 
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [hover, setHover] = useState<{ x: number; ts: number; rec: Registro | null } | null>(null);
+
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = trackRef.current; if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const ts = axisStart + (x / rect.width) * span;
+    const rec = records.find((r) => {
+      const s = new Date(r.inicio).getTime();
+      const en = r.fim ? new Date(r.fim).getTime() : nowTs;
+      return ts >= s && ts <= en;
+    }) ?? null;
+    setHover({ x, ts, rec });
+  };
+
   return (
     <div className="space-y-2">
-      <div className="relative h-14 w-full overflow-hidden rounded-md border border-border bg-muted/30">
-        {/* hour gridlines */}
+      <div
+        ref={trackRef}
+        onMouseMove={onMove}
+        onMouseLeave={() => setHover(null)}
+        className="relative h-14 w-full overflow-hidden rounded-md border border-border bg-muted/30"
+      >
         {ticks.map((t) => {
           const left = ((t - axisStart) / span) * 100;
-          return (
-            <div
-              key={`g-${t}`}
-              className="absolute top-0 bottom-0 w-px bg-border/60"
-              style={{ left: `${left}%` }}
-            />
-          );
+          return <div key={`g-${t}`} className="absolute top-0 bottom-0 w-px bg-border/60" style={{ left: `${left}%` }} />;
         })}
-        {/* segments */}
         {records.map((r) => {
           const s = new Date(r.inicio).getTime();
           const e = r.fim ? new Date(r.fim).getTime() : nowTs;
           const left = ((s - axisStart) / span) * 100;
           const width = Math.max(((e - s) / span) * 100, 0.4);
-          const dur = (e - s) / 60000;
           return (
             <div
               key={r.id}
-              title={`${r.status} • ${formatHM(r.inicio)} → ${r.fim ? formatHM(r.fim) : "agora"} • ${formatDuration(dur)}`}
               className="absolute top-2 bottom-2 rounded-sm transition-opacity hover:opacity-80"
-              style={{
-                left: `${left}%`,
-                width: `${width}%`,
-                background: colorByStatus[r.status] ?? "var(--color-muted)",
-              }}
+              style={{ left: `${left}%`, width: `${width}%`, background: colorByStatus[r.status] ?? "var(--color-muted)" }}
             />
           );
         })}
-        {/* "now" marker */}
         {nowTs >= axisStart && nowTs <= axisEnd && (
-          <div
-            className="absolute top-0 bottom-0 w-0.5 bg-foreground/70"
-            style={{ left: `${((nowTs - axisStart) / span) * 100}%` }}
-          />
+          <div className="absolute top-0 bottom-0 w-0.5 bg-foreground/70" style={{ left: `${((nowTs - axisStart) / span) * 100}%` }} />
+        )}
+        {hover && (
+          <>
+            <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-foreground/40" style={{ left: hover.x }} />
+            <div
+              className="pointer-events-none absolute -top-1 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[11px] font-mono text-popover-foreground shadow-md"
+              style={{ left: hover.x }}
+            >
+              <div className="font-semibold">
+                {new Date(hover.ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </div>
+              {hover.rec ? (
+                <div className="text-muted-foreground">
+                  {labelByStatus[hover.rec.status] ?? hover.rec.status} • {formatHM(hover.rec.inicio)} → {hover.rec.fim ? formatHM(hover.rec.fim) : "agora"}
+                </div>
+              ) : (
+                <div className="text-muted-foreground">Offline</div>
+              )}
+            </div>
+          </>
         )}
       </div>
+
       {/* axis labels */}
       <div className="relative h-4 w-full text-[10px] text-muted-foreground">
         {ticks.map((t, i) => {
