@@ -512,15 +512,26 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
   };
 
   const nowTs = Date.now();
-  const startTs = Math.min(...records.map((r) => new Date(r.inicio).getTime()));
-  const endTsRaw = Math.max(...records.map((r) => (r.fim ? new Date(r.fim).getTime() : nowTs)));
-  const HOUR = 3600_000;
-  const axisStart = Math.floor(startTs / HOUR) * HOUR;
-  const axisEnd = Math.ceil(endTsRaw / HOUR) * HOUR;
-  const span = Math.max(axisEnd - axisStart, HOUR);
+  // Fixed axis: 00:00 → 24:00 of the day of the first record
+  const dayBase = new Date(records[0]?.inicio ?? Date.now());
+  dayBase.setHours(0, 0, 0, 0);
+  const axisStart = dayBase.getTime();
+  const axisEnd = axisStart + 24 * 3600_000;
+  const span = axisEnd - axisStart;
+  const clamp = (ts: number) => Math.max(axisStart, Math.min(axisEnd, ts));
+  const pct = (ts: number) => ((clamp(ts) - axisStart) / span) * 100;
 
-  const ticks: number[] = [];
-  for (let t = axisStart; t <= axisEnd; t += HOUR) ticks.push(t);
+  const majorTicks: number[] = [];
+  for (let h = 0; h <= 24; h += 3) majorTicks.push(axisStart + h * 3600_000);
+  const minorTicks: number[] = [];
+  for (let h = 0; h <= 24; h += 1) minorTicks.push(axisStart + h * 3600_000);
+
+  // First start / last end of worked (ATIVO) records — always highlighted
+  const ativoRecs = records.filter((r) => r.status === "ATIVO");
+  const ativoStart = ativoRecs.length ? Math.min(...ativoRecs.map((r) => new Date(r.inicio).getTime())) : null;
+  const ativoEnd = ativoRecs.length
+    ? Math.max(...ativoRecs.map((r) => (r.fim ? new Date(r.fim).getTime() : nowTs)))
+    : null;
 
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [hover, setHover] = useState<{ x: number; ts: number; rec: Registro | null } | null>(null);
@@ -538,34 +549,73 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
     setHover({ x, ts, rec });
   };
 
+  // ATIVO occupies the central band (tall); other statuses render as thin strips, centered
+  const dimsForStatus = (s: string) =>
+    s === "ATIVO"
+      ? { top: "18%", bottom: "18%" }
+      : { top: "40%", bottom: "40%" };
+
   return (
     <div className="space-y-2">
       <div
         ref={trackRef}
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
-        className="relative h-14 w-full overflow-hidden rounded-md border border-border bg-muted/30"
+        className="relative h-16 w-full overflow-hidden rounded-md border border-border bg-muted/30"
       >
-        {ticks.map((t) => {
-          const left = ((t - axisStart) / span) * 100;
-          return <div key={`g-${t}`} className="absolute top-0 bottom-0 w-px bg-border/60" style={{ left: `${left}%` }} />;
-        })}
+        {/* central baseline reinforcing the worked-time band */}
+        <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-border/60" />
+
+        {/* hour minor gridlines */}
+        {minorTicks.map((t) => (
+          <div key={`m-${t}`} className="absolute top-0 bottom-0 w-px bg-border/30" style={{ left: `${pct(t)}%` }} />
+        ))}
+        {/* 3h major gridlines */}
+        {majorTicks.map((t) => (
+          <div key={`g-${t}`} className="absolute top-0 bottom-0 w-px bg-border/70" style={{ left: `${pct(t)}%` }} />
+        ))}
+
+        {/* Segments — ATIVO is the dominant centered band, others compress */}
         {records.map((r) => {
           const s = new Date(r.inicio).getTime();
           const e = r.fim ? new Date(r.fim).getTime() : nowTs;
-          const left = ((s - axisStart) / span) * 100;
-          const width = Math.max(((e - s) / span) * 100, 0.4);
+          if (e <= axisStart || s >= axisEnd) return null;
+          const left = pct(s);
+          const width = Math.max(pct(e) - left, 0.2);
+          const isAtivo = r.status === "ATIVO";
+          const d = dimsForStatus(r.status);
           return (
             <div
               key={r.id}
-              className="absolute top-2 bottom-2 rounded-sm transition-opacity hover:opacity-80"
-              style={{ left: `${left}%`, width: `${width}%`, background: colorByStatus[r.status] ?? "var(--color-muted)" }}
+              className="absolute rounded-sm transition-opacity hover:opacity-90"
+              style={{
+                left: `${left}%`,
+                width: `${width}%`,
+                top: d.top,
+                bottom: d.bottom,
+                background: colorByStatus[r.status] ?? "var(--color-muted)",
+                opacity: isAtivo ? 1 : 0.65,
+                zIndex: isAtivo ? 2 : 1,
+                boxShadow: isAtivo ? "0 0 0 1px color-mix(in oklch, var(--color-success) 50%, transparent)" : undefined,
+              }}
             />
           );
         })}
-        {nowTs >= axisStart && nowTs <= axisEnd && (
-          <div className="absolute top-0 bottom-0 w-0.5 bg-foreground/70" style={{ left: `${((nowTs - axisStart) / span) * 100}%` }} />
+
+        {/* Start / End markers for the worked period */}
+        {ativoStart != null && (
+          <Marker x={pct(ativoStart)} label={`Início ${formatHM(new Date(ativoStart).toISOString())}`} />
         )}
+        {ativoEnd != null && (
+          <Marker x={pct(ativoEnd)} label={`Fim ${formatHM(new Date(ativoEnd).toISOString())}`} />
+        )}
+
+        {/* "now" marker */}
+        {nowTs >= axisStart && nowTs <= axisEnd && (
+          <div className="absolute top-0 bottom-0 w-0.5 bg-foreground/70" style={{ left: `${pct(nowTs)}%` }} />
+        )}
+
+        {/* hover cursor + tooltip */}
         {hover && (
           <>
             <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-foreground/40" style={{ left: hover.x }} />
@@ -588,11 +638,11 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
         )}
       </div>
 
-      {/* axis labels */}
+      {/* axis labels every 3h covering 00:00 → 24:00 */}
       <div className="relative h-4 w-full text-[10px] text-muted-foreground">
-        {ticks.map((t, i) => {
-          const left = ((t - axisStart) / span) * 100;
-          const isLast = i === ticks.length - 1;
+        {majorTicks.map((t, i) => {
+          const left = pct(t);
+          const isLast = i === majorTicks.length - 1;
           return (
             <span
               key={`l-${t}`}
@@ -607,14 +657,34 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
           );
         })}
       </div>
-      {/* legend */}
+
+      {/* legend — visually mirrors the compression of non-ativo statuses */}
       <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-muted-foreground">
         {(["ATIVO", "PAUSA", "ALMOCO", "INATIVO"] as const).map((s) => (
           <span key={s} className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: colorByStatus[s] }} />
+            <span
+              className="rounded-sm"
+              style={{
+                background: colorByStatus[s],
+                width: s === "ATIVO" ? "14px" : "10px",
+                height: s === "ATIVO" ? "10px" : "4px",
+                opacity: s === "ATIVO" ? 1 : 0.65,
+              }}
+            />
             {s === "ALMOCO" ? "Almoço" : s.charAt(0) + s.slice(1).toLowerCase()}
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function Marker({ x, label }: { x: number; label: string }) {
+  return (
+    <div className="pointer-events-none absolute top-0 bottom-0 z-[3]" style={{ left: `${x}%` }}>
+      <div className="absolute top-0 bottom-0 w-0.5 bg-success" />
+      <div className="absolute top-0.5 left-1 whitespace-nowrap rounded-sm bg-success px-1.5 py-0.5 text-[10px] font-mono font-semibold text-success-foreground shadow">
+        {label}
       </div>
     </div>
   );
