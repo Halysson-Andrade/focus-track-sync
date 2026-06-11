@@ -106,6 +106,24 @@ export type Database = {
           },
         ]
       }
+      presenca_desktop: {
+        Row: {
+          platform: string | null
+          ultimo_ativo: string
+          usuario_id: string
+        }
+        Insert: {
+          platform?: string | null
+          ultimo_ativo?: string
+          usuario_id: string
+        }
+        Update: {
+          platform?: string | null
+          ultimo_ativo?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           ativo: boolean
