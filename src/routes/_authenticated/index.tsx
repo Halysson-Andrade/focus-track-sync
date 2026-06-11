@@ -354,7 +354,7 @@ function Dashboard() {
 
       {/* Page navigation tracking */}
       <Card>
-        <CardHeader className="flex flex-row items-center gap-2"><MousePointer2 className="h-4 w-4 text-primary" /><CardTitle>Navegação monitorada — hoje</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center gap-2"><MousePointer2 className="h-4 w-4 text-primary" /><CardTitle>Navegação monitorada — {isToday ? "hoje" : "no dia"}</CardTitle></CardHeader>
         <CardContent>
           {pageAgg.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma navegação registrada.</p>
