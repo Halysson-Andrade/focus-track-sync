@@ -212,8 +212,10 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (tab) handleActive(tab);
+  // Máquina/navegador foi reiniciado: derruba a sessão da extensão para
+  // forçar novo login, alinhado com o comportamento do app web.
+  try { await chrome.storage.local.remove("session"); } catch {}
+  currentRow = null;
 });
 chrome.runtime.onInstalled.addListener(async () => {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
