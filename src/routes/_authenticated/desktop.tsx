@@ -8,8 +8,7 @@ import {
 import { toast } from "sonner";
 
 // URL onde os instaladores ficam hospedados (GitHub Releases).
-// Troque pelo seu repositório após conectar o projeto ao GitHub.
-const RELEASES_URL = "https://github.com/your-org/your-repo/releases/latest";
+const RELEASES_URL = "https://github.com/Halysson-Andrade/focus-track-sync/releases/latest";
 const WIN_INSTALLER = `${RELEASES_URL}/download/Focus.Track.Monitor.Setup.exe`;
 const MAC_INSTALLER = `${RELEASES_URL}/download/Focus.Track.Monitor.dmg`;
 
