@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrentSession } from "@/hooks/use-current-session";
 import { StatusBadge } from "@/components/StatusBadge";
