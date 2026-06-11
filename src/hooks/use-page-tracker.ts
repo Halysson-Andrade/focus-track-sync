@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { IDLE_THRESHOLD_MS } from "@/lib/activity-config";
 
 const PAGE_LABELS: Record<string, string> = {
   "/": "Dashboard",
@@ -9,8 +10,6 @@ const PAGE_LABELS: Record<string, string> = {
   "/ranking": "Ranking",
   "/auth": "Login",
 };
-
-const IDLE_THRESHOLD_MS = 60 * 1000; // 1 min sem atividade conta como inativo
 
 /**
  * Tracks per-page navigation. Conta apenas o tempo em que a aba está

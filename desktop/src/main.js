@@ -74,6 +74,31 @@ let flushTimer = null;
 let current = null; // { id, process_name, app_label, executable_path, enteredAt, idleAccum, lastIdleStart }
 let syncedCount = 0; // registros (uso_aplicativos) gravados com sucesso nesta sessão
 let lastError = null; // último erro de sincronização (mostrado na UI para diagnóstico)
+let idleWhitelist = new Set(); // process_name (lowercase) de apps passivos (reunião/vídeo)
+let whitelistTimer = null;
+// Coordenação com a sessão macro (registros_atividade). Só rastreamos apps
+// quando o status é ATIVO. Quando a aba web está fechada, o desktop é
+// co-autor: auto-inicia a sessão e gerencia INATIVO/retomada.
+let macroStatus = null; // status da linha aberta (ATIVO/PAUSA/...) ou null
+let macroSessionId = null; // id da linha aberta conhecida
+let trackingPaused = false; // true quando não devemos rastrear apps
+let desktopOwnsSession = false; // true se a sessão aberta foi criada pelo desktop
+let macroPollTimer = null;
+
+// Carrega a lista de apps passivos (reunião, player de vídeo, leitor de PDF):
+// nesses apps a ausência de mouse/teclado NÃO conta como ociosidade.
+async function loadWhitelist() {
+  try {
+    const { data } = await supabase
+      .from("monitor_idle_whitelist")
+      .select("identificador")
+      .eq("tipo", "desktop_process")
+      .eq("ativo", true);
+    if (data) idleWhitelist = new Set(data.map((r) => r.identificador.toLowerCase()));
+  } catch (e) {
+    console.error("loadWhitelist:", e.message);
+  }
+}
 
 const autoLauncher = new AutoLaunch({ name: "Focus Track Monitor", isHidden: true });
 
@@ -175,8 +200,10 @@ async function closeCurrent() {
   }
   const now = Date.now();
   const dur = (now - current.enteredAt) / 1000;
-  const idleNow = current.lastIdleStart ? (now - current.lastIdleStart) / 1000 : 0;
-  const idle = current.idleAccum + idleNow;
+  // idleAccum é sempre em ms; converte só no final (evita o bug de misturar
+  // ms com segundos e garante inativo_segundos <= duracao_segundos).
+  const idleNowMs = current.lastIdleStart ? now - current.lastIdleStart : 0;
+  const idleSeconds = (current.idleAccum + idleNowMs) / 1000;
   const id = current.id;
   current = null;
   try {
@@ -185,7 +212,7 @@ async function closeCurrent() {
       .update({
         fim: new Date(now).toISOString(),
         duracao_segundos: dur,
-        inativo_segundos: Math.min(idle, dur),
+        inativo_segundos: Math.min(idleSeconds, dur),
       })
       .eq("id", id);
   } catch (e) {
@@ -232,6 +259,20 @@ async function openRow(info) {
       sendStatus();
       return;
     }
+    // Pausa pode ter ocorrido durante o INSERT — fecha a linha recém-criada
+    // para não deixar registro órfão acumulando tempo durante a pausa.
+    if (trackingPaused) {
+      try {
+        await supabase
+          .from("uso_aplicativos")
+          .update({ fim: new Date().toISOString(), duracao_segundos: 0, inativo_segundos: 0 })
+          .eq("id", data.id);
+      } catch {
+        /* noop */
+      }
+      if (current && current.enteredAt === now) current = null;
+      return;
+    }
     if (data && current && current.enteredAt === now) current.id = data.id;
     syncedCount += 1;
     lastError = null;
@@ -245,29 +286,38 @@ async function openRow(info) {
 
 async function tick() {
   if (!monitoring) return;
+  if (trackingPaused) return; // sessão macro não-ATIVA: não rastreia nem envia presença
   try {
     const activeWin = await getActiveWin();
     const info = await activeWin();
     const idleSec = powerMonitor.getSystemIdleTime();
-    const isIdle = idleSec >= cfg.IDLE_THRESHOLD_S;
+    const rawIdle = idleSec >= cfg.IDLE_THRESHOLD_S;
+
+    const procName =
+      info && info.owner ? (info.owner.name || info.owner.path || "").toString() : "";
+    // App passivo (reunião/vídeo/leitura): ausência de input não é ociosidade.
+    const passive = procName ? idleWhitelist.has(procName.toLowerCase()) : false;
+    const isIdle = rawIdle && !passive;
 
     if (current) {
       if (isIdle && !current.lastIdleStart) {
-        current.lastIdleStart = Date.now();
+        // getSystemIdleTime() já é o tempo contínuo sem input — retroage o
+        // início do ócio em vez de marcar "agora", senão perdemos os
+        // IDLE_THRESHOLD_S iniciais. Clampa ao início da janela do app.
+        current.lastIdleStart = Math.max(current.enteredAt, Date.now() - idleSec * 1000);
       } else if (!isIdle && current.lastIdleStart) {
         current.idleAccum += Date.now() - current.lastIdleStart;
         current.lastIdleStart = null;
       }
     }
 
-    // Presença para o painel (evita falso INATIVO enquanto trabalha em app nativo)
-    if (!isIdle && Date.now() - lastPresenceAt >= 30000) {
+    // Presença para o painel: envia se há input recente OU se está num app
+    // passivo (reunião sem mouse/teclado não pode virar falso INATIVO).
+    if ((!rawIdle || passive) && Date.now() - lastPresenceAt >= 30000) {
       lastPresenceAt = Date.now();
       sendPresence();
     }
 
-    if (!info || !info.owner) return;
-    const procName = (info.owner.name || info.owner.path || "").toString();
     if (!procName) return;
 
     if (!current || current.process_name.toLowerCase() !== procName.toLowerCase()) {
@@ -284,17 +334,152 @@ async function flush() {
   if (!current || !current.id) return;
   const now = Date.now();
   const dur = (now - current.enteredAt) / 1000;
-  const idleNow = current.lastIdleStart ? (now - current.lastIdleStart) / 1000 : 0;
+  const idleNowMs = current.lastIdleStart ? now - current.lastIdleStart : 0;
   try {
     await supabase
       .from("uso_aplicativos")
       .update({
         duracao_segundos: dur,
-        inativo_segundos: Math.min(current.idleAccum / 1000 + idleNow, dur),
+        inativo_segundos: Math.min((current.idleAccum + idleNowMs) / 1000, dur),
       })
       .eq("id", current.id);
   } catch (e) {
     console.error("flush:", e.message);
+  }
+}
+
+// Aplica o gate de rastreamento conforme o status macro: só ATIVO rastreia.
+// Ao pausar, fecha a linha de app aberta; ao retomar, o próximo tick reabre.
+async function applyTrackingGate() {
+  const shouldTrack = macroStatus === "ATIVO";
+  if (shouldTrack === !trackingPaused) return; // sem mudança de regime
+  trackingPaused = !shouldTrack;
+  if (trackingPaused) await closeCurrent();
+  sendStatus();
+}
+
+// Cria uma sessão ATIVO quando não há nenhuma aberta (aba web fechada) e há
+// atividade local. O desktop assume a posse para gerenciar INATIVO/retomada.
+async function autoStartSession(userId) {
+  try {
+    const { data, error } = await supabase
+      .from("registros_atividade")
+      .insert({ usuario_id: userId, status: "ATIVO", inicio: new Date().toISOString() })
+      .select("id")
+      .single();
+    if (error) return; // corrida (índice único): web abriu primeiro — próximo poll reconcilia
+    macroStatus = "ATIVO";
+    macroSessionId = data.id;
+    desktopOwnsSession = true;
+  } catch (e) {
+    console.error("autoStart:", e.message);
+  }
+}
+
+// Fecha a linha aberta e abre outra com novo status (espelha o transition do web).
+// Usado só quando o desktop é dono da sessão (aba web fechada).
+async function macroTransition(userId, openId, next, observacao) {
+  const nowIso = new Date().toISOString();
+  try {
+    const { data: row } = await supabase
+      .from("registros_atividade")
+      .select("inicio")
+      .eq("id", openId)
+      .single();
+    const dur = row ? (Date.now() - new Date(row.inicio).getTime()) / 60000 : 0;
+    await supabase
+      .from("registros_atividade")
+      .update({ fim: nowIso, duracao_minutos: dur })
+      .eq("id", openId);
+    const { data, error } = await supabase
+      .from("registros_atividade")
+      .insert({ usuario_id: userId, status: next, inicio: nowIso, observacao: observacao ?? null })
+      .select("id")
+      .single();
+    if (error) return; // corrida — próximo poll reconcilia
+    macroStatus = next;
+    macroSessionId = data.id;
+    desktopOwnsSession = true;
+  } catch (e) {
+    console.error("macroTransition:", e.message);
+  }
+}
+
+// Reconcilia o estado local com a linha aberta de registros_atividade.
+async function reconcileMacro(userId, row) {
+  const idleSec = powerMonitor.getSystemIdleTime();
+  const localActive = idleSec < cfg.IDLE_THRESHOLD_S;
+  const longIdle = idleSec * 1000 >= cfg.INACTIVITY_LIMIT_MS;
+
+  // Se a linha aberta mudou e não foi o desktop que criou, o web é o dono.
+  if (row && row.id !== macroSessionId) desktopOwnsSession = false;
+
+  if (!row) {
+    macroStatus = null;
+    macroSessionId = null;
+    desktopOwnsSession = false;
+    if (localActive) await autoStartSession(userId);
+    await applyTrackingGate();
+    return;
+  }
+
+  macroStatus = row.status;
+  macroSessionId = row.id;
+
+  // INATIVO/retomada automáticos só quando o desktop é dono (aba web fechada).
+  // Com a aba aberta, o web é o autor e o desktop apenas converge.
+  if (desktopOwnsSession) {
+    if (row.status === "ATIVO" && longIdle) {
+      await macroTransition(userId, row.id, "INATIVO", "Inatividade automática (desktop)");
+    } else if (row.status === "INATIVO" && localActive) {
+      await macroTransition(userId, row.id, "ATIVO");
+    }
+  }
+  await applyTrackingGate();
+}
+
+async function fetchMacroStatus() {
+  if (!monitoring) return;
+  const userId = await getUserId();
+  if (!userId) return;
+  let row = null;
+  try {
+    const { data } = await supabase
+      .from("registros_atividade")
+      .select("id,status,inicio")
+      .eq("usuario_id", userId)
+      .is("fim", null)
+      .order("inicio", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    row = data ?? null;
+  } catch (e) {
+    console.error("macroStatus:", e.message);
+    return; // mantém o estado anterior em caso de erro de rede
+  }
+  await reconcileMacro(userId, row);
+}
+
+// Fecha a sessão macro só se o desktop for o dono (não derruba sessão do web).
+async function closeMacroSessionIfOwned() {
+  if (!desktopOwnsSession || !macroSessionId) return;
+  const id = macroSessionId;
+  desktopOwnsSession = false;
+  macroSessionId = null;
+  macroStatus = null;
+  try {
+    const { data } = await supabase
+      .from("registros_atividade")
+      .select("inicio")
+      .eq("id", id)
+      .single();
+    const dur = data ? (Date.now() - new Date(data.inicio).getTime()) / 60000 : 0;
+    await supabase
+      .from("registros_atividade")
+      .update({ fim: new Date().toISOString(), duracao_minutos: dur })
+      .eq("id", id);
+  } catch {
+    /* noop */
   }
 }
 
@@ -303,6 +488,10 @@ function startMonitoring() {
   monitoring = true;
   pollTimer = setInterval(tick, cfg.POLL_INTERVAL_MS);
   flushTimer = setInterval(flush, cfg.FLUSH_INTERVAL_MS);
+  macroPollTimer = setInterval(fetchMacroStatus, cfg.MACRO_POLL_MS);
+  whitelistTimer = setInterval(loadWhitelist, cfg.WHITELIST_REFRESH_MS);
+  loadWhitelist();
+  fetchMacroStatus();
   tick();
   sendStatus();
 }
@@ -311,7 +500,9 @@ async function stopMonitoring() {
   monitoring = false;
   if (pollTimer) clearInterval(pollTimer);
   if (flushTimer) clearInterval(flushTimer);
-  pollTimer = flushTimer = null;
+  if (macroPollTimer) clearInterval(macroPollTimer);
+  if (whitelistTimer) clearInterval(whitelistTimer);
+  pollTimer = flushTimer = macroPollTimer = whitelistTimer = null;
   await closeCurrent();
   sendStatus();
 }
@@ -395,9 +586,11 @@ app.on("window-all-closed", (e) => {
 });
 
 app.on("before-quit", async (e) => {
-  if (current && current.id) {
+  if (app.isQuiting) return;
+  if ((current && current.id) || (desktopOwnsSession && macroSessionId)) {
     e.preventDefault();
     await closeCurrent();
+    await closeMacroSessionIfOwned();
     app.isQuiting = true;
     app.quit();
   }
@@ -407,6 +600,7 @@ app.on("before-quit", async (e) => {
 powerMonitor.on("shutdown", async (e) => {
   e.preventDefault();
   await stopMonitoring();
+  await closeMacroSessionIfOwned();
   store.delete("session");
   try {
     await supabase.auth.signOut();

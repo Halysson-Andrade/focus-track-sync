@@ -48,6 +48,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatHM } from "@/lib/format";
+import { tempoTrabalhado } from "@/lib/activity-config";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -442,13 +443,16 @@ function Dashboard() {
     return Array.from(m.values()).sort((a, b) => b.total - a.total);
   }, [unifiedLogs]);
 
+  // Totais por ORIGEM (App interno / Chrome / Desktop). Cada dimensão é
+  // independente — nunca somamos entre origens (elas se sobrepõem no tempo).
   const sourceTotals = useMemo(() => {
-    const sum = (rows: { duracao: number }[]) => rows.reduce((a, r) => a + r.duracao, 0);
-    return {
-      app: sum(unifiedLogs.filter((l) => l.origem === "app")),
-      chrome: sum(unifiedLogs.filter((l) => l.origem === "chrome")),
-      desktop: sum(unifiedLogs.filter((l) => l.origem === "desktop")),
+    const agg = (origem: Origem) => {
+      const rows = unifiedLogs.filter((l) => l.origem === origem);
+      const dur = rows.reduce((a, r) => a + r.duracao, 0);
+      const idle = rows.reduce((a, r) => a + r.inativo, 0);
+      return { dur, idle, trabalhado: tempoTrabalhado(dur, idle) };
     };
+    return { app: agg("app"), chrome: agg("chrome"), desktop: agg("desktop") };
   }, [unifiedLogs]);
 
   const exportNavLogs = () => {
@@ -460,6 +464,7 @@ function Dashboard() {
       "URL/Path": l.sub,
       "Duração (s)": Math.round(l.duracao),
       "Inativo (s)": Math.round(l.inativo),
+      "Trabalhado (s)": Math.round(tempoTrabalhado(l.duracao, l.inativo)),
     }));
     import("xlsx").then((XLSX) => {
       const ws = XLSX.utils.json_to_sheet(rows);
@@ -895,14 +900,28 @@ function Dashboard() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle>Logs de atividade — {isToday ? "hoje" : "no dia"}</CardTitle>
             <div className="flex items-center gap-2 text-xs">
-              <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/5">
-                <Globe className="h-3 w-3" /> App {formatSeconds(sourceTotals.app)}
+              <Badge
+                variant="outline"
+                className="gap-1 border-primary/30 bg-primary/5"
+                title="Tempo trabalhado (duração − inativo)"
+              >
+                <Globe className="h-3 w-3" /> App {formatSeconds(sourceTotals.app.trabalhado)}
               </Badge>
-              <Badge variant="outline" className="gap-1 border-warning/30 bg-warning/5">
-                <Chrome className="h-3 w-3" /> Chrome {formatSeconds(sourceTotals.chrome)}
+              <Badge
+                variant="outline"
+                className="gap-1 border-warning/30 bg-warning/5"
+                title="Tempo trabalhado (duração − inativo)"
+              >
+                <Chrome className="h-3 w-3" /> Chrome{" "}
+                {formatSeconds(sourceTotals.chrome.trabalhado)}
               </Badge>
-              <Badge variant="outline" className="gap-1 border-info/30 bg-info/5">
-                <Monitor className="h-3 w-3" /> Desktop {formatSeconds(sourceTotals.desktop)}
+              <Badge
+                variant="outline"
+                className="gap-1 border-info/30 bg-info/5"
+                title="Tempo trabalhado (duração − inativo)"
+              >
+                <Monitor className="h-3 w-3" /> Desktop{" "}
+                {formatSeconds(sourceTotals.desktop.trabalhado)}
               </Badge>
               <Button
                 size="sm"
@@ -931,6 +950,7 @@ function Dashboard() {
                     <th className="px-3 py-2 text-right">Visitas</th>
                     <th className="px-3 py-2 text-right">Tempo</th>
                     <th className="px-3 py-2 text-right">Inativo</th>
+                    <th className="px-3 py-2 text-right">Trabalhado</th>
                     <th className="px-3 py-2 text-right">Último acesso</th>
                   </tr>
                 </thead>
@@ -965,6 +985,9 @@ function Dashboard() {
                       <td className="px-3 py-2 text-right font-mono">{formatSeconds(l.total)}</td>
                       <td className="px-3 py-2 text-right font-mono text-destructive">
                         {l.inativo > 0 ? formatSeconds(l.inativo) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-success">
+                        {formatSeconds(tempoTrabalhado(l.total, l.inativo))}
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
                         {formatHM(l.ultimo)}
