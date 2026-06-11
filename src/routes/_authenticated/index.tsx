@@ -45,7 +45,7 @@ function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
   const [now, setNow] = useState(new Date());
-  const [history30, setHistory30] = useState<{ date: string; ativo: number; pausa: number; almoco: number; inativo: number }[]>([]);
+  const [history30, setHistory30] = useState<{ date: string; ativo: number; pausa: number; almoco: number; inativo: number; offline: number }[]>([]);
 
   // Admin: filter by target user
   const [users, setUsers] = useState<{ id: string; nome: string }[]>([]);
