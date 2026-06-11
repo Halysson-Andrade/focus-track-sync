@@ -48,7 +48,18 @@ function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
   const [now, setNow] = useState(new Date());
-  const [history30, setHistory30] = useState<{ date: string; ativo: number; pausa: number; almoco: number; inativo: number; offline: number }[]>([]);
+  const [history30, setHistory30] = useState<{ date: Date; records: Registro[] }[]>([]);
+
+  // Selected day (defaults to today). When != today, dashboard shows historic data.
+  const startOfToday = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const [selectedDate, setSelectedDate] = useState<Date>(startOfToday);
+  const isToday = selectedDate.getTime() === startOfToday.getTime();
+  const dayRange = useMemo(() => {
+    const s = new Date(selectedDate); s.setHours(0,0,0,0);
+    const e = new Date(s); e.setDate(e.getDate() + 1);
+    return { start: s.toISOString(), end: e.toISOString() };
+  }, [selectedDate]);
+  const [dayRecords, setDayRecords] = useState<Registro[]>([]);
 
   // Admin: filter by target user
   const [users, setUsers] = useState<{ id: string; nome: string }[]>([]);
