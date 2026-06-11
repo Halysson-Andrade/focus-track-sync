@@ -7,7 +7,7 @@ import { InactivityModal } from "@/components/InactivityModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle, MousePointer2, Chrome, Globe, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle, MousePointer2, Chrome, Globe, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -53,6 +53,7 @@ function Dashboard() {
   // Selected day (defaults to today). When != today, dashboard shows historic data.
   const startOfToday = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday);
+  const [openDomain, setOpenDomain] = useState<string | null>(null);
   const isToday = selectedDate.getTime() === startOfToday.getTime();
   const dayRange = useMemo(() => {
     const s = new Date(selectedDate); s.setHours(0,0,0,0);
@@ -153,20 +154,51 @@ function Dashboard() {
 
   const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
 
-  // Aggregate page time
-  const pageAgg = useMemo(() => {
-    const m = new Map<string, { path: string; title: string; total: number; idle: number; visits: number }>();
+  // Aggregate navigation by DOMAIN (combines app pages + chrome external nav)
+  const domainAgg = useMemo(() => {
+    type PageRow = { label: string; path: string; total: number; idle: number; visits: number };
+    type DomainRow = {
+      domain: string;
+      origem: "app" | "chrome" | "misto";
+      total: number;
+      idle: number;
+      visits: number;
+      pages: Map<string, PageRow>;
+    };
+    const APP_DOMAIN = "App interno";
+    const m = new Map<string, DomainRow>();
+
+    const upsert = (domain: string, origem: "app" | "chrome", key: string, label: string, path: string, dur: number, idle: number) => {
+      let d = m.get(domain);
+      if (!d) {
+        d = { domain, origem, total: 0, idle: 0, visits: 0, pages: new Map() };
+        m.set(domain, d);
+      } else if (d.origem !== origem) {
+        d.origem = "misto";
+      }
+      d.total += dur;
+      d.idle += idle;
+      d.visits += 1;
+      const p = d.pages.get(key);
+      if (p) { p.total += dur; p.idle += idle; p.visits += 1; }
+      else d.pages.set(key, { label, path, total: dur, idle, visits: 1 });
+    };
+
     pages.forEach((p) => {
       const dur = p.duracao_segundos ?? (p.fim ? (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000 : (Date.now() - new Date(p.inicio).getTime()) / 1000);
-      const key = p.path;
-      if (!m.has(key)) m.set(key, { path: p.path, title: p.title ?? p.path, total: 0, idle: 0, visits: 0 });
-      const b = m.get(key)!;
-      b.total += dur;
-      b.idle += p.inativo_segundos || 0;
-      b.visits += 1;
+      upsert(APP_DOMAIN, "app", p.path, p.title ?? p.path, p.path, dur, p.inativo_segundos || 0);
     });
-    return Array.from(m.values()).sort((a, b) => b.total - a.total);
-  }, [pages, now]);
+    externalNav.forEach((n) => {
+      const dur = n.duracao_segundos ?? (n.fim ? (new Date(n.fim).getTime() - new Date(n.inicio).getTime()) / 1000 : (Date.now() - new Date(n.inicio).getTime()) / 1000);
+      upsert(n.domain || "desconhecido", "chrome", n.url, n.title ?? n.url, n.url, dur, n.inativo_segundos || 0);
+    });
+
+    return Array.from(m.values())
+      .map((d) => ({ ...d, pages: Array.from(d.pages.values()).sort((a, b) => b.total - a.total) }))
+      .sort((a, b) => b.total - a.total);
+  }, [pages, externalNav, now]);
+
+
 
   // Unified log: merge app pages + external chrome nav, sorted desc by inicio
   const unifiedLogs: UnifiedLog[] = useMemo(() => {
@@ -356,39 +388,75 @@ function Dashboard() {
       <Card>
         <CardHeader className="flex flex-row items-center gap-2"><MousePointer2 className="h-4 w-4 text-primary" /><CardTitle>Navegação monitorada — {isToday ? "hoje" : "no dia"}</CardTitle></CardHeader>
         <CardContent>
-          {pageAgg.length === 0 ? (
+          {domainAgg.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma navegação registrada.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="py-2 pr-4">Página</th>
-                    <th className="py-2 pr-4">Visitas</th>
-                    <th className="py-2 pr-4">Tempo total</th>
-                    <th className="py-2 pr-4">Inativo</th>
-                    <th className="py-2">Ativo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageAgg.map((p) => (
-                    <tr key={p.path} className="border-b border-border/50">
-                      <td className="py-2 pr-4">
-                        <div className="font-medium">{p.title}</div>
-                        <div className="font-mono text-xs text-muted-foreground">{p.path}</div>
-                      </td>
-                      <td className="py-2 pr-4">{p.visits}</td>
-                      <td className="py-2 pr-4 font-mono">{formatSeconds(p.total)}</td>
-                      <td className="py-2 pr-4 font-mono text-destructive">{formatSeconds(p.idle)}</td>
-                      <td className="py-2 font-mono text-success">{formatSeconds(Math.max(0, p.total - p.idle))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ul className="divide-y divide-border">
+              {domainAgg.map((d) => {
+                const isOpen = openDomain === d.domain;
+                const ativo = Math.max(0, d.total - d.idle);
+                const pctActive = d.total > 0 ? (ativo / d.total) * 100 : 0;
+                return (
+                  <li key={d.domain} className="py-2">
+                    <button
+                      type="button"
+                      onClick={() => setOpenDomain(isOpen ? null : d.domain)}
+                      className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted/40"
+                    >
+                      <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${d.origem === "app" ? "border-primary/40 text-primary" : d.origem === "chrome" ? "border-warning/40 text-warning" : "border-border text-muted-foreground"}`}>
+                        {d.origem === "app" ? <Globe className="h-3.5 w-3.5" /> : <Chrome className="h-3.5 w-3.5" />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-medium">{d.domain}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">{d.visits} {d.visits === 1 ? "visita" : "visitas"} · {d.pages.length} {d.pages.length === 1 ? "página" : "páginas"}</span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div className="h-full bg-success" style={{ width: `${pctActive}%` }} />
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs">
+                        <span className="font-mono text-sm">{formatSeconds(d.total)}</span>
+                        <span className="font-mono text-success">ativo {formatSeconds(ativo)}</span>
+                        {d.idle > 0 && <span className="font-mono text-destructive">idle {formatSeconds(d.idle)}</span>}
+                      </div>
+                      <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {isOpen && (
+                      <div className="mt-1 ml-10 overflow-x-auto rounded-md border border-border/60 bg-muted/20">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-border/60 text-left uppercase tracking-wider text-muted-foreground">
+                              <th className="px-3 py-1.5">Página</th>
+                              <th className="px-3 py-1.5">Visitas</th>
+                              <th className="px-3 py-1.5">Tempo</th>
+                              <th className="px-3 py-1.5">Ativo</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {d.pages.map((p) => (
+                              <tr key={p.path} className="border-b border-border/40 last:border-b-0">
+                                <td className="px-3 py-1.5">
+                                  <div className="truncate font-medium">{p.label}</div>
+                                  <div className="truncate font-mono text-[10px] text-muted-foreground">{p.path}</div>
+                                </td>
+                                <td className="px-3 py-1.5 font-mono">{p.visits}</td>
+                                <td className="px-3 py-1.5 font-mono">{formatSeconds(p.total)}</td>
+                                <td className="px-3 py-1.5 font-mono text-success">{formatSeconds(Math.max(0, p.total - p.idle))}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </CardContent>
       </Card>
+
 
       {/* Unified navigation log */}
       <Card>
