@@ -65,13 +65,24 @@ export function useCurrentSession(userId: string | undefined) {
       // the user for working elsewhere.
       if (!document.hidden) lastActivityRef.current = Date.now();
     };
+    // Heartbeat enviado pela extensão (content script -> postMessage) quando
+    // o sistema está ativo ou houve troca de aba em outra janela.
+    const onExtMessage = (e: MessageEvent) => {
+      if (e.source !== window) return;
+      const d = e.data;
+      if (d && d.source === "monitor-atividade" && d.type === "HEARTBEAT") {
+        lastActivityRef.current = Date.now();
+      }
+    };
     const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
     events.forEach((e) => window.addEventListener(e, bump, { passive: true }));
     window.addEventListener("focus", onVisibility);
+    window.addEventListener("message", onExtMessage);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       events.forEach((e) => window.removeEventListener(e, bump));
       window.removeEventListener("focus", onVisibility);
+      window.removeEventListener("message", onExtMessage);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
