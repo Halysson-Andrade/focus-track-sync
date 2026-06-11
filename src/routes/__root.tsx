@@ -121,6 +121,28 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // Sign out on machine restart / browser fully closed.
+  // sessionStorage is cleared whenever the browser session ends (shutdown,
+  // restart, full quit). If we boot without that flag but Supabase has a
+  // persisted session in localStorage, we treat it as a new machine session
+  // and force a sign-out.
+  useEffect(() => {
+    const FLAG = "gw_browser_session";
+    (async () => {
+      try {
+        if (!sessionStorage.getItem(FLAG)) {
+          const { supabase } = await import("@/integrations/supabase/client");
+          const { data } = await supabase.auth.getSession();
+          if (data.session) {
+            await supabase.auth.signOut();
+            if (location.pathname !== "/auth") location.replace("/auth");
+          }
+          sessionStorage.setItem(FLAG, "1");
+        }
+      } catch { /* noop */ }
+    })();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
