@@ -295,25 +295,7 @@ function Dashboard() {
             {todayRecords.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Sem registros.</p>
             ) : (
-              <ol className="relative ml-3 space-y-3 border-l border-border pl-5">
-                {todayRecords.map((r) => {
-                  const dur = r.duracao_minutos ?? (r.fim ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000 : (Date.now() - new Date(r.inicio).getTime()) / 60000);
-                  return (
-                    <li key={r.id} className="relative">
-                      <span className="absolute -left-[26px] top-1.5 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
-                        <div className="flex items-center gap-3">
-                          <StatusBadge status={r.status} />
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {formatHM(r.inicio)} → {r.fim ? formatHM(r.fim) : "agora"}
-                          </span>
-                        </div>
-                        <span className="font-mono text-xs font-semibold">{formatDuration(dur)}</span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+              <HorizontalTimeline records={todayRecords} />
             )}
           </CardContent>
         </Card>
@@ -444,5 +426,100 @@ function StatCard({ icon, label, value, accent }: { icon: React.ReactNode; label
         <div className="mt-3 text-2xl font-bold">{value}</div>
       </CardContent>
     </Card>
+  );
+}
+
+function HorizontalTimeline({ records }: { records: Registro[] }) {
+  const colorByStatus: Record<string, string> = {
+    ATIVO: "var(--color-success)",
+    PAUSA: "var(--color-warning)",
+    ALMOCO: "var(--color-info)",
+    INATIVO: "var(--color-destructive)",
+    ENCERRADO: "var(--color-muted)",
+  };
+
+  const nowTs = Date.now();
+  const startTs = Math.min(...records.map((r) => new Date(r.inicio).getTime()));
+  const endTsRaw = Math.max(...records.map((r) => (r.fim ? new Date(r.fim).getTime() : nowTs)));
+  // Anchor to whole hours for a cleaner axis
+  const HOUR = 3600_000;
+  const axisStart = Math.floor(startTs / HOUR) * HOUR;
+  const axisEnd = Math.ceil(endTsRaw / HOUR) * HOUR;
+  const span = Math.max(axisEnd - axisStart, HOUR);
+
+  const ticks: number[] = [];
+  for (let t = axisStart; t <= axisEnd; t += HOUR) ticks.push(t);
+
+  return (
+    <div className="space-y-2">
+      <div className="relative h-14 w-full overflow-hidden rounded-md border border-border bg-muted/30">
+        {/* hour gridlines */}
+        {ticks.map((t) => {
+          const left = ((t - axisStart) / span) * 100;
+          return (
+            <div
+              key={`g-${t}`}
+              className="absolute top-0 bottom-0 w-px bg-border/60"
+              style={{ left: `${left}%` }}
+            />
+          );
+        })}
+        {/* segments */}
+        {records.map((r) => {
+          const s = new Date(r.inicio).getTime();
+          const e = r.fim ? new Date(r.fim).getTime() : nowTs;
+          const left = ((s - axisStart) / span) * 100;
+          const width = Math.max(((e - s) / span) * 100, 0.4);
+          const dur = (e - s) / 60000;
+          return (
+            <div
+              key={r.id}
+              title={`${r.status} • ${formatHM(r.inicio)} → ${r.fim ? formatHM(r.fim) : "agora"} • ${formatDuration(dur)}`}
+              className="absolute top-2 bottom-2 rounded-sm transition-opacity hover:opacity-80"
+              style={{
+                left: `${left}%`,
+                width: `${width}%`,
+                background: colorByStatus[r.status] ?? "var(--color-muted)",
+              }}
+            />
+          );
+        })}
+        {/* "now" marker */}
+        {nowTs >= axisStart && nowTs <= axisEnd && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-foreground/70"
+            style={{ left: `${((nowTs - axisStart) / span) * 100}%` }}
+          />
+        )}
+      </div>
+      {/* axis labels */}
+      <div className="relative h-4 w-full text-[10px] text-muted-foreground">
+        {ticks.map((t, i) => {
+          const left = ((t - axisStart) / span) * 100;
+          const isLast = i === ticks.length - 1;
+          return (
+            <span
+              key={`l-${t}`}
+              className="absolute font-mono"
+              style={{
+                left: `${left}%`,
+                transform: isLast ? "translateX(-100%)" : i === 0 ? "translateX(0)" : "translateX(-50%)",
+              }}
+            >
+              {new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          );
+        })}
+      </div>
+      {/* legend */}
+      <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-muted-foreground">
+        {(["ATIVO", "PAUSA", "ALMOCO", "INATIVO"] as const).map((s) => (
+          <span key={s} className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: colorByStatus[s] }} />
+            {s === "ALMOCO" ? "Almoço" : s.charAt(0) + s.slice(1).toLowerCase()}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
