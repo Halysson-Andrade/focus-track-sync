@@ -435,25 +435,43 @@ function Dashboard() {
 
 
       <Card>
-        <CardHeader className="flex flex-row items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" /><CardTitle>Histórico — 30 dias</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" /><CardTitle>Histórico — últimos 30 dias</CardTitle></CardHeader>
         <CardContent>
           {history30.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">Sem histórico.</p>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={history30}>
-                <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} />
-                <YAxis tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 60)}h`} />
-                <Tooltip formatter={(v: number) => formatDuration(v)} />
-                <Legend />
-                <Bar dataKey="ativo" stackId="a" name="Ativo" fill="var(--color-success)" />
-                <Bar dataKey="pausa" stackId="a" name="Pausa" fill="var(--color-warning)" />
-                <Bar dataKey="almoco" stackId="a" name="Almoço" fill="var(--color-info)" />
-                <Bar dataKey="inativo" stackId="a" name="Inativo" fill="var(--color-destructive)" />
-                <Bar dataKey="offline" stackId="a" name="Offline" fill="var(--color-muted-foreground)" fillOpacity={0.35} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="space-y-5">
+              {history30.map((day) => {
+                const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
+                day.records.forEach((r) => {
+                  const dur = r.duracao_minutos ?? (r.fim ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000 : 0);
+                  if (r.status in totals) totals[r.status as keyof typeof totals] += dur;
+                });
+                const isSelected = day.date.getTime() === selectedDate.getTime();
+                return (
+                  <div
+                    key={day.date.toISOString()}
+                    className={cn("rounded-lg border p-4 transition-colors", isSelected ? "border-primary bg-primary/5" : "border-border bg-muted/10 hover:bg-muted/20")}
+                  >
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <button
+                        onClick={() => setSelectedDate(day.date)}
+                        className="text-left text-sm font-semibold hover:text-primary"
+                      >
+                        {day.date.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                      </button>
+                      <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-muted-foreground">
+                        <span className="text-success">A {formatDuration(totals.ATIVO)}</span>
+                        <span className="text-warning">P {formatDuration(totals.PAUSA)}</span>
+                        <span className="text-info">Al {formatDuration(totals.ALMOCO)}</span>
+                        <span className="text-destructive">I {formatDuration(totals.INATIVO)}</span>
+                      </div>
+                    </div>
+                    <HorizontalTimeline records={day.records} />
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
