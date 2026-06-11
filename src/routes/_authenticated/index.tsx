@@ -545,7 +545,7 @@ function Dashboard() {
       </Card>
 
 
-      {/* Unified navigation log */}
+      {/* Consolidated navigation log */}
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -557,67 +557,58 @@ function Dashboard() {
               <Badge variant="outline" className="gap-1 border-warning/30 bg-warning/5">
                 <Chrome className="h-3 w-3" /> Chrome {formatSeconds(sourceTotals.chrome)}
               </Badge>
+              <Button size="sm" variant="outline" onClick={exportNavLogs} disabled={unifiedLogs.length === 0}>
+                Exportar detalhado
+              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {unifiedLogs.length === 0 ? (
+          {consolidatedLogs.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Sem logs. Instale a extensão para capturar navegação fora do app.</p>
           ) : (
-            <>
-              <ul className="space-y-1.5 text-sm">
-                {unifiedLogs.slice((logPage - 1) * logPageSize, logPage * logPageSize).map((l) => (
-                  <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="font-mono text-xs text-muted-foreground shrink-0">{formatHM(l.inicio)}</span>
-                      {l.origem === "app" ? (
-                        <Badge variant="outline" className="gap-1 shrink-0 border-primary/40 text-primary"><Globe className="h-3 w-3" /> App</Badge>
-                      ) : (
-                        <Badge variant="outline" className="gap-1 shrink-0 border-warning/40 text-warning"><Chrome className="h-3 w-3" /> Chrome</Badge>
-                      )}
-                      <span className="font-medium truncate">{l.label}</span>
-                      <span className="font-mono text-xs text-muted-foreground truncate">{l.sub}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs shrink-0">
-                      <span className="font-mono">{formatSeconds(l.duracao)}</span>
-                      {l.inativo > 0 && <span className="font-mono text-destructive">idle {formatSeconds(l.inativo)}</span>}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>Itens por página:</span>
-                  <Select value={String(logPageSize)} onValueChange={(v) => { setLogPageSize(Number(v)); setLogPage(1); }}>
-                    <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span>{unifiedLogs.length} total</span>
-                </div>
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious onClick={() => setLogPage((p) => Math.max(1, p - 1))} className={logPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
-                    </PaginationItem>
-                    {Array.from({ length: Math.ceil(unifiedLogs.length / logPageSize) }, (_, i) => i + 1).map((p) => (
-                      <PaginationItem key={p}>
-                        <PaginationLink isActive={p === logPage} onClick={() => setLogPage(p)} className="cursor-pointer">{p}</PaginationLink>
-                      </PaginationItem>
-                    ))}
-                    <PaginationItem>
-                      <PaginationNext onClick={() => setLogPage((p) => Math.min(Math.ceil(unifiedLogs.length / logPageSize), p + 1))} className={logPage === Math.ceil(unifiedLogs.length / logPageSize) ? "pointer-events-none opacity-50" : "cursor-pointer"} />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              </div>
-            </>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
+                    <th className="px-3 py-2">Origem</th>
+                    <th className="px-3 py-2">Página / Domínio</th>
+                    <th className="px-3 py-2 text-right">Visitas</th>
+                    <th className="px-3 py-2 text-right">Tempo</th>
+                    <th className="px-3 py-2 text-right">Inativo</th>
+                    <th className="px-3 py-2 text-right">Último acesso</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consolidatedLogs.map((l) => (
+                    <tr key={`${l.origem}:${l.sub}`} className="border-b border-border/50 last:border-0">
+                      <td className="px-3 py-2">
+                        {l.origem === "app" ? (
+                          <Badge variant="outline" className="gap-1 border-primary/40 text-primary"><Globe className="h-3 w-3" /> App</Badge>
+                        ) : (
+                          <Badge variant="outline" className="gap-1 border-warning/40 text-warning"><Chrome className="h-3 w-3" /> Chrome</Badge>
+                        )}
+                      </td>
+                      <td className="min-w-0 max-w-[420px] px-3 py-2">
+                        <div className="truncate font-medium">{l.label}</div>
+                        <div className="truncate font-mono text-[11px] text-muted-foreground">{l.sub}</div>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">{l.visitas}</td>
+                      <td className="px-3 py-2 text-right font-mono">{formatSeconds(l.total)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-destructive">{l.inativo > 0 ? formatSeconds(l.inativo) : "—"}</td>
+                      <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">{formatHM(l.ultimo)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Visão consolidada por página/domínio. Use “Exportar detalhado” para baixar o histórico completo de visitas.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
+
 
 
       <Card>
