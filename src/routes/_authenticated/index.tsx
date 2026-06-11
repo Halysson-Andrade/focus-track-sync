@@ -153,20 +153,51 @@ function Dashboard() {
 
   const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
 
-  // Aggregate page time
-  const pageAgg = useMemo(() => {
-    const m = new Map<string, { path: string; title: string; total: number; idle: number; visits: number }>();
+  // Aggregate navigation by DOMAIN (combines app pages + chrome external nav)
+  const domainAgg = useMemo(() => {
+    type PageRow = { label: string; path: string; total: number; idle: number; visits: number };
+    type DomainRow = {
+      domain: string;
+      origem: "app" | "chrome" | "misto";
+      total: number;
+      idle: number;
+      visits: number;
+      pages: Map<string, PageRow>;
+    };
+    const APP_DOMAIN = "App interno";
+    const m = new Map<string, DomainRow>();
+
+    const upsert = (domain: string, origem: "app" | "chrome", key: string, label: string, path: string, dur: number, idle: number) => {
+      let d = m.get(domain);
+      if (!d) {
+        d = { domain, origem, total: 0, idle: 0, visits: 0, pages: new Map() };
+        m.set(domain, d);
+      } else if (d.origem !== origem) {
+        d.origem = "misto";
+      }
+      d.total += dur;
+      d.idle += idle;
+      d.visits += 1;
+      const p = d.pages.get(key);
+      if (p) { p.total += dur; p.idle += idle; p.visits += 1; }
+      else d.pages.set(key, { label, path, total: dur, idle, visits: 1 });
+    };
+
     pages.forEach((p) => {
       const dur = p.duracao_segundos ?? (p.fim ? (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000 : (Date.now() - new Date(p.inicio).getTime()) / 1000);
-      const key = p.path;
-      if (!m.has(key)) m.set(key, { path: p.path, title: p.title ?? p.path, total: 0, idle: 0, visits: 0 });
-      const b = m.get(key)!;
-      b.total += dur;
-      b.idle += p.inativo_segundos || 0;
-      b.visits += 1;
+      upsert(APP_DOMAIN, "app", p.path, p.title ?? p.path, p.path, dur, p.inativo_segundos || 0);
     });
-    return Array.from(m.values()).sort((a, b) => b.total - a.total);
-  }, [pages, now]);
+    externalNav.forEach((n) => {
+      const dur = n.duracao_segundos ?? (n.fim ? (new Date(n.fim).getTime() - new Date(n.inicio).getTime()) / 1000 : (Date.now() - new Date(n.inicio).getTime()) / 1000);
+      upsert(n.domain || "desconhecido", "chrome", n.url, n.title ?? n.url, n.url, dur, n.inativo_segundos || 0);
+    });
+
+    return Array.from(m.values())
+      .map((d) => ({ ...d, pages: Array.from(d.pages.values()).sort((a, b) => b.total - a.total) }))
+      .sort((a, b) => b.total - a.total);
+  }, [pages, externalNav, now]);
+
+
 
   // Unified log: merge app pages + external chrome nav, sorted desc by inicio
   const unifiedLogs: UnifiedLog[] = useMemo(() => {
