@@ -51,6 +51,9 @@ function formatSeconds(s: number) {
 function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
+  const [breakDialog, setBreakDialog] = useState<{ kind: "PAUSA" | "ALMOCO" } | null>(null);
+  const [breakReason, setBreakReason] = useState("");
+  const [breakBusy, setBreakBusy] = useState(false);
   const [now, setNow] = useState(new Date());
   const [history30, setHistory30] = useState<{ date: Date; records: Registro[] }[]>([]);
 
