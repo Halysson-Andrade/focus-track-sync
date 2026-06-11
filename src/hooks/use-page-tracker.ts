@@ -10,25 +10,34 @@ const PAGE_LABELS: Record<string, string> = {
   "/auth": "Login",
 };
 
-const IDLE_THRESHOLD_MS = 60 * 1000; // 1 min of no activity counts as idle
+const IDLE_THRESHOLD_MS = 60 * 1000; // 1 min sem atividade conta como inativo
 
 /**
- * Tracks per-page navigation: time spent on each route and idle time within it.
- * Creates a row on route enter, finalizes (sets fim/duracao/inativo) on route change or unload.
+ * Tracks per-page navigation. Conta apenas o tempo em que a aba está
+ * efetivamente em foco (visível + janela com foco). Tempo em background
+ * (outra aba/janela) NÃO é contabilizado.
  */
 export function usePageTracker(userId: string | undefined, registroId: string | null | undefined) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const currentRowId = useRef<string | null>(null);
-  const enteredAt = useRef<number>(Date.now());
-  const lastActivity = useRef<number>(Date.now());
-  const idleAccum = useRef<number>(0);
 
-  // Track activity to compute idle time
+  // foco
+  const focusedAccum = useRef<number>(0); // ms acumulados em foco
+  const focusStart = useRef<number | null>(null); // quando começou o foco atual
+  const idleAccum = useRef<number>(0); // ms inativos (sem interação) dentro do foco
+  const lastActivity = useRef<number>(Date.now());
+
+  const isFocused = () =>
+    typeof document !== "undefined" && !document.hidden && document.hasFocus();
+
+  // Atividade do usuário (para contabilizar inatividade dentro do foco)
   useEffect(() => {
     const onActivity = () => {
       const now = Date.now();
-      const gap = now - lastActivity.current;
-      if (gap > IDLE_THRESHOLD_MS) idleAccum.current += gap;
+      if (focusStart.current !== null) {
+        const gap = now - lastActivity.current;
+        if (gap > IDLE_THRESHOLD_MS) idleAccum.current += gap;
+      }
       lastActivity.current = now;
     };
     const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
@@ -36,16 +45,45 @@ export function usePageTracker(userId: string | undefined, registroId: string | 
     return () => events.forEach((e) => window.removeEventListener(e, onActivity));
   }, []);
 
-  // On path change: close previous row, open new one
+  // Foco/visibilidade: pausa/retoma contagem
+  useEffect(() => {
+    const startFocus = () => {
+      if (focusStart.current === null) {
+        focusStart.current = Date.now();
+        lastActivity.current = Date.now();
+      }
+    };
+    const stopFocus = () => {
+      if (focusStart.current !== null) {
+        const now = Date.now();
+        focusedAccum.current += now - focusStart.current;
+        const gap = now - lastActivity.current;
+        if (gap > IDLE_THRESHOLD_MS) idleAccum.current += gap;
+        focusStart.current = null;
+      }
+    };
+    const onVis = () => (isFocused() ? startFocus() : stopFocus());
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", startFocus);
+    window.addEventListener("blur", stopFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", startFocus);
+      window.removeEventListener("blur", stopFocus);
+    };
+  }, []);
+
+  // Em troca de rota: fecha a anterior e abre nova
   useEffect(() => {
     if (!userId) return;
     if (pathname.startsWith("/auth")) return;
 
     let cancelled = false;
-    const openedAt = Date.now();
-    enteredAt.current = openedAt;
-    lastActivity.current = openedAt;
+    // reset acumuladores e inicia foco se a aba estiver visível
+    focusedAccum.current = 0;
     idleAccum.current = 0;
+    lastActivity.current = Date.now();
+    focusStart.current = isFocused() ? Date.now() : null;
 
     (async () => {
       const { data } = await supabase
@@ -65,25 +103,22 @@ export function usePageTracker(userId: string | undefined, registroId: string | 
       const id = currentRowId.current;
       if (!id) return;
       const now = Date.now();
-      // account residual idle if still idle when leaving
+      let focused = focusedAccum.current;
+      if (focusStart.current !== null) focused += now - focusStart.current;
       const gap = now - lastActivity.current;
-      const idleTotal = idleAccum.current + (gap > IDLE_THRESHOLD_MS ? gap : 0);
-      const durSec = (now - enteredAt.current) / 1000;
+      const idleTotal = idleAccum.current + (focusStart.current !== null && gap > IDLE_THRESHOLD_MS ? gap : 0);
       currentRowId.current = null;
       await supabase
         .from("navegacao_paginas")
         .update({
           fim: new Date(now).toISOString(),
-          duracao_segundos: durSec,
-          inativo_segundos: idleTotal / 1000,
+          duracao_segundos: focused / 1000,
+          inativo_segundos: Math.min(idleTotal, focused) / 1000,
         })
         .eq("id", id);
     };
 
-    const onBeforeUnload = () => {
-      // best-effort fire-and-forget
-      closeRow();
-    };
+    const onBeforeUnload = () => { closeRow(); };
     window.addEventListener("beforeunload", onBeforeUnload);
 
     return () => {
