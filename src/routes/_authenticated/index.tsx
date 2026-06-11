@@ -209,7 +209,8 @@ function Dashboard() {
 
 
 
-  // Unified log: merge app pages + external chrome nav, sorted desc by inicio
+  // Unified log: merge app pages + external chrome nav, sorted desc by inicio.
+  // Used only for the detailed export — on screen we show a consolidated view.
   const unifiedLogs: UnifiedLog[] = useMemo(() => {
     const nowTs = Date.now();
     const appLogs: UnifiedLog[] = pages.map((p) => {
@@ -223,6 +224,22 @@ function Dashboard() {
     return [...appLogs, ...extLogs].sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime());
   }, [pages, externalNav, now]);
 
+  // Consolidated log: groups by origem + sub (path/domain), aggregating visits, total and idle.
+  const consolidatedLogs = useMemo(() => {
+    const m = new Map<string, { origem: "app" | "chrome"; label: string; sub: string; visitas: number; total: number; inativo: number; ultimo: string }>();
+    for (const l of unifiedLogs) {
+      const key = `${l.origem}::${l.sub}`;
+      const cur = m.get(key);
+      if (cur) {
+        cur.visitas += 1; cur.total += l.duracao; cur.inativo += l.inativo;
+        if (new Date(l.inicio).getTime() > new Date(cur.ultimo).getTime()) { cur.ultimo = l.inicio; cur.label = l.label; }
+      } else {
+        m.set(key, { origem: l.origem, label: l.label, sub: l.sub, visitas: 1, total: l.duracao, inativo: l.inativo, ultimo: l.inicio });
+      }
+    }
+    return Array.from(m.values()).sort((a, b) => b.total - a.total);
+  }, [unifiedLogs]);
+
   const sourceTotals = useMemo(() => {
     const sum = (rows: { duracao: number }[]) => rows.reduce((a, r) => a + r.duracao, 0);
     return {
@@ -230,6 +247,26 @@ function Dashboard() {
       chrome: sum(unifiedLogs.filter((l) => l.origem === "chrome")),
     };
   }, [unifiedLogs]);
+
+  const exportNavLogs = () => {
+    const rows = unifiedLogs.map((l) => ({
+      Origem: l.origem === "app" ? "App" : "Chrome",
+      Início: formatHM(l.inicio),
+      Fim: l.fim ? formatHM(l.fim) : "Em andamento",
+      Título: l.label,
+      "URL/Path": l.sub,
+      "Duração (s)": Math.round(l.duracao),
+      "Inativo (s)": Math.round(l.inativo),
+    }));
+    import("xlsx").then((XLSX) => {
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Navegação");
+      const day = selectedDate.toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `navegacao-${day}.xlsx`);
+    });
+  };
+
 
 
   const currentOpen = (isToday && !viewingOther) ? session.current : (todayRecords.find((r) => !r.fim) ?? null);
