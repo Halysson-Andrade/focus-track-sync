@@ -48,6 +48,15 @@ function formatSeconds(s: number) {
   return formatDuration(s / 60);
 }
 
+// Duração segura: registros em aberto (sem fim) só contam até o último valor
+// reportado pelo heartbeat (+90s de tolerância) — evita contagem infinita de
+// registros órfãos que não foram fechados pela extensão.
+function safeDur(duracao: number | null, inicio: string, fim: string | null) {
+  if (fim) return duracao ?? (new Date(fim).getTime() - new Date(inicio).getTime()) / 1000;
+  const live = (Date.now() - new Date(inicio).getTime()) / 1000;
+  return Math.min(Math.max(live, 0), (duracao ?? 0) + 90);
+}
+
 function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
@@ -194,11 +203,11 @@ function Dashboard() {
     };
 
     pages.forEach((p) => {
-      const dur = p.duracao_segundos ?? (p.fim ? (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000 : (Date.now() - new Date(p.inicio).getTime()) / 1000);
+      const dur = safeDur(p.duracao_segundos, p.inicio, p.fim);
       upsert(APP_DOMAIN, "app", p.path, p.title ?? p.path, p.path, dur, p.inativo_segundos || 0);
     });
     externalNav.forEach((n) => {
-      const dur = n.duracao_segundos ?? (n.fim ? (new Date(n.fim).getTime() - new Date(n.inicio).getTime()) / 1000 : (Date.now() - new Date(n.inicio).getTime()) / 1000);
+      const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
       upsert(n.domain || "desconhecido", "chrome", n.url, n.title ?? n.url, n.url, dur, n.inativo_segundos || 0);
     });
 
@@ -212,13 +221,12 @@ function Dashboard() {
   // Unified log: merge app pages + external chrome nav, sorted desc by inicio.
   // Used only for the detailed export — on screen we show a consolidated view.
   const unifiedLogs: UnifiedLog[] = useMemo(() => {
-    const nowTs = Date.now();
     const appLogs: UnifiedLog[] = pages.map((p) => {
-      const dur = p.duracao_segundos ?? (p.fim ? (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000 : (nowTs - new Date(p.inicio).getTime()) / 1000);
+      const dur = safeDur(p.duracao_segundos, p.inicio, p.fim);
       return { id: `a:${p.id}`, origem: "app", label: p.title ?? p.path, sub: p.path, inicio: p.inicio, fim: p.fim, duracao: dur, inativo: p.inativo_segundos || 0 };
     });
     const extLogs: UnifiedLog[] = externalNav.map((n) => {
-      const dur = n.duracao_segundos ?? (n.fim ? (new Date(n.fim).getTime() - new Date(n.inicio).getTime()) / 1000 : (nowTs - new Date(n.inicio).getTime()) / 1000);
+      const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
       return { id: `e:${n.id}`, origem: "chrome", label: n.title ?? n.domain, sub: n.domain, inicio: n.inicio, fim: n.fim, duracao: dur, inativo: n.inativo_segundos || 0 };
     });
     return [...appLogs, ...extLogs].sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime());
