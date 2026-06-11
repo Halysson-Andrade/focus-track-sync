@@ -584,12 +584,9 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
     }
   }
 
-  // First start / last end of worked (ATIVO) records — always highlighted
-  const ativoRecs = records.filter((r) => r.status === "ATIVO");
-  const ativoStart = ativoRecs.length ? Math.min(...ativoRecs.map((r) => new Date(r.inicio).getTime())) : null;
-  const ativoEnd = ativoRecs.length
-    ? Math.max(...ativoRecs.map((r) => (r.fim ? new Date(r.fim).getTime() : nowTs)))
-    : null;
+  // Highlighted worked window (reuses already-computed bounds)
+  const ativoStart = workStartTs;
+  const ativoEnd = workEndTs;
 
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [hover, setHover] = useState<{ x: number; ts: number; rec: Registro | null } | null>(null);
@@ -598,7 +595,8 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
     const el = trackRef.current; if (!el) return;
     const rect = el.getBoundingClientRect();
     const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    const ts = axisStart + (x / rect.width) * span;
+    const p = (x / rect.width) * 100;
+    const ts = tsFromPct(p);
     const rec = records.find((r) => {
       const s = new Date(r.inicio).getTime();
       const en = r.fim ? new Date(r.fim).getTime() : nowTs;
