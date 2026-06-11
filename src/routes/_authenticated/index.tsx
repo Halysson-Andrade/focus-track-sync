@@ -351,6 +351,47 @@ function Dashboard() {
         </Card>
       )}
 
+      <Dialog
+        open={!!breakDialog}
+        onOpenChange={(o) => { if (!o) { setBreakDialog(null); setBreakReason(""); } }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{breakDialog?.kind === "ALMOCO" ? "Iniciar almoço" : "Iniciar pausa"}</DialogTitle>
+            <DialogDescription>Informe uma justificativa antes de continuar.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="break-reason">Justificativa</Label>
+            <Textarea
+              id="break-reason"
+              value={breakReason}
+              onChange={(e) => setBreakReason(e.target.value)}
+              placeholder={breakDialog?.kind === "ALMOCO" ? "Ex: horário de almoço" : "Ex: pausa para café"}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={breakBusy || breakReason.trim().length < 3}
+              onClick={async () => {
+                if (!breakDialog) return;
+                setBreakBusy(true);
+                try {
+                  const reason = breakReason.trim();
+                  if (breakDialog.kind === "PAUSA") await session.pause(reason);
+                  else await session.lunch(reason);
+                  setBreakDialog(null);
+                  setBreakReason("");
+                } finally { setBreakBusy(false); }
+              }}
+            >
+              {breakBusy ? "..." : "Confirmar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatCard icon={<ActivityIcon className="h-4 w-4" />} label="Trabalhadas" value={formatDuration(totals.ATIVO)} accent="success" />
