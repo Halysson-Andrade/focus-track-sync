@@ -619,8 +619,22 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
         onMouseLeave={() => setHover(null)}
         className="relative h-16 w-full overflow-hidden rounded-md border border-border bg-muted/30"
       >
+        {/* Highlighted "zoom" band over the worked window */}
+        {hasWork && (
+          <div
+            className="absolute top-0 bottom-0 bg-success/5"
+            style={{
+              left: `${beforePct}%`,
+              width: `${WORK_PCT}%`,
+              borderLeft: "1px dashed color-mix(in oklch, var(--color-success) 40%, transparent)",
+              borderRight: "1px dashed color-mix(in oklch, var(--color-success) 40%, transparent)",
+            }}
+          />
+        )}
+
         {/* central baseline reinforcing the worked-time band */}
         <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-border/60" />
+
 
         {/* hour minor gridlines */}
         {minorTicks.map((t) => (
