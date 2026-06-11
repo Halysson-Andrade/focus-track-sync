@@ -180,7 +180,13 @@ chrome.idle.onStateChanged.addListener(async (state) => {
 // Heartbeat: atualiza linha aberta periodicamente (caso o SW reinicie)
 chrome.alarms.create("heartbeat", { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener(async (a) => {
-  if (a.name !== "heartbeat" || !currentRow || !currentRow.id) return;
+  if (a.name !== "heartbeat") return;
+  if (!currentRow || !currentRow.id) {
+    // SW reiniciou e perdeu a referência — fecha a linha órfã para não
+    // continuar contando tempo de uma aba que pode nem estar mais em foco.
+    await closeStaleRow();
+    return;
+  }
   const now = Date.now();
   const idleNow = currentRow.idleStart ? (now - currentRow.idleStart) : 0;
   try {
@@ -241,10 +247,16 @@ chrome.runtime.onStartup.addListener(async () => {
   // Máquina/navegador foi reiniciado: derruba a sessão da extensão para
   // forçar novo login, alinhado com o comportamento do app web.
   try { await chrome.storage.local.remove("session"); } catch {}
+  try { await chrome.storage.session.remove("openRow"); } catch {}
   currentRow = null;
 });
 chrome.runtime.onInstalled.addListener(async () => {
+  await closeStaleRow();
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (tab) handleActive(tab);
 });
+
+// SW pode reiniciar a qualquer momento: ao acordar, fecha linha órfã.
+closeStaleRow();
+
 
