@@ -2,7 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Chrome, Copy, ExternalLink, RotateCcw, ShieldCheck, Eye, Clock, AlertTriangle } from "lucide-react";
+import {
+  Download,
+  Chrome,
+  Copy,
+  ExternalLink,
+  RotateCcw,
+  ShieldCheck,
+  Eye,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
 import {
   UnzipIllustration,
   ChromeUrlIllustration,
@@ -21,7 +31,10 @@ function ExtensaoPage() {
 
   const download = () => {
     fetch("/monitor-extension.zip")
-      .then((r) => { if (!r.ok) throw new Error("Falha no download"); return r.blob(); })
+      .then((r) => {
+        if (!r.ok) throw new Error("Falha no download");
+        return r.blob();
+      })
       .then((blob) => {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
@@ -85,19 +98,27 @@ function ExtensaoPage() {
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                 <span>
-                  <b>Importante:</b> o Chrome <u>não aceita o arquivo .zip diretamente</u>.
-                  É preciso descompactá-lo antes do próximo passo.
+                  <b>Importante:</b> o Chrome <u>não aceita o arquivo .zip diretamente</u>. É
+                  preciso descompactá-lo antes do próximo passo.
                 </span>
               </div>
             </div>
             <p className="font-medium">Como descompactar:</p>
             <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-              <li><b>Windows:</b> botão direito no ZIP → <i>Extrair tudo…</i></li>
-              <li><b>Mac:</b> duplo clique no arquivo <code>.zip</code> (cria a pasta automaticamente).</li>
-              <li><b>Linux:</b> botão direito → <i>Extrair aqui</i>.</li>
+              <li>
+                <b>Windows:</b> botão direito no ZIP → <i>Extrair tudo…</i>
+              </li>
+              <li>
+                <b>Mac:</b> duplo clique no arquivo <code>.zip</code> (cria a pasta
+                automaticamente).
+              </li>
+              <li>
+                <b>Linux:</b> botão direito → <i>Extrair aqui</i>.
+              </li>
             </ul>
             <p className="text-xs text-muted-foreground">
-              Anote onde a pasta <code>monitor-extension</code> ficou — você vai selecioná-la no passo 4.
+              Anote onde a pasta <code>monitor-extension</code> ficou — você vai selecioná-la no
+              passo 4.
             </p>
           </div>
         </div>
@@ -120,13 +141,16 @@ function ExtensaoPage() {
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => { copyChromeUrl(); window.open("about:blank", "_blank"); }}
+              onClick={() => {
+                copyChromeUrl();
+                window.open("about:blank", "_blank");
+              }}
             >
               <ExternalLink className="h-4 w-4 mr-2" /> Copiar e abrir nova aba
             </Button>
             <p className="text-xs text-muted-foreground">
-              Navegadores bloqueiam abrir <code>chrome://</code> automaticamente —
-              por isso o link precisa ser colado manualmente.
+              Navegadores bloqueiam abrir <code>chrome://</code> automaticamente — por isso o link
+              precisa ser colado manualmente.
             </p>
           </div>
         </div>
@@ -142,10 +166,12 @@ function ExtensaoPage() {
           <div className="space-y-3 text-sm">
             <ol className="list-decimal list-inside space-y-2">
               <li>
-                Em <code className="bg-muted px-1 rounded">chrome://extensions</code>,
-                ative o <b>Modo do desenvolvedor</b> (canto superior direito).
+                Em <code className="bg-muted px-1 rounded">chrome://extensions</code>, ative o{" "}
+                <b>Modo do desenvolvedor</b> (canto superior direito).
               </li>
-              <li>Clique em <b>Carregar sem compactação</b>.</li>
+              <li>
+                Clique em <b>Carregar sem compactação</b>.
+              </li>
               <li>
                 Selecione a <b>pasta</b> <code>monitor-extension</code> que você descompactou —
                 <u>não o arquivo .zip</u>.
@@ -171,15 +197,31 @@ function ExtensaoPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 text-sm">
-          <InfoLine icon={<Chrome className="h-4 w-4" />} label="Sites visitados" desc="URL, domínio e título da página." />
-          <InfoLine icon={<Clock className="h-4 w-4" />} label="Tempo por site" desc="Quanto tempo você ficou em cada página." />
-          <InfoLine icon={<AlertTriangle className="h-4 w-4" />} label="Tempo ocioso" desc="Mouse/teclado parados por mais de 1 minuto." />
-          <InfoLine icon={<ShieldCheck className="h-4 w-4" />} label="Foco da janela" desc="Quando o Chrome perde o foco para outro app." />
+          <InfoLine
+            icon={<Chrome className="h-4 w-4" />}
+            label="Sites visitados"
+            desc="URL, domínio e título da página."
+          />
+          <InfoLine
+            icon={<Clock className="h-4 w-4" />}
+            label="Tempo por site"
+            desc="Quanto tempo você ficou em cada página."
+          />
+          <InfoLine
+            icon={<AlertTriangle className="h-4 w-4" />}
+            label="Tempo ocioso"
+            desc="Mouse/teclado parados por mais de 1 minuto."
+          />
+          <InfoLine
+            icon={<ShieldCheck className="h-4 w-4" />}
+            label="Foco da janela"
+            desc="Quando o Chrome perde o foco para outro app."
+          />
         </CardContent>
         <CardContent className="pt-0">
           <p className="text-xs text-muted-foreground">
-            Outros navegadores (Firefox, Safari) e aplicativos fora do navegador <b>não</b> são monitorados.
-            Funciona em Chrome, Edge, Brave, Opera e outros baseados em Chromium.
+            Outros navegadores (Firefox, Safari) e aplicativos fora do navegador <b>não</b> são
+            monitorados. Funciona em Chrome, Edge, Brave, Opera e outros baseados em Chromium.
           </p>
         </CardContent>
       </Card>
@@ -187,7 +229,15 @@ function ExtensaoPage() {
   );
 }
 
-function Step({ number, title, children }: { number: number; title: string; children: React.ReactNode }) {
+function Step({
+  number,
+  title,
+  children,
+}: {
+  number: number;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -206,7 +256,9 @@ function Step({ number, title, children }: { number: number; title: string; chil
 function InfoLine({ icon, label, desc }: { icon: React.ReactNode; label: string; desc: string }) {
   return (
     <div className="flex items-start gap-3 rounded-md border bg-muted/20 p-3">
-      <span className="grid h-8 w-8 place-items-center rounded-md bg-primary/10 text-primary shrink-0">{icon}</span>
+      <span className="grid h-8 w-8 place-items-center rounded-md bg-primary/10 text-primary shrink-0">
+        {icon}
+      </span>
       <div>
         <div className="font-medium">{label}</div>
         <div className="text-xs text-muted-foreground">{desc}</div>

@@ -7,11 +7,13 @@
       if (msg && msg.type === "EXT_HEARTBEAT") {
         window.postMessage(
           { source: "monitor-atividade", type: "HEARTBEAT", ts: Date.now() },
-          window.location.origin
+          window.location.origin,
         );
       }
     });
     // Anuncia presença para o background empurrar um heartbeat imediato.
     chrome.runtime.sendMessage({ type: "PAGE_READY" });
-  } catch (_) { /* contexto invalidado */ }
+  } catch (_) {
+    /* contexto invalidado */
+  }
 })();

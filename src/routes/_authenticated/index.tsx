@@ -6,20 +6,49 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { InactivityModal } from "@/components/InactivityModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as ActivityIcon, AlertTriangle, MousePointer2, Chrome, Globe, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Coffee,
+  Pause,
+  Play,
+  Square,
+  Utensils,
+  Clock,
+  TrendingUp,
+  Activity as ActivityIcon,
+  AlertTriangle,
+  MousePointer2,
+  Chrome,
+  Globe,
+  Monitor,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatHM } from "@/lib/format";
-import {
-  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
-} from "recharts";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -28,19 +57,50 @@ export const Route = createFileRoute("/_authenticated/")({
 });
 
 type Registro = {
-  id: string; status: string; inicio: string; fim: string | null; duracao_minutos: number | null;
+  id: string;
+  status: string;
+  inicio: string;
+  fim: string | null;
+  duracao_minutos: number | null;
 };
 type Pagina = {
-  id: string; path: string; title: string | null; inicio: string; fim: string | null;
-  duracao_segundos: number | null; inativo_segundos: number;
+  id: string;
+  path: string;
+  title: string | null;
+  inicio: string;
+  fim: string | null;
+  duracao_segundos: number | null;
+  inativo_segundos: number;
 };
 type NavExterna = {
-  id: string; url: string; domain: string; title: string | null; inicio: string; fim: string | null;
-  duracao_segundos: number | null; inativo_segundos: number;
+  id: string;
+  url: string;
+  domain: string;
+  title: string | null;
+  inicio: string;
+  fim: string | null;
+  duracao_segundos: number | null;
+  inativo_segundos: number;
 };
+type UsoApp = {
+  id: string;
+  process_name: string;
+  app_label: string | null;
+  inicio: string;
+  fim: string | null;
+  duracao_segundos: number | null;
+  inativo_segundos: number | null;
+};
+type Origem = "app" | "chrome" | "desktop";
 type UnifiedLog = {
-  id: string; origem: "app" | "chrome"; label: string; sub: string;
-  inicio: string; fim: string | null; duracao: number; inativo: number;
+  id: string;
+  origem: Origem;
+  label: string;
+  sub: string;
+  inicio: string;
+  fim: string | null;
+  duracao: number;
+  inativo: number;
 };
 
 function formatSeconds(s: number) {
@@ -67,15 +127,21 @@ function Dashboard() {
   const [history30, setHistory30] = useState<{ date: Date; records: Registro[] }[]>([]);
 
   // Selected day (defaults to today). When != today, dashboard shows historic data.
-  const startOfToday = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const startOfToday = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday);
   const [openDomain, setOpenDomain] = useState<string | null>(null);
   // (logs consolidados — paginação removida; detalhe vai por exportação)
 
   const isToday = selectedDate.getTime() === startOfToday.getTime();
   const dayRange = useMemo(() => {
-    const s = new Date(selectedDate); s.setHours(0,0,0,0);
-    const e = new Date(s); e.setDate(e.getDate() + 1);
+    const s = new Date(selectedDate);
+    s.setHours(0, 0, 0, 0);
+    const e = new Date(s);
+    e.setDate(e.getDate() + 1);
     return { start: s.toISOString(), end: e.toISOString() };
   }, [selectedDate]);
   const [dayRecords, setDayRecords] = useState<Registro[]>([]);
@@ -90,6 +156,7 @@ function Dashboard() {
   const [otherRecords, setOtherRecords] = useState<Registro[]>([]);
   const [pages, setPages] = useState<Pagina[]>([]);
   const [externalNav, setExternalNav] = useState<NavExterna[]>([]);
+  const [appUsage, setAppUsage] = useState<UsoApp[]>([]);
 
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 1000);
@@ -99,50 +166,94 @@ function Dashboard() {
   // Load users list for admin filter
   useEffect(() => {
     if (!isAdmin) return;
-    supabase.from("profiles").select("id, nome").eq("ativo", true).order("nome").then(({ data }) => {
-      setUsers((data ?? []) as { id: string; nome: string }[]);
-    });
+    supabase
+      .from("profiles")
+      .select("id, nome")
+      .eq("ativo", true)
+      .order("nome")
+      .then(({ data }) => {
+        setUsers((data ?? []) as { id: string; nome: string }[]);
+      });
   }, [isAdmin]);
 
   // Load registros for the selected day (used when viewing another user OR another day)
   useEffect(() => {
-    if (!effectiveUserId) { setDayRecords([]); return; }
+    if (!effectiveUserId) {
+      setDayRecords([]);
+      return;
+    }
     // When viewing own + today, the realtime session hook already provides records — keep it in sync via setter too.
-    if (isToday && !viewingOther) { setDayRecords([]); return; }
-    supabase.from("registros_atividade").select("*")
+    if (isToday && !viewingOther) {
+      setDayRecords([]);
+      return;
+    }
+    supabase
+      .from("registros_atividade")
+      .select("*")
       .eq("usuario_id", effectiveUserId)
       .gte("inicio", dayRange.start)
       .lt("inicio", dayRange.end)
       .order("inicio", { ascending: true })
       .then(({ data }) => setDayRecords((data ?? []) as Registro[]));
     // when looking at today (own/other), also poll
-  }, [effectiveUserId, viewingOther, isToday, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
+  }, [
+    effectiveUserId,
+    viewingOther,
+    isToday,
+    dayRange.start,
+    dayRange.end,
+    isToday ? now.getMinutes() : 0,
+  ]);
 
   // Page navigation (app) + external (chrome extension) — for the selected day
   useEffect(() => {
     if (!effectiveUserId) return;
-    supabase.from("navegacao_paginas").select("*")
-      .eq("usuario_id", effectiveUserId).gte("inicio", dayRange.start).lt("inicio", dayRange.end)
+    supabase
+      .from("navegacao_paginas")
+      .select("*")
+      .eq("usuario_id", effectiveUserId)
+      .gte("inicio", dayRange.start)
+      .lt("inicio", dayRange.end)
       .order("inicio", { ascending: true })
       .then(({ data }) => setPages((data ?? []) as Pagina[]));
-    supabase.from("navegacao_externa").select("*")
-      .eq("usuario_id", effectiveUserId).gte("inicio", dayRange.start).lt("inicio", dayRange.end)
+    supabase
+      .from("navegacao_externa")
+      .select("*")
+      .eq("usuario_id", effectiveUserId)
+      .gte("inicio", dayRange.start)
+      .lt("inicio", dayRange.end)
       .order("inicio", { ascending: true })
       .then(({ data }) => setExternalNav((data ?? []) as NavExterna[]));
+    supabase
+      .from("uso_aplicativos")
+      .select("id, process_name, app_label, inicio, fim, duracao_segundos, inativo_segundos")
+      .eq("usuario_id", effectiveUserId)
+      .gte("inicio", dayRange.start)
+      .lt("inicio", dayRange.end)
+      .order("inicio", { ascending: true })
+      .then(({ data }) => setAppUsage((data ?? []) as UsoApp[]));
   }, [effectiveUserId, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
 
   // 30-day history for effective user — keep raw records grouped per day for the per-day timelines
   useEffect(() => {
-    if (!effectiveUserId) { setHistory30([]); return; }
-    const since = new Date(); since.setDate(since.getDate() - 30); since.setHours(0,0,0,0);
-    supabase.from("registros_atividade").select("*")
+    if (!effectiveUserId) {
+      setHistory30([]);
+      return;
+    }
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    since.setHours(0, 0, 0, 0);
+    supabase
+      .from("registros_atividade")
+      .select("*")
       .eq("usuario_id", effectiveUserId)
       .gte("inicio", since.toISOString())
       .order("inicio", { ascending: true })
       .then(({ data }) => {
         const map = new Map<string, Registro[]>();
-        (data ?? []).forEach((r: any) => {
-          const d = new Date(r.inicio); d.setHours(0,0,0,0);
+        (data ?? []).forEach((r) => {
+          const d = new Date(r.inicio);
+          d.setHours(0, 0, 0, 0);
           const key = d.toISOString();
           if (!map.has(key)) map.set(key, []);
           map.get(key)!.push(r as Registro);
@@ -154,9 +265,8 @@ function Dashboard() {
       });
   }, [effectiveUserId, session.current?.id]);
 
-
   // Records to display on the board for the selected day
-  const todayRecords: Registro[] = (isToday && !viewingOther) ? session.todayRecords : dayRecords;
+  const todayRecords: Registro[] = isToday && !viewingOther ? session.todayRecords : dayRecords;
   // Used as a fallback for the "other user today" legacy var
   void otherRecords;
 
@@ -164,7 +274,11 @@ function Dashboard() {
     const t = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
     const nowTs = Date.now();
     todayRecords.forEach((r) => {
-      const dur = r.duracao_minutos ?? (r.fim ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000 : (nowTs - new Date(r.inicio).getTime()) / 60000);
+      const dur =
+        r.duracao_minutos ??
+        (r.fim
+          ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000
+          : (nowTs - new Date(r.inicio).getTime()) / 60000);
       if (r.status in t) t[r.status as keyof typeof t] += dur;
     });
     return t;
@@ -177,7 +291,7 @@ function Dashboard() {
     type PageRow = { label: string; path: string; total: number; idle: number; visits: number };
     type DomainRow = {
       domain: string;
-      origem: "app" | "chrome" | "misto";
+      origem: Origem | "misto";
       total: number;
       idle: number;
       visits: number;
@@ -186,7 +300,15 @@ function Dashboard() {
     const APP_DOMAIN = "App interno";
     const m = new Map<string, DomainRow>();
 
-    const upsert = (domain: string, origem: "app" | "chrome", key: string, label: string, path: string, dur: number, idle: number) => {
+    const upsert = (
+      domain: string,
+      origem: Origem,
+      key: string,
+      label: string,
+      path: string,
+      dur: number,
+      idle: number,
+    ) => {
       let d = m.get(domain);
       if (!d) {
         d = { domain, origem, total: 0, idle: 0, visits: 0, pages: new Map() };
@@ -198,8 +320,11 @@ function Dashboard() {
       d.idle += idle;
       d.visits += 1;
       const p = d.pages.get(key);
-      if (p) { p.total += dur; p.idle += idle; p.visits += 1; }
-      else d.pages.set(key, { label, path, total: dur, idle, visits: 1 });
+      if (p) {
+        p.total += dur;
+        p.idle += idle;
+        p.visits += 1;
+      } else d.pages.set(key, { label, path, total: dur, idle, visits: 1 });
     };
 
     pages.forEach((p) => {
@@ -208,41 +333,110 @@ function Dashboard() {
     });
     externalNav.forEach((n) => {
       const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
-      upsert(n.domain || "desconhecido", "chrome", n.url, n.title ?? n.url, n.url, dur, n.inativo_segundos || 0);
+      upsert(
+        n.domain || "desconhecido",
+        "chrome",
+        n.url,
+        n.title ?? n.url,
+        n.url,
+        dur,
+        n.inativo_segundos || 0,
+      );
+    });
+    appUsage.forEach((a) => {
+      const dur = safeDur(a.duracao_segundos, a.inicio, a.fim);
+      const label = a.app_label || a.process_name;
+      upsert(label, "desktop", a.process_name, label, a.process_name, dur, a.inativo_segundos || 0);
     });
 
     return Array.from(m.values())
       .map((d) => ({ ...d, pages: Array.from(d.pages.values()).sort((a, b) => b.total - a.total) }))
       .sort((a, b) => b.total - a.total);
-  }, [pages, externalNav, now]);
-
-
+  }, [pages, externalNav, appUsage, now]);
 
   // Unified log: merge app pages + external chrome nav, sorted desc by inicio.
   // Used only for the detailed export — on screen we show a consolidated view.
   const unifiedLogs: UnifiedLog[] = useMemo(() => {
     const appLogs: UnifiedLog[] = pages.map((p) => {
       const dur = safeDur(p.duracao_segundos, p.inicio, p.fim);
-      return { id: `a:${p.id}`, origem: "app", label: p.title ?? p.path, sub: p.path, inicio: p.inicio, fim: p.fim, duracao: dur, inativo: p.inativo_segundos || 0 };
+      return {
+        id: `a:${p.id}`,
+        origem: "app",
+        label: p.title ?? p.path,
+        sub: p.path,
+        inicio: p.inicio,
+        fim: p.fim,
+        duracao: dur,
+        inativo: p.inativo_segundos || 0,
+      };
     });
     const extLogs: UnifiedLog[] = externalNav.map((n) => {
       const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
-      return { id: `e:${n.id}`, origem: "chrome", label: n.title ?? n.domain, sub: n.domain, inicio: n.inicio, fim: n.fim, duracao: dur, inativo: n.inativo_segundos || 0 };
+      return {
+        id: `e:${n.id}`,
+        origem: "chrome",
+        label: n.title ?? n.domain,
+        sub: n.domain,
+        inicio: n.inicio,
+        fim: n.fim,
+        duracao: dur,
+        inativo: n.inativo_segundos || 0,
+      };
     });
-    return [...appLogs, ...extLogs].sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime());
-  }, [pages, externalNav, now]);
+    const deskLogs: UnifiedLog[] = appUsage.map((a) => {
+      const dur = safeDur(a.duracao_segundos, a.inicio, a.fim);
+      const label = a.app_label || a.process_name;
+      return {
+        id: `d:${a.id}`,
+        origem: "desktop",
+        label,
+        sub: label,
+        inicio: a.inicio,
+        fim: a.fim,
+        duracao: dur,
+        inativo: a.inativo_segundos || 0,
+      };
+    });
+    return [...appLogs, ...extLogs, ...deskLogs].sort(
+      (a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime(),
+    );
+  }, [pages, externalNav, appUsage, now]);
 
   // Consolidated log: groups by origem + sub (path/domain), aggregating visits, total and idle.
   const consolidatedLogs = useMemo(() => {
-    const m = new Map<string, { origem: "app" | "chrome"; label: string; sub: string; visitas: number; total: number; inativo: number; ultimo: string }>();
+    const m = new Map<
+      string,
+      {
+        origem: Origem;
+        label: string;
+        sub: string;
+        visitas: number;
+        total: number;
+        inativo: number;
+        ultimo: string;
+      }
+    >();
     for (const l of unifiedLogs) {
       const key = `${l.origem}::${l.sub}`;
       const cur = m.get(key);
       if (cur) {
-        cur.visitas += 1; cur.total += l.duracao; cur.inativo += l.inativo;
-        if (new Date(l.inicio).getTime() > new Date(cur.ultimo).getTime()) { cur.ultimo = l.inicio; cur.label = l.label; }
+        cur.visitas += 1;
+        cur.total += l.duracao;
+        cur.inativo += l.inativo;
+        if (new Date(l.inicio).getTime() > new Date(cur.ultimo).getTime()) {
+          cur.ultimo = l.inicio;
+          cur.label = l.label;
+        }
       } else {
-        m.set(key, { origem: l.origem, label: l.label, sub: l.sub, visitas: 1, total: l.duracao, inativo: l.inativo, ultimo: l.inicio });
+        m.set(key, {
+          origem: l.origem,
+          label: l.label,
+          sub: l.sub,
+          visitas: 1,
+          total: l.duracao,
+          inativo: l.inativo,
+          ultimo: l.inicio,
+        });
       }
     }
     return Array.from(m.values()).sort((a, b) => b.total - a.total);
@@ -253,12 +447,13 @@ function Dashboard() {
     return {
       app: sum(unifiedLogs.filter((l) => l.origem === "app")),
       chrome: sum(unifiedLogs.filter((l) => l.origem === "chrome")),
+      desktop: sum(unifiedLogs.filter((l) => l.origem === "desktop")),
     };
   }, [unifiedLogs]);
 
   const exportNavLogs = () => {
     const rows = unifiedLogs.map((l) => ({
-      Origem: l.origem === "app" ? "App" : "Chrome",
+      Origem: l.origem === "app" ? "App" : l.origem === "chrome" ? "Chrome" : "Desktop",
       Início: formatHM(l.inicio),
       Fim: l.fim ? formatHM(l.fim) : "Em andamento",
       Título: l.label,
@@ -275,9 +470,8 @@ function Dashboard() {
     });
   };
 
-
-
-  const currentOpen = (isToday && !viewingOther) ? session.current : (todayRecords.find((r) => !r.fim) ?? null);
+  const currentOpen =
+    isToday && !viewingOther ? session.current : (todayRecords.find((r) => !r.fim) ?? null);
   const status = currentOpen?.status ?? "ENCERRADO";
 
   const pieData = [
@@ -302,17 +496,30 @@ function Dashboard() {
       <Card>
         <CardContent className="flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">{viewingOther ? "Visualizando" : "Bem-vindo,"}</p>
+            <p className="text-sm text-muted-foreground">
+              {viewingOther ? "Visualizando" : "Bem-vindo,"}
+            </p>
             <h1 className="text-2xl font-bold">{displayName}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              <span>{now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</span>
-              <span className="font-mono text-lg font-semibold text-foreground">{now.toLocaleTimeString("pt-BR")}</span>
+              <span>
+                {now.toLocaleDateString("pt-BR", {
+                  weekday: "long",
+                  day: "2-digit",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </span>
+              <span className="font-mono text-lg font-semibold text-foreground">
+                {now.toLocaleTimeString("pt-BR")}
+              </span>
             </div>
           </div>
           <div className="flex flex-col items-start gap-3 md:items-end">
             <StatusBadge status={status} />
             {currentOpen && (
-              <span className="text-xs text-muted-foreground">desde {formatHM(currentOpen.inicio)}</span>
+              <span className="text-xs text-muted-foreground">
+                desde {formatHM(currentOpen.inicio)}
+              </span>
             )}
           </div>
         </CardContent>
@@ -322,26 +529,48 @@ function Dashboard() {
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
           <div className="text-sm font-medium">
-            {isToday ? "Visualizando dados de hoje" : `Visualizando ${selectedDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}`}
+            {isToday
+              ? "Visualizando dados de hoje"
+              : `Visualizando ${selectedDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}`}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              variant="outline" size="icon"
-              onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); }}
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() - 1);
+                setSelectedDate(d);
+              }}
               aria-label="Dia anterior"
-            ><ChevronLeft className="h-4 w-4" /></Button>
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-[220px] justify-start text-left font-normal")}>
+                <Button
+                  variant="outline"
+                  className={cn("w-[220px] justify-start text-left font-normal")}
+                >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                  {selectedDate.toLocaleDateString("pt-BR", {
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                  })}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
-                  onSelect={(d) => { if (d) { const x = new Date(d); x.setHours(0,0,0,0); setSelectedDate(x); } }}
+                  onSelect={(d) => {
+                    if (d) {
+                      const x = new Date(d);
+                      x.setHours(0, 0, 0, 0);
+                      setSelectedDate(x);
+                    }
+                  }}
                   disabled={(d) => d > new Date()}
                   initialFocus
                   className={cn("p-3 pointer-events-auto")}
@@ -349,22 +578,40 @@ function Dashboard() {
               </PopoverContent>
             </Popover>
             <Button
-              variant="outline" size="icon"
-              onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); if (d <= startOfToday) setSelectedDate(d); }}
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() + 1);
+                if (d <= startOfToday) setSelectedDate(d);
+              }}
               disabled={isToday}
               aria-label="Próximo dia"
-            ><ChevronRight className="h-4 w-4" /></Button>
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
             {!isToday && (
-              <Button variant="ghost" size="sm" onClick={() => setSelectedDate(startOfToday)}>Hoje</Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedDate(startOfToday)}>
+                Hoje
+              </Button>
             )}
             {isAdmin && (
-              <Select value={targetUserId || "self"} onValueChange={(v) => setTargetUserId(v === "self" ? "" : v)}>
-                <SelectTrigger className="w-60"><SelectValue placeholder="Selecionar usuário" /></SelectTrigger>
+              <Select
+                value={targetUserId || "self"}
+                onValueChange={(v) => setTargetUserId(v === "self" ? "" : v)}
+              >
+                <SelectTrigger className="w-60">
+                  <SelectValue placeholder="Selecionar usuário" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="self">Eu mesmo ({profile?.nome ?? "..."})</SelectItem>
-                  {users.filter((u) => u.id !== user?.id).map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
-                  ))}
+                  {users
+                    .filter((u) => u.id !== user?.id)
+                    .map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.nome}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             )}
@@ -375,15 +622,27 @@ function Dashboard() {
       {/* Controls — only when viewing own dashboard for today */}
       {!viewingOther && isToday && (
         <Card>
-          <CardHeader><CardTitle>Controles</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Controles</CardTitle>
+          </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             <Button onClick={session.start} disabled={!canStart} size="lg">
               <Play className="mr-2 h-4 w-4" /> Iniciar Expediente
             </Button>
-            <Button onClick={() => setBreakDialog({ kind: "PAUSA" })} disabled={!isActive} variant="secondary" size="lg">
+            <Button
+              onClick={() => setBreakDialog({ kind: "PAUSA" })}
+              disabled={!isActive}
+              variant="secondary"
+              size="lg"
+            >
               <Pause className="mr-2 h-4 w-4" /> Pausa
             </Button>
-            <Button onClick={() => setBreakDialog({ kind: "ALMOCO" })} disabled={!isActive} variant="secondary" size="lg">
+            <Button
+              onClick={() => setBreakDialog({ kind: "ALMOCO" })}
+              disabled={!isActive}
+              variant="secondary"
+              size="lg"
+            >
               <Utensils className="mr-2 h-4 w-4" /> Almoço
             </Button>
             <Button onClick={session.resume} disabled={!isPaused} variant="default" size="lg">
@@ -398,11 +657,18 @@ function Dashboard() {
 
       <Dialog
         open={!!breakDialog}
-        onOpenChange={(o) => { if (!o) { setBreakDialog(null); setBreakReason(""); } }}
+        onOpenChange={(o) => {
+          if (!o) {
+            setBreakDialog(null);
+            setBreakReason("");
+          }
+        }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{breakDialog?.kind === "ALMOCO" ? "Iniciar almoço" : "Iniciar pausa"}</DialogTitle>
+            <DialogTitle>
+              {breakDialog?.kind === "ALMOCO" ? "Iniciar almoço" : "Iniciar pausa"}
+            </DialogTitle>
             <DialogDescription>Informe uma justificativa antes de continuar.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -411,7 +677,9 @@ function Dashboard() {
               id="break-reason"
               value={breakReason}
               onChange={(e) => setBreakReason(e.target.value)}
-              placeholder={breakDialog?.kind === "ALMOCO" ? "Ex: horário de almoço" : "Ex: pausa para café"}
+              placeholder={
+                breakDialog?.kind === "ALMOCO" ? "Ex: horário de almoço" : "Ex: pausa para café"
+              }
               rows={3}
             />
           </div>
@@ -427,7 +695,9 @@ function Dashboard() {
                   else await session.lunch(reason);
                   setBreakDialog(null);
                   setBreakReason("");
-                } finally { setBreakBusy(false); }
+                } finally {
+                  setBreakBusy(false);
+                }
               }}
             >
               {breakBusy ? "..." : "Confirmar"}
@@ -436,28 +706,62 @@ function Dashboard() {
         </DialogContent>
       </Dialog>
 
-
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <StatCard icon={<ActivityIcon className="h-4 w-4" />} label="Trabalhadas" value={formatDuration(totals.ATIVO)} accent="success" />
-        <StatCard icon={<Pause className="h-4 w-4" />} label="Pausa" value={formatDuration(totals.PAUSA)} accent="warning" />
-        <StatCard icon={<Utensils className="h-4 w-4" />} label="Almoço" value={formatDuration(totals.ALMOCO)} accent="info" />
-        <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Inativo" value={formatDuration(totals.INATIVO)} accent="destructive" />
-        <StatCard icon={<Clock className="h-4 w-4" />} label="Total online" value={formatDuration(totalOnline)} accent="primary" />
+        <StatCard
+          icon={<ActivityIcon className="h-4 w-4" />}
+          label="Trabalhadas"
+          value={formatDuration(totals.ATIVO)}
+          accent="success"
+        />
+        <StatCard
+          icon={<Pause className="h-4 w-4" />}
+          label="Pausa"
+          value={formatDuration(totals.PAUSA)}
+          accent="warning"
+        />
+        <StatCard
+          icon={<Utensils className="h-4 w-4" />}
+          label="Almoço"
+          value={formatDuration(totals.ALMOCO)}
+          accent="info"
+        />
+        <StatCard
+          icon={<AlertTriangle className="h-4 w-4" />}
+          label="Inativo"
+          value={formatDuration(totals.INATIVO)}
+          accent="destructive"
+        />
+        <StatCard
+          icon={<Clock className="h-4 w-4" />}
+          label="Total online"
+          value={formatDuration(totalOnline)}
+          accent="primary"
+        />
       </div>
 
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Distribuição {isToday ? "de hoje" : "do dia"}</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Distribuição {isToday ? "de hoje" : "do dia"}</CardTitle>
+          </CardHeader>
           <CardContent>
             {pieData.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Nenhum dado hoje.</p>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
-                    {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={60}
+                    outerRadius={100}
+                  >
+                    {pieData.map((d, i) => (
+                      <Cell key={i} fill={d.color} />
+                    ))}
                   </Pie>
                   <Tooltip formatter={(v: number) => formatDuration(v)} />
                   <Legend />
@@ -468,7 +772,9 @@ function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Jornada {isToday ? "de hoje" : "do dia"} — linha do tempo</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Jornada {isToday ? "de hoje" : "do dia"} — linha do tempo</CardTitle>
+          </CardHeader>
           <CardContent>
             {todayRecords.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Sem registros.</p>
@@ -481,10 +787,15 @@ function Dashboard() {
 
       {/* Page navigation tracking */}
       <Card>
-        <CardHeader className="flex flex-row items-center gap-2"><MousePointer2 className="h-4 w-4 text-primary" /><CardTitle>Navegação monitorada — {isToday ? "hoje" : "no dia"}</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center gap-2">
+          <MousePointer2 className="h-4 w-4 text-primary" />
+          <CardTitle>Atividade monitorada — {isToday ? "hoje" : "no dia"}</CardTitle>
+        </CardHeader>
         <CardContent>
           {domainAgg.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma navegação registrada.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Nenhuma atividade registrada.
+            </p>
           ) : (
             <ul className="divide-y divide-border">
               {domainAgg.map((d) => {
@@ -498,13 +809,26 @@ function Dashboard() {
                       onClick={() => setOpenDomain(isOpen ? null : d.domain)}
                       className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted/40"
                     >
-                      <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${d.origem === "app" ? "border-primary/40 text-primary" : d.origem === "chrome" ? "border-warning/40 text-warning" : "border-border text-muted-foreground"}`}>
-                        {d.origem === "app" ? <Globe className="h-3.5 w-3.5" /> : <Chrome className="h-3.5 w-3.5" />}
+                      <span
+                        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${d.origem === "app" ? "border-primary/40 text-primary" : d.origem === "chrome" ? "border-warning/40 text-warning" : d.origem === "desktop" ? "border-info/40 text-info" : "border-border text-muted-foreground"}`}
+                      >
+                        {d.origem === "app" ? (
+                          <Globe className="h-3.5 w-3.5" />
+                        ) : d.origem === "chrome" ? (
+                          <Chrome className="h-3.5 w-3.5" />
+                        ) : d.origem === "desktop" ? (
+                          <Monitor className="h-3.5 w-3.5" />
+                        ) : (
+                          <MousePointer2 className="h-3.5 w-3.5" />
+                        )}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="truncate font-medium">{d.domain}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">{d.visits} {d.visits === 1 ? "visita" : "visitas"} · {d.pages.length} {d.pages.length === 1 ? "página" : "páginas"}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {d.visits} {d.visits === 1 ? "visita" : "visitas"} · {d.pages.length}{" "}
+                            {d.pages.length === 1 ? "página" : "páginas"}
+                          </span>
                         </div>
                         <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                           <div className="h-full bg-success" style={{ width: `${pctActive}%` }} />
@@ -513,9 +837,15 @@ function Dashboard() {
                       <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs">
                         <span className="font-mono text-sm">{formatSeconds(d.total)}</span>
                         <span className="font-mono text-success">ativo {formatSeconds(ativo)}</span>
-                        {d.idle > 0 && <span className="font-mono text-destructive">idle {formatSeconds(d.idle)}</span>}
+                        {d.idle > 0 && (
+                          <span className="font-mono text-destructive">
+                            idle {formatSeconds(d.idle)}
+                          </span>
+                        )}
                       </div>
-                      <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+                      />
                     </button>
                     {isOpen && (
                       <div className="mt-1 ml-10 overflow-x-auto rounded-md border border-border/60 bg-muted/20">
@@ -530,14 +860,21 @@ function Dashboard() {
                           </thead>
                           <tbody>
                             {d.pages.map((p) => (
-                              <tr key={p.path} className="border-b border-border/40 last:border-b-0">
+                              <tr
+                                key={p.path}
+                                className="border-b border-border/40 last:border-b-0"
+                              >
                                 <td className="px-3 py-1.5">
                                   <div className="truncate font-medium">{p.label}</div>
-                                  <div className="truncate font-mono text-[10px] text-muted-foreground">{p.path}</div>
+                                  <div className="truncate font-mono text-[10px] text-muted-foreground">
+                                    {p.path}
+                                  </div>
                                 </td>
                                 <td className="px-3 py-1.5 font-mono">{p.visits}</td>
                                 <td className="px-3 py-1.5 font-mono">{formatSeconds(p.total)}</td>
-                                <td className="px-3 py-1.5 font-mono text-success">{formatSeconds(Math.max(0, p.total - p.idle))}</td>
+                                <td className="px-3 py-1.5 font-mono text-success">
+                                  {formatSeconds(Math.max(0, p.total - p.idle))}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -552,12 +889,11 @@ function Dashboard() {
         </CardContent>
       </Card>
 
-
       {/* Consolidated navigation log */}
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>Logs de navegação — {isToday ? "hoje" : "no dia"}</CardTitle>
+            <CardTitle>Logs de atividade — {isToday ? "hoje" : "no dia"}</CardTitle>
             <div className="flex items-center gap-2 text-xs">
               <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/5">
                 <Globe className="h-3 w-3" /> App {formatSeconds(sourceTotals.app)}
@@ -565,7 +901,15 @@ function Dashboard() {
               <Badge variant="outline" className="gap-1 border-warning/30 bg-warning/5">
                 <Chrome className="h-3 w-3" /> Chrome {formatSeconds(sourceTotals.chrome)}
               </Badge>
-              <Button size="sm" variant="outline" onClick={exportNavLogs} disabled={unifiedLogs.length === 0}>
+              <Badge variant="outline" className="gap-1 border-info/30 bg-info/5">
+                <Monitor className="h-3 w-3" /> Desktop {formatSeconds(sourceTotals.desktop)}
+              </Badge>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportNavLogs}
+                disabled={unifiedLogs.length === 0}
+              >
                 Exportar detalhado
               </Button>
             </div>
@@ -573,7 +917,10 @@ function Dashboard() {
         </CardHeader>
         <CardContent>
           {consolidatedLogs.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Sem logs. Instale a extensão para capturar navegação fora do app.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Sem logs. Instale a extensão (navegação) ou o app desktop (aplicativos) para capturar
+              atividade fora do app.
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -589,38 +936,57 @@ function Dashboard() {
                 </thead>
                 <tbody>
                   {consolidatedLogs.map((l) => (
-                    <tr key={`${l.origem}:${l.sub}`} className="border-b border-border/50 last:border-0">
+                    <tr
+                      key={`${l.origem}:${l.sub}`}
+                      className="border-b border-border/50 last:border-0"
+                    >
                       <td className="px-3 py-2">
                         {l.origem === "app" ? (
-                          <Badge variant="outline" className="gap-1 border-primary/40 text-primary"><Globe className="h-3 w-3" /> App</Badge>
+                          <Badge variant="outline" className="gap-1 border-primary/40 text-primary">
+                            <Globe className="h-3 w-3" /> App
+                          </Badge>
+                        ) : l.origem === "chrome" ? (
+                          <Badge variant="outline" className="gap-1 border-warning/40 text-warning">
+                            <Chrome className="h-3 w-3" /> Chrome
+                          </Badge>
                         ) : (
-                          <Badge variant="outline" className="gap-1 border-warning/40 text-warning"><Chrome className="h-3 w-3" /> Chrome</Badge>
+                          <Badge variant="outline" className="gap-1 border-info/40 text-info">
+                            <Monitor className="h-3 w-3" /> Desktop
+                          </Badge>
                         )}
                       </td>
                       <td className="min-w-0 max-w-[420px] px-3 py-2">
                         <div className="truncate font-medium">{l.label}</div>
-                        <div className="truncate font-mono text-[11px] text-muted-foreground">{l.sub}</div>
+                        <div className="truncate font-mono text-[11px] text-muted-foreground">
+                          {l.sub}
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-right font-mono">{l.visitas}</td>
                       <td className="px-3 py-2 text-right font-mono">{formatSeconds(l.total)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-destructive">{l.inativo > 0 ? formatSeconds(l.inativo) : "—"}</td>
-                      <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">{formatHM(l.ultimo)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-destructive">
+                        {l.inativo > 0 ? formatSeconds(l.inativo) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
+                        {formatHM(l.ultimo)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               <p className="mt-3 text-xs text-muted-foreground">
-                Visão consolidada por página/domínio. Use “Exportar detalhado” para baixar o histórico completo de visitas.
+                Visão consolidada por página/domínio. Use “Exportar detalhado” para baixar o
+                histórico completo de visitas.
               </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-
-
       <Card>
-        <CardHeader className="flex flex-row items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" /><CardTitle>Histórico — últimos 30 dias</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-primary" />
+          <CardTitle>Histórico — últimos 30 dias</CardTitle>
+        </CardHeader>
         <CardContent>
           {history30.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">Sem histórico.</p>
@@ -629,21 +995,35 @@ function Dashboard() {
               {history30.map((day) => {
                 const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
                 day.records.forEach((r) => {
-                  const dur = r.duracao_minutos ?? (r.fim ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000 : 0);
+                  const dur =
+                    r.duracao_minutos ??
+                    (r.fim
+                      ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000
+                      : 0);
                   if (r.status in totals) totals[r.status as keyof typeof totals] += dur;
                 });
                 const isSelected = day.date.getTime() === selectedDate.getTime();
                 return (
                   <div
                     key={day.date.toISOString()}
-                    className={cn("rounded-lg border p-4 transition-colors", isSelected ? "border-primary bg-primary/5" : "border-border bg-muted/10 hover:bg-muted/20")}
+                    className={cn(
+                      "rounded-lg border p-4 transition-colors",
+                      isSelected
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-muted/10 hover:bg-muted/20",
+                    )}
                   >
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <button
                         onClick={() => setSelectedDate(day.date)}
                         className="text-left text-sm font-semibold hover:text-primary"
                       >
-                        {day.date.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                        {day.date.toLocaleDateString("pt-BR", {
+                          weekday: "short",
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
                       </button>
                       <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-muted-foreground">
                         <span className="text-success">A {formatDuration(totals.ATIVO)}</span>
@@ -664,17 +1044,38 @@ function Dashboard() {
   );
 }
 
-function StatCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent: string }) {
+function StatCard({
+  icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  accent: string;
+}) {
   const colors: Record<string, string> = {
-    success: "var(--color-success)", warning: "var(--color-warning)", info: "var(--color-info)",
-    destructive: "var(--color-destructive)", primary: "var(--color-primary)",
+    success: "var(--color-success)",
+    warning: "var(--color-warning)",
+    info: "var(--color-info)",
+    destructive: "var(--color-destructive)",
+    primary: "var(--color-primary)",
   };
   return (
     <Card>
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
-          <span className="grid h-8 w-8 place-items-center rounded-md" style={{ background: `color-mix(in oklch, ${colors[accent]} 15%, transparent)`, color: colors[accent] }}>
+          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {label}
+          </span>
+          <span
+            className="grid h-8 w-8 place-items-center rounded-md"
+            style={{
+              background: `color-mix(in oklch, ${colors[accent]} 15%, transparent)`,
+              color: colors[accent],
+            }}
+          >
             {icon}
           </span>
         </div>
@@ -693,7 +1094,11 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
     ENCERRADO: "var(--color-muted)",
   };
   const labelByStatus: Record<string, string> = {
-    ATIVO: "Ativo", PAUSA: "Pausa", ALMOCO: "Almoço", INATIVO: "Inativo", ENCERRADO: "Encerrado",
+    ATIVO: "Ativo",
+    PAUSA: "Pausa",
+    ALMOCO: "Almoço",
+    INATIVO: "Inativo",
+    ENCERRADO: "Encerrado",
   };
 
   const nowTs = Date.now();
@@ -777,24 +1182,24 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
   const [hover, setHover] = useState<{ x: number; ts: number; rec: Registro | null } | null>(null);
 
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const el = trackRef.current; if (!el) return;
+    const el = trackRef.current;
+    if (!el) return;
     const rect = el.getBoundingClientRect();
     const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
     const p = (x / rect.width) * 100;
     const ts = tsFromPct(p);
-    const rec = records.find((r) => {
-      const s = new Date(r.inicio).getTime();
-      const en = r.fim ? new Date(r.fim).getTime() : nowTs;
-      return ts >= s && ts <= en;
-    }) ?? null;
+    const rec =
+      records.find((r) => {
+        const s = new Date(r.inicio).getTime();
+        const en = r.fim ? new Date(r.fim).getTime() : nowTs;
+        return ts >= s && ts <= en;
+      }) ?? null;
     setHover({ x, ts, rec });
   };
 
   // ATIVO occupies the central band (tall); other statuses render as thin strips, centered
   const dimsForStatus = (s: string) =>
-    s === "ATIVO"
-      ? { top: "18%", bottom: "18%" }
-      : { top: "40%", bottom: "40%" };
+    s === "ATIVO" ? { top: "18%", bottom: "18%" } : { top: "40%", bottom: "40%" };
 
   return (
     <div className="space-y-2">
@@ -820,14 +1225,21 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
         {/* central baseline reinforcing the worked-time band */}
         <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-border/60" />
 
-
         {/* hour minor gridlines */}
         {minorTicks.map((t) => (
-          <div key={`m-${t}`} className="absolute top-0 bottom-0 w-px bg-border/30" style={{ left: `${pct(t)}%` }} />
+          <div
+            key={`m-${t}`}
+            className="absolute top-0 bottom-0 w-px bg-border/30"
+            style={{ left: `${pct(t)}%` }}
+          />
         ))}
         {/* 3h major gridlines */}
         {majorTicks.map((t) => (
-          <div key={`g-${t}`} className="absolute top-0 bottom-0 w-px bg-border/70" style={{ left: `${pct(t)}%` }} />
+          <div
+            key={`g-${t}`}
+            className="absolute top-0 bottom-0 w-px bg-border/70"
+            style={{ left: `${pct(t)}%` }}
+          />
         ))}
 
         {/* Segments — ATIVO is the dominant centered band, others compress */}
@@ -851,7 +1263,9 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
                 background: colorByStatus[r.status] ?? "var(--color-muted)",
                 opacity: isAtivo ? 1 : 0.65,
                 zIndex: isAtivo ? 2 : 1,
-                boxShadow: isAtivo ? "0 0 0 1px color-mix(in oklch, var(--color-success) 50%, transparent)" : undefined,
+                boxShadow: isAtivo
+                  ? "0 0 0 1px color-mix(in oklch, var(--color-success) 50%, transparent)"
+                  : undefined,
               }}
             />
           );
@@ -859,7 +1273,10 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
 
         {/* Start / End markers for the worked period */}
         {ativoStart != null && (
-          <Marker x={pct(ativoStart)} label={`Início ${formatHM(new Date(ativoStart).toISOString())}`} />
+          <Marker
+            x={pct(ativoStart)}
+            label={`Início ${formatHM(new Date(ativoStart).toISOString())}`}
+          />
         )}
         {ativoEnd != null && (
           <Marker x={pct(ativoEnd)} label={`Fim ${formatHM(new Date(ativoEnd).toISOString())}`} />
@@ -867,23 +1284,34 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
 
         {/* "now" marker */}
         {nowTs >= axisStart && nowTs <= axisEnd && (
-          <div className="absolute top-0 bottom-0 w-0.5 bg-foreground/70" style={{ left: `${pct(nowTs)}%` }} />
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-foreground/70"
+            style={{ left: `${pct(nowTs)}%` }}
+          />
         )}
 
         {/* hover cursor + tooltip */}
         {hover && (
           <>
-            <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-foreground/40" style={{ left: hover.x }} />
+            <div
+              className="pointer-events-none absolute top-0 bottom-0 w-px bg-foreground/40"
+              style={{ left: hover.x }}
+            />
             <div
               className="pointer-events-none absolute -top-1 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[11px] font-mono text-popover-foreground shadow-md"
               style={{ left: hover.x }}
             >
               <div className="font-semibold">
-                {new Date(hover.ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                {new Date(hover.ts).toLocaleTimeString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })}
               </div>
               {hover.rec ? (
                 <div className="text-muted-foreground">
-                  {labelByStatus[hover.rec.status] ?? hover.rec.status} • {formatHM(hover.rec.inicio)} → {hover.rec.fim ? formatHM(hover.rec.fim) : "agora"}
+                  {labelByStatus[hover.rec.status] ?? hover.rec.status} •{" "}
+                  {formatHM(hover.rec.inicio)} → {hover.rec.fim ? formatHM(hover.rec.fim) : "agora"}
                 </div>
               ) : (
                 <div className="text-muted-foreground">Offline</div>
@@ -904,7 +1332,11 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
               className="absolute font-mono"
               style={{
                 left: `${left}%`,
-                transform: isLast ? "translateX(-100%)" : i === 0 ? "translateX(0)" : "translateX(-50%)",
+                transform: isLast
+                  ? "translateX(-100%)"
+                  : i === 0
+                    ? "translateX(0)"
+                    : "translateX(-50%)",
               }}
             >
               {new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}

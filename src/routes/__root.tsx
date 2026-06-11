@@ -79,17 +79,37 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "GwTimer" },
-      { name: "description", content: "Web app tracks user activity and inactivity during work hours, logging breaks and automatically detecting absence." },
+      {
+        name: "description",
+        content:
+          "Web app tracks user activity and inactivity during work hours, logging breaks and automatically detecting absence.",
+      },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "GwTimer" },
-      { property: "og:description", content: "Web app tracks user activity and inactivity during work hours, logging breaks and automatically detecting absence." },
+      {
+        property: "og:description",
+        content:
+          "Web app tracks user activity and inactivity during work hours, logging breaks and automatically detecting absence.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "GwTimer" },
-      { name: "twitter:description", content: "Web app tracks user activity and inactivity during work hours, logging breaks and automatically detecting absence." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6218a3f6-2271-4c71-b63c-745685c1bc9c/id-preview-4ec2feb4--f4ff8cd1-7001-4653-9b51-25ea356a0594.lovable.app-1781124019705.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6218a3f6-2271-4c71-b63c-745685c1bc9c/id-preview-4ec2feb4--f4ff8cd1-7001-4653-9b51-25ea356a0594.lovable.app-1781124019705.png" },
+      {
+        name: "twitter:description",
+        content:
+          "Web app tracks user activity and inactivity during work hours, logging breaks and automatically detecting absence.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6218a3f6-2271-4c71-b63c-745685c1bc9c/id-preview-4ec2feb4--f4ff8cd1-7001-4653-9b51-25ea356a0594.lovable.app-1781124019705.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6218a3f6-2271-4c71-b63c-745685c1bc9c/id-preview-4ec2feb4--f4ff8cd1-7001-4653-9b51-25ea356a0594.lovable.app-1781124019705.png",
+      },
     ],
     links: [
       {
@@ -139,7 +159,9 @@ function RootComponent() {
           }
           sessionStorage.setItem(FLAG, "1");
         }
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
     })();
   }, []);
 

@@ -1,8 +1,20 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Check, Download, ExternalLink, Chrome, Copy } from "lucide-react";
-import { UnzipIllustration, ChromeUrlIllustration, DevModeIllustration, SelectFolderIllustration } from "./ExtensionIllustrations";
+import {
+  UnzipIllustration,
+  ChromeUrlIllustration,
+  DevModeIllustration,
+  SelectFolderIllustration,
+} from "./ExtensionIllustrations";
 import { toast } from "sonner";
 
 const STORAGE_KEY = "extension_onboarding_done";
@@ -25,7 +37,10 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
 
   const handleDownload = () => {
     fetch("/monitor-extension.zip")
-      .then((r) => { if (!r.ok) throw new Error("Falha no download"); return r.blob(); })
+      .then((r) => {
+        if (!r.ok) throw new Error("Falha no download");
+        return r.blob();
+      })
       .then((blob) => {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
@@ -51,7 +66,12 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) finish(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) finish();
+      }}
+    >
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -65,10 +85,14 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
         <div className="flex items-center justify-between mb-2">
           {[1, 2, 3, 4].map((n) => (
             <div key={n} className="flex items-center flex-1">
-              <div className={`grid h-8 w-8 place-items-center rounded-full text-xs font-semibold ${step >= n ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+              <div
+                className={`grid h-8 w-8 place-items-center rounded-full text-xs font-semibold ${step >= n ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+              >
                 {step > n ? <Check className="h-4 w-4" /> : n}
               </div>
-              {n < 4 && <div className={`h-0.5 flex-1 mx-1 ${step > n ? "bg-primary" : "bg-muted"}`} />}
+              {n < 4 && (
+                <div className={`h-0.5 flex-1 mx-1 ${step > n ? "bg-primary" : "bg-muted"}`} />
+              )}
             </div>
           ))}
         </div>
@@ -76,13 +100,17 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
         {step === 1 && (
           <div className="space-y-3">
             <h3 className="font-semibold">Passo 1 — Baixar o arquivo</h3>
-            <p className="text-sm text-muted-foreground">Clique abaixo para baixar <code className="bg-muted px-1 rounded">monitor-extension.zip</code>.</p>
+            <p className="text-sm text-muted-foreground">
+              Clique abaixo para baixar{" "}
+              <code className="bg-muted px-1 rounded">monitor-extension.zip</code>.
+            </p>
             <Button onClick={handleDownload} className="w-full" size="lg">
               <Download className="h-4 w-4 mr-2" /> Baixar extensão (.zip)
             </Button>
             {downloaded && <p className="text-xs text-green-600">✓ Download iniciado.</p>}
-            <p className="text-xs text-muted-foreground">Verifique a pasta <b>Downloads</b> do seu computador.</p>
-
+            <p className="text-xs text-muted-foreground">
+              Verifique a pasta <b>Downloads</b> do seu computador.
+            </p>
           </div>
         )}
 
@@ -92,16 +120,29 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
             <UnzipIllustration />
 
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-              <b>⚠️ Importante:</b> o Chrome <u>não aceita o arquivo .zip diretamente</u>. Você precisa descompactá-lo em uma pasta antes do próximo passo.
+              <b>⚠️ Importante:</b> o Chrome <u>não aceita o arquivo .zip diretamente</u>. Você
+              precisa descompactá-lo em uma pasta antes do próximo passo.
             </div>
             <div className="space-y-2 text-sm">
               <p className="font-medium">Como descompactar:</p>
               <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                <li><b>Windows:</b> clique com o botão direito no ZIP → <i>Extrair tudo…</i> → escolha uma pasta.</li>
-                <li><b>Mac:</b> dê duplo clique no arquivo <code className="bg-muted px-1 rounded">.zip</code> (cria a pasta automaticamente).</li>
-                <li><b>Linux:</b> botão direito → <i>Extrair aqui</i>.</li>
+                <li>
+                  <b>Windows:</b> clique com o botão direito no ZIP → <i>Extrair tudo…</i> → escolha
+                  uma pasta.
+                </li>
+                <li>
+                  <b>Mac:</b> dê duplo clique no arquivo{" "}
+                  <code className="bg-muted px-1 rounded">.zip</code> (cria a pasta
+                  automaticamente).
+                </li>
+                <li>
+                  <b>Linux:</b> botão direito → <i>Extrair aqui</i>.
+                </li>
               </ul>
-              <p className="text-xs text-muted-foreground pt-1">Anote onde a pasta <code>monitor-extension</code> ficou — você vai selecioná-la no passo 4.</p>
+              <p className="text-xs text-muted-foreground pt-1">
+                Anote onde a pasta <code>monitor-extension</code> ficou — você vai selecioná-la no
+                passo 4.
+              </p>
             </div>
           </div>
         )}
@@ -111,17 +152,30 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
             <h3 className="font-semibold">Passo 3 — Abrir página de extensões</h3>
             <ChromeUrlIllustration />
 
-            <p className="text-sm text-muted-foreground">Cole <code className="bg-muted px-1 rounded">chrome://extensions</code> na barra de endereço de uma nova aba (o link será copiado).</p>
+            <p className="text-sm text-muted-foreground">
+              Cole <code className="bg-muted px-1 rounded">chrome://extensions</code> na barra de
+              endereço de uma nova aba (o link será copiado).
+            </p>
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
               <code className="text-sm flex-1">chrome://extensions</code>
-              <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText("chrome://extensions"); toast.success("Copiado!"); }}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  navigator.clipboard.writeText("chrome://extensions");
+                  toast.success("Copiado!");
+                }}
+              >
                 <Copy className="h-3 w-3" />
               </Button>
             </div>
             <Button onClick={openExtensions} className="w-full" size="lg">
               <ExternalLink className="h-4 w-4 mr-2" /> Abrir nova aba e copiar link
             </Button>
-            <p className="text-xs text-muted-foreground">Navegadores bloqueiam abrir <code>chrome://</code> automaticamente — por isso é preciso colar manualmente.</p>
+            <p className="text-xs text-muted-foreground">
+              Navegadores bloqueiam abrir <code>chrome://</code> automaticamente — por isso é
+              preciso colar manualmente.
+            </p>
           </div>
         )}
 
@@ -132,25 +186,45 @@ export function ExtensionOnboarding({ userId }: { userId: string | undefined }) 
             <SelectFolderIllustration />
 
             <ol className="list-decimal list-inside space-y-2 text-sm">
-              <li>Em <code className="bg-muted px-1 rounded">chrome://extensions</code>, ative o <b>Modo do desenvolvedor</b> (canto superior direito).</li>
-              <li>Clique em <b>Carregar sem compactação</b>.</li>
-              <li>Selecione a <b>pasta</b> <code>monitor-extension</code> que você descompactou (não o arquivo .zip).</li>
+              <li>
+                Em <code className="bg-muted px-1 rounded">chrome://extensions</code>, ative o{" "}
+                <b>Modo do desenvolvedor</b> (canto superior direito).
+              </li>
+              <li>
+                Clique em <b>Carregar sem compactação</b>.
+              </li>
+              <li>
+                Selecione a <b>pasta</b> <code>monitor-extension</code> que você descompactou (não o
+                arquivo .zip).
+              </li>
               <li>Fixe a extensão (ícone de quebra-cabeça na barra) e clique nela.</li>
-              <li><b>Faça login</b> com o mesmo email/senha deste painel.</li>
+              <li>
+                <b>Faça login</b> com o mesmo email/senha deste painel.
+              </li>
             </ol>
             <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
-              Se aparecer "Selecione um diretório de extensão" e o ZIP não estiver listado, é normal — só pastas aparecem. Volte ao passo 2 se ainda não descompactou.
+              Se aparecer "Selecione um diretório de extensão" e o ZIP não estiver listado, é normal
+              — só pastas aparecem. Volte ao passo 2 se ainda não descompactou.
             </div>
           </div>
         )}
 
         <DialogFooter className="flex sm:justify-between gap-2">
-          <Button variant="ghost" onClick={finish}>Pular por agora</Button>
+          <Button variant="ghost" onClick={finish}>
+            Pular por agora
+          </Button>
           <div className="flex gap-2">
-            {step > 1 && <Button variant="outline" onClick={() => setStep(step - 1)}>Voltar</Button>}
-            {step < 4 && <Button onClick={() => setStep(step + 1)} disabled={step === 1 && !downloaded}>Próximo</Button>}
+            {step > 1 && (
+              <Button variant="outline" onClick={() => setStep(step - 1)}>
+                Voltar
+              </Button>
+            )}
+            {step < 4 && (
+              <Button onClick={() => setStep(step + 1)} disabled={step === 1 && !downloaded}>
+                Próximo
+              </Button>
+            )}
             {step === 4 && <Button onClick={finish}>Concluir</Button>}
-
           </div>
         </DialogFooter>
       </DialogContent>

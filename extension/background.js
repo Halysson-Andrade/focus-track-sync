@@ -14,7 +14,7 @@ async function getSession() {
     try {
       const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
         method: "POST",
-        headers: { "apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({ refresh_token: session.refresh_token }),
       });
       if (res.ok) {
@@ -31,7 +31,9 @@ async function getSession() {
         await chrome.storage.local.remove("session");
         return null;
       }
-    } catch { return session; }
+    } catch {
+      return session;
+    }
   }
   return session;
 }
@@ -42,17 +44,21 @@ async function api(path, method, body) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     method,
     headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${session.access_token}`,
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${session.access_token}`,
       "Content-Type": "application/json",
-      "Prefer": "return=representation",
+      Prefer: "return=representation",
     },
     body: body ? JSON.stringify(body) : undefined,
   });
 }
 
 function domainOf(url) {
-  try { return new URL(url).hostname; } catch { return ""; }
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 function isTrackable(url) {
@@ -76,13 +82,19 @@ async function closeStaleRow() {
 }
 
 async function closeCurrent() {
-  if (!currentRow || !currentRow.id) { currentRow = null; await closeStaleRow(); return; }
+  if (!currentRow || !currentRow.id) {
+    currentRow = null;
+    await closeStaleRow();
+    return;
+  }
   const now = Date.now();
   const dur = (now - currentRow.enteredAt) / 1000;
   const idle = currentRow.idleAccum / 1000;
   const id = currentRow.id;
   currentRow = null;
-  try { await chrome.storage.session.remove("openRow"); } catch {}
+  try {
+    await chrome.storage.session.remove("openRow");
+  } catch {}
   try {
     await api(`navegacao_externa?id=eq.${id}`, "PATCH", {
       fim: new Date(now).toISOString(),
@@ -98,13 +110,21 @@ async function openRow(tab) {
   if (!isTrackable(tab.url)) return;
   const now = Date.now();
   currentRow = {
-    id: null, url: tab.url, domain: domainOf(tab.url), title: tab.title || "",
-    enteredAt: now, idleAccum: 0, idleStart: null, focused: true,
+    id: null,
+    url: tab.url,
+    domain: domainOf(tab.url),
+    title: tab.title || "",
+    enteredAt: now,
+    idleAccum: 0,
+    idleStart: null,
+    focused: true,
   };
   try {
     const res = await api("navegacao_externa", "POST", {
       usuario_id: session.user.id,
-      url: tab.url, domain: currentRow.domain, title: tab.title || "",
+      url: tab.url,
+      domain: currentRow.domain,
+      title: tab.title || "",
       inicio: new Date(now).toISOString(),
       janela_focada: true,
       user_agent: navigator.userAgent,
@@ -113,12 +133,15 @@ async function openRow(tab) {
       const [row] = await res.json();
       if (row && currentRow && currentRow.url === tab.url) {
         currentRow.id = row.id;
-        try { await chrome.storage.session.set({ openRow: { id: row.id, enteredAt: now } }); } catch {}
+        try {
+          await chrome.storage.session.set({ openRow: { id: row.id, enteredAt: now } });
+        } catch {}
       } else if (row) {
         // currentRow mudou enquanto criávamos — fecha imediatamente
         try {
           await api(`navegacao_externa?id=eq.${row.id}`, "PATCH", {
-            fim: new Date().toISOString(), duracao_segundos: 0,
+            fim: new Date().toISOString(),
+            duracao_segundos: 0,
           });
         } catch {}
       }
@@ -132,7 +155,9 @@ async function handleActive(tab) {
     // título pode ter mudado
     if (tab.title && currentRow.title !== tab.title && currentRow.id) {
       currentRow.title = tab.title;
-      try { await api(`navegacao_externa?id=eq.${currentRow.id}`, "PATCH", { title: tab.title }); } catch {}
+      try {
+        await api(`navegacao_externa?id=eq.${currentRow.id}`, "PATCH", { title: tab.title });
+      } catch {}
     }
     return;
   }
@@ -141,7 +166,10 @@ async function handleActive(tab) {
 }
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-  try { const tab = await chrome.tabs.get(tabId); await handleActive(tab); } catch {}
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    await handleActive(tab);
+  } catch {}
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
@@ -188,7 +216,7 @@ chrome.alarms.onAlarm.addListener(async (a) => {
     return;
   }
   const now = Date.now();
-  const idleNow = currentRow.idleStart ? (now - currentRow.idleStart) : 0;
+  const idleNow = currentRow.idleStart ? now - currentRow.idleStart : 0;
   try {
     await api(`navegacao_externa?id=eq.${currentRow.id}`, "PATCH", {
       duracao_segundos: (now - currentRow.enteredAt) / 1000,
@@ -210,7 +238,9 @@ async function broadcastHeartbeat() {
   try {
     const tabs = await chrome.tabs.query({ url: APP_URL_PATTERNS });
     for (const t of tabs) {
-      try { await chrome.tabs.sendMessage(t.id, { type: "EXT_HEARTBEAT" }); } catch {}
+      try {
+        await chrome.tabs.sendMessage(t.id, { type: "EXT_HEARTBEAT" });
+      } catch {}
     }
   } catch {}
 }
@@ -224,7 +254,9 @@ chrome.alarms.onAlarm.addListener(async (a) => {
 });
 
 // Troca de aba / mudança de URL / foco de janela = sinal de atividade.
-chrome.tabs.onActivated.addListener(() => { broadcastHeartbeat(); });
+chrome.tabs.onActivated.addListener(() => {
+  broadcastHeartbeat();
+});
 chrome.tabs.onUpdated.addListener((_id, change) => {
   if (change.url || change.title) broadcastHeartbeat();
 });
@@ -233,21 +265,31 @@ chrome.windows.onFocusChanged.addListener((winId) => {
 });
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
-  if (msg.type === "LOGGED_OUT") { closeCurrent(); }
+  if (msg.type === "LOGGED_OUT") {
+    closeCurrent();
+  }
   if (msg.type === "LOGGED_IN") {
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }, ([tab]) => { if (tab) handleActive(tab); });
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, ([tab]) => {
+      if (tab) handleActive(tab);
+    });
   }
   if (msg.type === "PAGE_READY" && sender.tab?.id) {
     // Empurra um heartbeat imediato para a aba que acabou de carregar o app.
-    try { chrome.tabs.sendMessage(sender.tab.id, { type: "EXT_HEARTBEAT" }); } catch {}
+    try {
+      chrome.tabs.sendMessage(sender.tab.id, { type: "EXT_HEARTBEAT" });
+    } catch {}
   }
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   // Máquina/navegador foi reiniciado: derruba a sessão da extensão para
   // forçar novo login, alinhado com o comportamento do app web.
-  try { await chrome.storage.local.remove("session"); } catch {}
-  try { await chrome.storage.session.remove("openRow"); } catch {}
+  try {
+    await chrome.storage.local.remove("session");
+  } catch {}
+  try {
+    await chrome.storage.session.remove("openRow");
+  } catch {}
   currentRow = null;
 });
 chrome.runtime.onInstalled.addListener(async () => {
@@ -258,5 +300,3 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 // SW pode reiniciar a qualquer momento: ao acordar, fecha linha órfã.
 closeStaleRow();
-
-

@@ -106,7 +106,8 @@ export function usePageTracker(userId: string | undefined, registroId: string | 
       let focused = focusedAccum.current;
       if (focusStart.current !== null) focused += now - focusStart.current;
       const gap = now - lastActivity.current;
-      const idleTotal = idleAccum.current + (focusStart.current !== null && gap > IDLE_THRESHOLD_MS ? gap : 0);
+      const idleTotal =
+        idleAccum.current + (focusStart.current !== null && gap > IDLE_THRESHOLD_MS ? gap : 0);
       currentRowId.current = null;
       await supabase
         .from("navegacao_paginas")
@@ -118,7 +119,9 @@ export function usePageTracker(userId: string | undefined, registroId: string | 
         .eq("id", id);
     };
 
-    const onBeforeUnload = () => { closeRow(); };
+    const onBeforeUnload = () => {
+      closeRow();
+    };
     window.addEventListener("beforeunload", onBeforeUnload);
 
     return () => {

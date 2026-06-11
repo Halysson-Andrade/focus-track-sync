@@ -1,4 +1,13 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, powerMonitor, shell } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  nativeImage,
+  ipcMain,
+  powerMonitor,
+  shell,
+} = require("electron");
 const path = require("path");
 const Store = require("electron-store");
 const AutoLaunch = require("auto-launch");
@@ -32,7 +41,9 @@ const supabase = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
         access_token: session.access_token,
         refresh_token: session.refresh_token,
       });
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   }
 })();
 
@@ -47,13 +58,25 @@ const autoLauncher = new AutoLaunch({ name: "Focus Track Monitor", isHidden: tru
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 460, height: 620, resizable: false,
-    show: false, autoHideMenuBar: true,
+    width: 460,
+    height: 620,
+    resizable: false,
+    show: false,
+    autoHideMenuBar: true,
     icon: path.join(__dirname, "..", "assets", "icon.png"),
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false },
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
   });
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
-  win.on("close", (e) => { if (!app.isQuiting) { e.preventDefault(); win.hide(); } });
+  win.on("close", (e) => {
+    if (!app.isQuiting) {
+      e.preventDefault();
+      win.hide();
+    }
+  });
 }
 
 function createTray() {
@@ -62,13 +85,29 @@ function createTray() {
   tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
   tray.setToolTip("Focus Track Monitor");
   const menu = Menu.buildFromTemplate([
-    { label: "Abrir painel", click: () => { win.show(); } },
-    { label: "Abrir app web", click: () => shell.openExternal("https://focus-track-sync.lovable.app") },
+    {
+      label: "Abrir painel",
+      click: () => {
+        win.show();
+      },
+    },
+    {
+      label: "Abrir app web",
+      click: () => shell.openExternal("https://focus-track-sync.lovable.app"),
+    },
     { type: "separator" },
-    { label: "Sair", click: () => { app.isQuiting = true; app.quit(); } },
+    {
+      label: "Sair",
+      click: () => {
+        app.isQuiting = true;
+        app.quit();
+      },
+    },
   ]);
   tray.setContextMenu(menu);
-  tray.on("click", () => { win.isVisible() ? win.hide() : win.show(); });
+  tray.on("click", () => {
+    win.isVisible() ? win.hide() : win.show();
+  });
 }
 
 async function getUserId() {
@@ -76,8 +115,32 @@ async function getUserId() {
   return data?.user?.id ?? null;
 }
 
+// Heartbeat de presença: sinaliza ao painel que o usuário está ativo em um app
+// nativo (ex.: VSCode) mesmo sem tocar no navegador — espelha o heartbeat da
+// extensão. Só é enviado quando o sistema NÃO está ocioso; throttled a ~30s.
+let lastPresenceAt = 0;
+async function sendPresence() {
+  try {
+    const userId = await getUserId();
+    if (!userId) return;
+    await supabase.from("presenca_desktop").upsert(
+      {
+        usuario_id: userId,
+        ultimo_ativo: new Date().toISOString(),
+        platform: process.platform,
+      },
+      { onConflict: "usuario_id" },
+    );
+  } catch (e) {
+    console.error("presence:", e.message);
+  }
+}
+
 async function closeCurrent() {
-  if (!current || !current.id) { current = null; return; }
+  if (!current || !current.id) {
+    current = null;
+    return;
+  }
   const now = Date.now();
   const dur = (now - current.enteredAt) / 1000;
   const idleNow = current.lastIdleStart ? (now - current.lastIdleStart) / 1000 : 0;
@@ -85,12 +148,17 @@ async function closeCurrent() {
   const id = current.id;
   current = null;
   try {
-    await supabase.from("uso_aplicativos").update({
-      fim: new Date(now).toISOString(),
-      duracao_segundos: dur,
-      inativo_segundos: Math.min(idle, dur),
-    }).eq("id", id);
-  } catch (e) { console.error("closeCurrent:", e.message); }
+    await supabase
+      .from("uso_aplicativos")
+      .update({
+        fim: new Date(now).toISOString(),
+        duracao_segundos: dur,
+        inativo_segundos: Math.min(idle, dur),
+      })
+      .eq("id", id);
+  } catch (e) {
+    console.error("closeCurrent:", e.message);
+  }
 }
 
 async function openRow(info) {
@@ -101,21 +169,35 @@ async function openRow(info) {
   const label = labelFor(processName);
   const now = Date.now();
   current = {
-    id: null, process_name: processName, app_label: label,
-    executable_path: exePath, enteredAt: now, idleAccum: 0, lastIdleStart: null,
+    id: null,
+    process_name: processName,
+    app_label: label,
+    executable_path: exePath,
+    enteredAt: now,
+    idleAccum: 0,
+    lastIdleStart: null,
   };
   try {
-    const { data, error } = await supabase.from("uso_aplicativos").insert({
-      usuario_id: userId,
-      process_name: processName,
-      app_label: label,
-      executable_path: exePath,
-      platform: process.platform,
-      inicio: new Date(now).toISOString(),
-    }).select("id").single();
-    if (error) { console.error("openRow:", error.message); return; }
+    const { data, error } = await supabase
+      .from("uso_aplicativos")
+      .insert({
+        usuario_id: userId,
+        process_name: processName,
+        app_label: label,
+        executable_path: exePath,
+        platform: process.platform,
+        inicio: new Date(now).toISOString(),
+      })
+      .select("id")
+      .single();
+    if (error) {
+      console.error("openRow:", error.message);
+      return;
+    }
     if (data && current && current.enteredAt === now) current.id = data.id;
-  } catch (e) { console.error("openRow:", e.message); }
+  } catch (e) {
+    console.error("openRow:", e.message);
+  }
 }
 
 async function tick() {
@@ -135,6 +217,12 @@ async function tick() {
       }
     }
 
+    // Presença para o painel (evita falso INATIVO enquanto trabalha em app nativo)
+    if (!isIdle && Date.now() - lastPresenceAt >= 30000) {
+      lastPresenceAt = Date.now();
+      sendPresence();
+    }
+
     if (!info || !info.owner) return;
     const procName = (info.owner.name || info.owner.path || "").toString();
     if (!procName) return;
@@ -144,7 +232,9 @@ async function tick() {
       await openRow(info);
       sendStatus();
     }
-  } catch (e) { console.error("tick:", e.message); }
+  } catch (e) {
+    console.error("tick:", e.message);
+  }
 }
 
 async function flush() {
@@ -153,11 +243,16 @@ async function flush() {
   const dur = (now - current.enteredAt) / 1000;
   const idleNow = current.lastIdleStart ? (now - current.lastIdleStart) / 1000 : 0;
   try {
-    await supabase.from("uso_aplicativos").update({
-      duracao_segundos: dur,
-      inativo_segundos: Math.min(current.idleAccum / 1000 + idleNow, dur),
-    }).eq("id", current.id);
-  } catch (e) { console.error("flush:", e.message); }
+    await supabase
+      .from("uso_aplicativos")
+      .update({
+        duracao_segundos: dur,
+        inativo_segundos: Math.min(current.idleAccum / 1000 + idleNow, dur),
+      })
+      .eq("id", current.id);
+  } catch (e) {
+    console.error("flush:", e.message);
+  }
 }
 
 function startMonitoring() {
@@ -210,17 +305,33 @@ ipcMain.handle("auth:logout", async () => {
   return { ok: true };
 });
 
-ipcMain.handle("monitor:start", () => { startMonitoring(); return { ok: true }; });
-ipcMain.handle("monitor:stop", async () => { await stopMonitoring(); return { ok: true }; });
+ipcMain.handle("monitor:start", () => {
+  startMonitoring();
+  return { ok: true };
+});
+ipcMain.handle("monitor:stop", async () => {
+  await stopMonitoring();
+  return { ok: true };
+});
 ipcMain.handle("monitor:status", () => ({
   monitoring,
   current: current ? { label: current.app_label, process: current.process_name } : null,
 }));
 
-ipcMain.handle("autolaunch:get", async () => { try { return await autoLauncher.isEnabled(); } catch { return false; } });
+ipcMain.handle("autolaunch:get", async () => {
+  try {
+    return await autoLauncher.isEnabled();
+  } catch {
+    return false;
+  }
+});
 ipcMain.handle("autolaunch:set", async (_e, enabled) => {
-  try { enabled ? await autoLauncher.enable() : await autoLauncher.disable(); return { ok: true }; }
-  catch (e) { return { error: e.message }; }
+  try {
+    enabled ? await autoLauncher.enable() : await autoLauncher.disable();
+    return { ok: true };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
 app.whenReady().then(async () => {
@@ -232,7 +343,9 @@ app.whenReady().then(async () => {
   else win.show();
 });
 
-app.on("window-all-closed", (e) => { e.preventDefault(); /* fica no tray */ });
+app.on("window-all-closed", (e) => {
+  e.preventDefault(); /* fica no tray */
+});
 
 app.on("before-quit", async (e) => {
   if (current && current.id) {
@@ -248,7 +361,11 @@ powerMonitor.on("shutdown", async (e) => {
   e.preventDefault();
   await stopMonitoring();
   store.delete("session");
-  try { await supabase.auth.signOut(); } catch { /* noop */ }
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    /* noop */
+  }
   app.isQuiting = true;
   app.quit();
 });

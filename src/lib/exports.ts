@@ -12,13 +12,15 @@ export interface ExportRow {
   duracao: string;
 }
 
-export function buildRows(records: Array<{
-  status: string;
-  inicio: string;
-  fim: string | null;
-  duracao_minutos: number | null;
-  usuario?: string;
-}>): ExportRow[] {
+export function buildRows(
+  records: Array<{
+    status: string;
+    inicio: string;
+    fim: string | null;
+    duracao_minutos: number | null;
+    usuario?: string;
+  }>,
+): ExportRow[] {
   return records.map((r) => ({
     usuario: r.usuario ?? "",
     data: new Date(r.inicio).toLocaleDateString("pt-BR"),
@@ -31,18 +33,29 @@ export function buildRows(records: Array<{
 
 export function exportCSV(rows: ExportRow[], filename = "relatorio.csv") {
   const headers = ["Usuário", "Data", "Início", "Fim", "Status", "Duração"];
-  const lines = [headers.join(";"), ...rows.map((r) =>
-    [r.usuario, r.data, r.inicio, r.fim, r.status, r.duracao]
-      .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")
-  )];
+  const lines = [
+    headers.join(";"),
+    ...rows.map((r) =>
+      [r.usuario, r.data, r.inicio, r.fim, r.status, r.duracao]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(";"),
+    ),
+  ];
   const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
   triggerDownload(blob, filename);
 }
 
 export function exportExcel(rows: ExportRow[], filename = "relatorio.xlsx") {
-  const ws = XLSX.utils.json_to_sheet(rows.map((r) => ({
-    Usuário: r.usuario, Data: r.data, Início: r.inicio, Fim: r.fim, Status: r.status, Duração: r.duracao,
-  })));
+  const ws = XLSX.utils.json_to_sheet(
+    rows.map((r) => ({
+      Usuário: r.usuario,
+      Data: r.data,
+      Início: r.inicio,
+      Fim: r.fim,
+      Status: r.status,
+      Duração: r.duracao,
+    })),
+  );
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Relatório");
   XLSX.writeFile(wb, filename);
@@ -65,6 +78,8 @@ export function exportPDF(rows: ExportRow[], filename = "relatorio.pdf") {
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
 }

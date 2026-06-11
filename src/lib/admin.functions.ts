@@ -14,7 +14,8 @@ export const adminCreateUser = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => createUserSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { data: ok } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId, _role: "admin",
+      _user_id: context.userId,
+      _role: "admin",
     });
     if (!ok) throw new Error("Acesso negado: somente admins podem criar usuários.");
 
@@ -40,7 +41,8 @@ export const adminDeleteUser = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ userId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: ok } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId, _role: "admin",
+      _user_id: context.userId,
+      _role: "admin",
     });
     if (!ok) throw new Error("Acesso negado.");
     if (data.userId === context.userId) throw new Error("Você não pode excluir a si mesmo.");

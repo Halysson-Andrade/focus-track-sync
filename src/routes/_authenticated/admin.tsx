@@ -9,8 +9,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,12 +33,20 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminUsers,
 });
 
+type AdminUser = {
+  id: string;
+  nome: string;
+  email: string;
+  ativo: boolean;
+  roles: string[];
+};
+
 function AdminUsers() {
   const { isAdmin, loading } = useAuth();
   const router = useRouter();
   const createFn = useServerFn(adminCreateUser);
   const deleteFn = useServerFn(adminDeleteUser);
-  const [list, setList] = useState<any[]>([]);
+  const [list, setList] = useState<AdminUser[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ nome: "", email: "", password: "", isAdmin: false });
   const [busy, setBusy] = useState(false);
@@ -39,14 +61,16 @@ function AdminUsers() {
       supabase.from("user_roles").select("user_id, role"),
     ]);
     const rolesByUser = new Map<string, string[]>();
-    (roles ?? []).forEach((r: any) => {
+    (roles ?? []).forEach((r) => {
       if (!rolesByUser.has(r.user_id)) rolesByUser.set(r.user_id, []);
       rolesByUser.get(r.user_id)!.push(r.role);
     });
-    setList((profiles ?? []).map((p: any) => ({ ...p, roles: rolesByUser.get(p.id) ?? [] })));
+    setList((profiles ?? []).map((p) => ({ ...p, roles: rolesByUser.get(p.id) ?? [] })));
   };
 
-  useEffect(() => { if (isAdmin) load(); }, [isAdmin]);
+  useEffect(() => {
+    if (isAdmin) load();
+  }, [isAdmin]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,9 +81,11 @@ function AdminUsers() {
       setOpen(false);
       setForm({ nome: "", email: "", password: "", isAdmin: false });
       load();
-    } catch (err: any) {
-      toast.error(err.message ?? "Erro");
-    } finally { setBusy(false); }
+    } catch (err) {
+      toast.error((err as Error).message ?? "Erro");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const toggleActive = async (id: string, ativo: boolean) => {
@@ -74,7 +100,9 @@ function AdminUsers() {
       await deleteFn({ data: { userId: id } });
       toast.success("Removido");
       load();
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   };
 
   if (loading || !isAdmin) return null;
@@ -84,24 +112,61 @@ function AdminUsers() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Usuários</h1>
-          <p className="text-sm text-muted-foreground">Cadastre, ative ou remova usuários do sistema.</p>
+          <p className="text-sm text-muted-foreground">
+            Cadastre, ative ou remova usuários do sistema.
+          </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" />Novo usuário</Button>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo usuário
+            </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>Cadastrar usuário</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle>Cadastrar usuário</DialogTitle>
+            </DialogHeader>
             <form onSubmit={submit} className="space-y-4">
-              <div className="space-y-2"><Label>Nome</Label><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required /></div>
-              <div className="space-y-2"><Label>E-mail</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
-              <div className="space-y-2"><Label>Senha temporária</Label><Input type="password" minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required /></div>
+              <div className="space-y-2">
+                <Label>Nome</Label>
+                <Input
+                  value={form.nome}
+                  onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Senha temporária</Label>
+                <Input
+                  type="password"
+                  minLength={8}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  required
+                />
+              </div>
               <div className="flex items-center justify-between rounded-md border border-border p-3">
                 <Label htmlFor="isAdmin">Administrador</Label>
-                <Switch id="isAdmin" checked={form.isAdmin} onCheckedChange={(v) => setForm({ ...form, isAdmin: v })} />
+                <Switch
+                  id="isAdmin"
+                  checked={form.isAdmin}
+                  onCheckedChange={(v) => setForm({ ...form, isAdmin: v })}
+                />
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={busy}>{busy ? "Criando..." : "Criar"}</Button>
+                <Button type="submit" disabled={busy}>
+                  {busy ? "Criando..." : "Criar"}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -109,7 +174,9 @@ function AdminUsers() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle>{list.length} usuário(s)</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>{list.length} usuário(s)</CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
@@ -129,14 +196,23 @@ function AdminUsers() {
                     <TableCell className="text-muted-foreground">{u.email}</TableCell>
                     <TableCell>
                       {u.roles.includes("admin") ? (
-                        <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">ADMIN</span>
+                        <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                          ADMIN
+                        </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">Usuário</span>
                       )}
                     </TableCell>
-                    <TableCell><Switch checked={u.ativo} onCheckedChange={() => toggleActive(u.id, u.ativo)} /></TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={u.ativo}
+                        onCheckedChange={() => toggleActive(u.id, u.ativo)}
+                      />
+                    </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => remove(u.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => remove(u.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

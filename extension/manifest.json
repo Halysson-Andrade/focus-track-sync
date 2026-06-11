@@ -3,15 +3,8 @@
   "name": "Monitor de Atividade",
   "version": "1.3.0",
   "description": "Registra navegação no Chrome para o painel de produtividade.",
-  "permissions": [
-    "tabs",
-    "storage",
-    "idle",
-    "alarms"
-  ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "permissions": ["tabs", "storage", "idle", "alarms"],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
@@ -22,9 +15,7 @@
         "https://*.lovable.app/*",
         "https://*.lovableproject.com/*"
       ],
-      "js": [
-        "content.js"
-      ],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ],

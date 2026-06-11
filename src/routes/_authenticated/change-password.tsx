@@ -33,8 +33,8 @@ function ChangePasswordPage() {
       }
       toast.success("Senha alterada com sucesso.");
       router.navigate({ to: "/" });
-    } catch (err: any) {
-      toast.error(err.message ?? "Erro ao alterar senha.");
+    } catch (err) {
+      toast.error((err as Error).message ?? "Erro ao alterar senha.");
     } finally {
       setBusy(false);
     }
@@ -46,18 +46,33 @@ function ChangePasswordPage() {
         <CardHeader>
           <CardTitle>Definir nova senha</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Este é seu primeiro acesso. Por segurança, defina uma nova senha pessoal antes de continuar.
+            Este é seu primeiro acesso. Por segurança, defina uma nova senha pessoal antes de
+            continuar.
           </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="pwd">Nova senha</Label>
-              <Input id="pwd" type="password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input
+                id="pwd"
+                type="password"
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="conf">Confirmar senha</Label>
-              <Input id="conf" type="password" minLength={8} value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+              <Input
+                id="conf"
+                type="password"
+                minLength={8}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
+              />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
               {busy ? "Salvando..." : "Salvar nova senha"}

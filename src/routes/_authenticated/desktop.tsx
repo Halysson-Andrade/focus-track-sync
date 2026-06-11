@@ -2,8 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Download, Monitor, Apple, ShieldCheck, Eye, Clock, AlertTriangle,
-  Settings, Play, ExternalLink, Cpu,
+  Download,
+  Monitor,
+  Apple,
+  ShieldCheck,
+  Eye,
+  Clock,
+  AlertTriangle,
+  Settings,
+  Play,
+  ExternalLink,
+  Cpu,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -68,7 +77,9 @@ function DesktopPage() {
             </div>
             <div className="flex-1">
               <div className="font-semibold">macOS</div>
-              <div className="text-xs text-muted-foreground">Imagem .dmg (Intel e Apple Silicon)</div>
+              <div className="text-xs text-muted-foreground">
+                Imagem .dmg (Intel e Apple Silicon)
+              </div>
             </div>
             <Download className="h-5 w-5 text-muted-foreground" />
           </button>
@@ -86,12 +97,18 @@ function DesktopPage() {
               <Monitor className="h-4 w-4" /> No Windows
             </div>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground ml-1">
-              <li>Dê duplo clique em <code className="bg-muted px-1 rounded">Focus Track Monitor Setup.exe</code>.</li>
               <li>
-                Se aparecer "O Windows protegeu seu PC" (SmartScreen), clique em <b>Mais informações</b> e
-                depois em <b>Executar assim mesmo</b>. É normal — o app ainda não é assinado digitalmente.
+                Dê duplo clique em{" "}
+                <code className="bg-muted px-1 rounded">Focus Track Monitor Setup.exe</code>.
               </li>
-              <li>Siga o assistente de instalação e clique em <b>Concluir</b>.</li>
+              <li>
+                Se aparecer "O Windows protegeu seu PC" (SmartScreen), clique em{" "}
+                <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>. É normal — o app
+                ainda não é assinado digitalmente.
+              </li>
+              <li>
+                Siga o assistente de instalação e clique em <b>Concluir</b>.
+              </li>
             </ol>
           </div>
 
@@ -100,11 +117,16 @@ function DesktopPage() {
               <Apple className="h-4 w-4" /> No macOS
             </div>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground ml-1">
-              <li>Dê duplo clique no arquivo <code className="bg-muted px-1 rounded">.dmg</code>.</li>
-              <li>Arraste o ícone <b>Focus Track Monitor</b> para a pasta <b>Aplicativos</b>.</li>
               <li>
-                Na primeira execução, se aparecer "não pode ser aberto porque é de um desenvolvedor não
-                identificado", vá em <b>Ajustes do Sistema → Privacidade e Segurança</b> e clique em
+                Dê duplo clique no arquivo <code className="bg-muted px-1 rounded">.dmg</code>.
+              </li>
+              <li>
+                Arraste o ícone <b>Focus Track Monitor</b> para a pasta <b>Aplicativos</b>.
+              </li>
+              <li>
+                Na primeira execução, se aparecer "não pode ser aberto porque é de um desenvolvedor
+                não identificado", vá em <b>Ajustes do Sistema → Privacidade e Segurança</b> e
+                clique em
                 <b> Abrir Assim Mesmo</b>.
               </li>
             </ol>
@@ -144,8 +166,8 @@ function DesktopPage() {
               Clique no ícone na bandeja do sistema → <b>Abrir painel</b>.
             </p>
             <p>
-              Ative a opção <b>"Iniciar com o Windows/macOS"</b> para o monitor subir
-              sozinho toda vez que você ligar a máquina — sem precisar abrir manualmente.
+              Ative a opção <b>"Iniciar com o Windows/macOS"</b> para o monitor subir sozinho toda
+              vez que você ligar a máquina — sem precisar abrir manualmente.
             </p>
             <div className="rounded-md border border-green-500/40 bg-green-500/10 p-3 text-xs">
               <b>Dica:</b> deixe o app sempre rodando em segundo plano. Ao reiniciar ou desligar a
@@ -163,16 +185,35 @@ function DesktopPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 text-sm">
-          <InfoLine icon={<Cpu className="h-4 w-4" />} label="Aplicativo ativo" desc="Nome do programa em foco (VS Code, Chrome, etc.)." />
-          <InfoLine icon={<Clock className="h-4 w-4" />} label="Tempo por app" desc="Quanto tempo você usa cada programa." />
-          <InfoLine icon={<AlertTriangle className="h-4 w-4" />} label="Tempo ocioso" desc="Mouse/teclado parados por mais de 1 minuto." />
-          <InfoLine icon={<ShieldCheck className="h-4 w-4" />} label="Privacidade" desc="Apenas o nome do app — sem títulos de janela, prints ou conteúdo." />
+          <InfoLine
+            icon={<Cpu className="h-4 w-4" />}
+            label="Aplicativo ativo"
+            desc="Nome do programa em foco (VS Code, Chrome, etc.)."
+          />
+          <InfoLine
+            icon={<Clock className="h-4 w-4" />}
+            label="Tempo por app"
+            desc="Quanto tempo você usa cada programa."
+          />
+          <InfoLine
+            icon={<AlertTriangle className="h-4 w-4" />}
+            label="Tempo ocioso"
+            desc="Mouse/teclado parados por mais de 1 minuto."
+          />
+          <InfoLine
+            icon={<ShieldCheck className="h-4 w-4" />}
+            label="Privacidade"
+            desc="Apenas o nome do app — sem títulos de janela, prints ou conteúdo."
+          />
         </CardContent>
         <CardContent className="pt-0">
           <p className="text-xs text-muted-foreground">
-            Para detalhar a navegação dentro do navegador (site, página, tempo por aba), instale também
-            a <a href="/extensao" className="underline text-primary">extensão do Chrome</a>.
-            O ideal é usar os dois juntos.
+            Para detalhar a navegação dentro do navegador (site, página, tempo por aba), instale
+            também a{" "}
+            <a href="/extensao" className="underline text-primary">
+              extensão do Chrome
+            </a>
+            . O ideal é usar os dois juntos.
           </p>
         </CardContent>
       </Card>
@@ -183,10 +224,18 @@ function DesktopPage() {
           <CardTitle className="text-base">Problemas?</CardTitle>
         </CardHeader>
         <CardContent className="text-sm space-y-2">
-          <p>• <b>O app não inicia:</b> certifique-se de ter Windows 10+ ou macOS 11+.</p>
-          <p>• <b>SmartScreen ou Gatekeeper bloqueou:</b> siga as instruções do passo 2.</p>
-          <p>• <b>Não aparece nada na bandeja:</b> abra o app novamente pelo atalho.</p>
-          <p>• <b>Login falha:</b> verifique a conexão e use as mesmas credenciais do painel.</p>
+          <p>
+            • <b>O app não inicia:</b> certifique-se de ter Windows 10+ ou macOS 11+.
+          </p>
+          <p>
+            • <b>SmartScreen ou Gatekeeper bloqueou:</b> siga as instruções do passo 2.
+          </p>
+          <p>
+            • <b>Não aparece nada na bandeja:</b> abra o app novamente pelo atalho.
+          </p>
+          <p>
+            • <b>Login falha:</b> verifique a conexão e use as mesmas credenciais do painel.
+          </p>
           <div className="pt-2">
             <Button asChild variant="outline" size="sm">
               <a href={RELEASES_URL} target="_blank" rel="noreferrer">
@@ -200,7 +249,15 @@ function DesktopPage() {
   );
 }
 
-function Step({ number, title, children }: { number: number; title: string; children: React.ReactNode }) {
+function Step({
+  number,
+  title,
+  children,
+}: {
+  number: number;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -219,7 +276,9 @@ function Step({ number, title, children }: { number: number; title: string; chil
 function InfoLine({ icon, label, desc }: { icon: React.ReactNode; label: string; desc: string }) {
   return (
     <div className="flex items-start gap-3 rounded-md border bg-muted/20 p-3">
-      <span className="grid h-8 w-8 place-items-center rounded-md bg-primary/10 text-primary shrink-0">{icon}</span>
+      <span className="grid h-8 w-8 place-items-center rounded-md bg-primary/10 text-primary shrink-0">
+        {icon}
+      </span>
       <div>
         <div className="font-medium">{label}</div>
         <div className="text-xs text-muted-foreground">{desc}</div>

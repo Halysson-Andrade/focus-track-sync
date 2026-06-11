@@ -23,7 +23,11 @@ function AuthenticatedLayout() {
 
   useEffect(() => {
     if (!user?.id) return;
-    supabase.from("profiles").select("must_change_password").eq("id", user.id).maybeSingle()
+    supabase
+      .from("profiles")
+      .select("must_change_password")
+      .eq("id", user.id)
+      .maybeSingle()
       .then(({ data }) => setMustChange(!!data?.must_change_password));
   }, [user?.id]);
 

@@ -25,7 +25,9 @@ function notify(title: string, body: string) {
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
       new Notification(title, { body });
     }
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
 }
 
 export function useCurrentSession(userId: string | undefined) {
@@ -37,10 +39,15 @@ export function useCurrentSession(userId: string | undefined) {
   // Quando a extensão envia heartbeats, sabemos o estado real do sistema
   // mesmo com a aba oculta — então não precisamos "perdoar" a ausência.
   const lastExtHeartbeatRef = useRef<number>(0);
+  // Presença do app desktop (heartbeat mediado por banco): mesma ideia da
+  // extensão, mas vinda de outro processo. Mantém o usuário ATIVO enquanto
+  // trabalha em um app nativo (ex.: VSCode) sem tocar no navegador.
+  const lastDesktopHeartbeatRef = useRef<number>(0);
 
   const refresh = useCallback(async () => {
     if (!userId) return;
-    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
     const { data } = await supabase
       .from("registros_atividade")
       .select("*")
@@ -54,7 +61,36 @@ export function useCurrentSession(userId: string | undefined) {
     if (open?.status === "INATIVO") setShowInactive(true);
   }, [userId]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Poll de presença do app desktop. Se houve atividade recente em um app
+  // nativo, conta como atividade do usuário (evita falso INATIVO) — espelhando
+  // o heartbeat da extensão, porém lido do banco (processo separado).
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    const check = async () => {
+      const { data } = await supabase
+        .from("presenca_desktop")
+        .select("ultimo_ativo")
+        .eq("usuario_id", userId)
+        .maybeSingle();
+      if (cancelled || !data?.ultimo_ativo) return;
+      const age = Date.now() - new Date(data.ultimo_ativo).getTime();
+      if (age < EXT_PRESENCE_WINDOW_MS) {
+        lastActivityRef.current = Date.now();
+        lastDesktopHeartbeatRef.current = Date.now();
+      }
+    };
+    check();
+    const i = window.setInterval(check, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(i);
+    };
+  }, [userId]);
 
   // Ask notification permission once
   useEffect(() => {
@@ -65,13 +101,19 @@ export function useCurrentSession(userId: string | undefined) {
 
   // Activity listeners
   useEffect(() => {
-    const bump = () => { lastActivityRef.current = Date.now(); };
+    const bump = () => {
+      lastActivityRef.current = Date.now();
+    };
     const onVisibility = () => {
       // Ao voltar à aba: só "perdoa" a ausência se NÃO houver extensão ativa.
       // Com extensão, os heartbeats já cobrem atividade em outras janelas —
       // se eles pararam (almoço, máquina bloqueada), a ausência conta.
-      const hasExtension = lastExtHeartbeatRef.current > 0 && Date.now() - lastExtHeartbeatRef.current < EXT_PRESENCE_WINDOW_MS;
-      if (!document.hidden && !hasExtension) lastActivityRef.current = Date.now();
+      const hasPresence =
+        (lastExtHeartbeatRef.current > 0 &&
+          Date.now() - lastExtHeartbeatRef.current < EXT_PRESENCE_WINDOW_MS) ||
+        (lastDesktopHeartbeatRef.current > 0 &&
+          Date.now() - lastDesktopHeartbeatRef.current < EXT_PRESENCE_WINDOW_MS);
+      if (!document.hidden && !hasPresence) lastActivityRef.current = Date.now();
     };
     // Heartbeat enviado pela extensão (content script -> postMessage) quando
     // o sistema está ativo ou houve troca de aba em outra janela.
@@ -97,27 +139,44 @@ export function useCurrentSession(userId: string | undefined) {
   }, []);
 
   // Close current registro and open new one
-  const transition = useCallback(async (next: Status, observacao?: string) => {
-    if (!userId) return;
-    const now = new Date().toISOString();
-    if (current) {
-      const dur = (new Date(now).getTime() - new Date(current.inicio).getTime()) / 60000;
-      await supabase.from("registros_atividade").update({
-        fim: now, duracao_minutos: dur,
-      }).eq("id", current.id);
-    }
-    if (next !== "ENCERRADO") {
-      const { data, error } = await supabase.from("registros_atividade").insert({
-        usuario_id: userId, status: next, inicio: now, observacao: observacao ?? null,
-      }).select().single();
-      if (error) { toast.error(error.message); return; }
-      setCurrent(data as Registro);
-    } else {
-      setCurrent(null);
-    }
-    lastActivityRef.current = Date.now();
-    await refresh();
-  }, [current, userId, refresh]);
+  const transition = useCallback(
+    async (next: Status, observacao?: string) => {
+      if (!userId) return;
+      const now = new Date().toISOString();
+      if (current) {
+        const dur = (new Date(now).getTime() - new Date(current.inicio).getTime()) / 60000;
+        await supabase
+          .from("registros_atividade")
+          .update({
+            fim: now,
+            duracao_minutos: dur,
+          })
+          .eq("id", current.id);
+      }
+      if (next !== "ENCERRADO") {
+        const { data, error } = await supabase
+          .from("registros_atividade")
+          .insert({
+            usuario_id: userId,
+            status: next,
+            inicio: now,
+            observacao: observacao ?? null,
+          })
+          .select()
+          .single();
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        setCurrent(data as Registro);
+      } else {
+        setCurrent(null);
+      }
+      lastActivityRef.current = Date.now();
+      await refresh();
+    },
+    [current, userId, refresh],
+  );
 
   // Inactivity monitor
   useEffect(() => {
@@ -129,8 +188,12 @@ export function useCurrentSession(userId: string | undefined) {
       // Com a extensão ativa (heartbeats recentes em até 3 min), checamos
       // mesmo com a aba oculta — a extensão sabe se o sistema está ocioso.
       // Sem extensão, mantém o comportamento antigo (pausa quando oculto).
-      const hasExtension = lastExtHeartbeatRef.current > 0 && Date.now() - lastExtHeartbeatRef.current < EXT_PRESENCE_WINDOW_MS;
-      if (document.hidden && !hasExtension) return;
+      const hasPresence =
+        (lastExtHeartbeatRef.current > 0 &&
+          Date.now() - lastExtHeartbeatRef.current < EXT_PRESENCE_WINDOW_MS) ||
+        (lastDesktopHeartbeatRef.current > 0 &&
+          Date.now() - lastDesktopHeartbeatRef.current < EXT_PRESENCE_WINDOW_MS);
+      if (document.hidden && !hasPresence) return;
       const elapsed = Date.now() - lastActivityRef.current;
       if (elapsed >= INACTIVITY_LIMIT_MS) {
         notify("Inatividade detectada", "Você foi marcado como inativo.");
@@ -138,7 +201,9 @@ export function useCurrentSession(userId: string | undefined) {
         setShowInactive(true);
       }
     }, 15000);
-    return () => { if (checkRef.current) window.clearInterval(checkRef.current); };
+    return () => {
+      if (checkRef.current) window.clearInterval(checkRef.current);
+    };
   }, [current, transition]);
 
   const start = useCallback(async () => {
@@ -147,17 +212,23 @@ export function useCurrentSession(userId: string | undefined) {
     toast.success("Expediente iniciado");
   }, [transition]);
 
-  const pause = useCallback(async (observacao: string) => {
-    await transition("PAUSA", observacao);
-    notify("Pausa iniciada", "Aproveite seu intervalo.");
-    toast("Pausa iniciada");
-  }, [transition]);
+  const pause = useCallback(
+    async (observacao: string) => {
+      await transition("PAUSA", observacao);
+      notify("Pausa iniciada", "Aproveite seu intervalo.");
+      toast("Pausa iniciada");
+    },
+    [transition],
+  );
 
-  const lunch = useCallback(async (observacao: string) => {
-    await transition("ALMOCO", observacao);
-    notify("Almoço iniciado", "Bom apetite!");
-    toast("Almoço iniciado");
-  }, [transition]);
+  const lunch = useCallback(
+    async (observacao: string) => {
+      await transition("ALMOCO", observacao);
+      notify("Almoço iniciado", "Bom apetite!");
+      toast("Almoço iniciado");
+    },
+    [transition],
+  );
 
   const resume = useCallback(async () => {
     await transition("ATIVO");
@@ -172,12 +243,20 @@ export function useCurrentSession(userId: string | undefined) {
     if (current && (current.status === "PAUSA" || current.status === "ALMOCO")) {
       const now = new Date().toISOString();
       const dur = (new Date(now).getTime() - new Date(current.inicio).getTime()) / 60000;
-      await supabase.from("registros_atividade").update({
-        fim: now, duracao_minutos: dur,
-      }).eq("id", current.id);
+      await supabase
+        .from("registros_atividade")
+        .update({
+          fim: now,
+          duracao_minutos: dur,
+        })
+        .eq("id", current.id);
       // Mark journey end as a zero-length ENCERRADO row.
       await supabase.from("registros_atividade").insert({
-        usuario_id: userId, status: "ENCERRADO", inicio: now, fim: now, duracao_minutos: 0,
+        usuario_id: userId,
+        status: "ENCERRADO",
+        inicio: now,
+        fim: now,
+        duracao_minutos: 0,
       });
       setCurrent(null);
       await refresh();
@@ -189,7 +268,15 @@ export function useCurrentSession(userId: string | undefined) {
   }, [current, userId, transition, refresh]);
 
   return {
-    current, todayRecords, showInactive, setShowInactive,
-    start, pause, lunch, resume, stop, refresh,
+    current,
+    todayRecords,
+    showInactive,
+    setShowInactive,
+    start,
+    pause,
+    lunch,
+    resume,
+    stop,
+    refresh,
   };
 }

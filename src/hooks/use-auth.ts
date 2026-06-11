@@ -46,7 +46,9 @@ export function useAuth() {
       setIsAdmin(!!roles?.some((r) => r.role === "admin"));
       setLoading(false);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   return { user, profile, isAdmin, loading };

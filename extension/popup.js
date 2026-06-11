@@ -24,7 +24,9 @@ function renderLogin(msg) {
   root.appendChild(el("label", { textContent: "Email" }));
   root.appendChild(el("input", { id: "email", type: "email", autocomplete: "email" }));
   root.appendChild(el("label", { textContent: "Senha" }));
-  root.appendChild(el("input", { id: "password", type: "password", autocomplete: "current-password" }));
+  root.appendChild(
+    el("input", { id: "password", type: "password", autocomplete: "current-password" }),
+  );
   root.appendChild(el("button", { id: "login", textContent: "Entrar" }));
   root.appendChild(el("div", { class: "muted", textContent: "Use o mesmo login do painel." }));
   document.getElementById("login").onclick = doLogin;
@@ -37,8 +39,20 @@ function renderLogged(session) {
     el("b", { textContent: String(session?.user?.email ?? "") }),
   ]);
   root.appendChild(status);
-  root.appendChild(el("div", { class: "muted", textContent: "A navegação está sendo registrada em segundo plano." }));
-  root.appendChild(el("button", { class: "secondary", id: "logout", style: "margin-top:14px", textContent: "Sair" }));
+  root.appendChild(
+    el("div", {
+      class: "muted",
+      textContent: "A navegação está sendo registrada em segundo plano.",
+    }),
+  );
+  root.appendChild(
+    el("button", {
+      class: "secondary",
+      id: "logout",
+      style: "margin-top:14px",
+      textContent: "Sair",
+    }),
+  );
   document.getElementById("logout").onclick = async () => {
     await chrome.storage.local.remove("session");
     chrome.runtime.sendMessage({ type: "LOGGED_OUT" });
@@ -53,7 +67,7 @@ async function doLogin() {
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: "POST",
-      headers: { "apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
@@ -74,5 +88,6 @@ async function doLogin() {
 
 (async () => {
   const s = await getSession();
-  if (s) renderLogged(s); else renderLogin();
+  if (s) renderLogged(s);
+  else renderLogin();
 })();

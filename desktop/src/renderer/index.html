@@ -1,121 +1,223 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-<meta charset="utf-8" />
-<title>Focus Track Monitor</title>
-<style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #0f172a; color: #e2e8f0; padding: 24px;
-  }
-  h1 { font-size: 18px; margin: 0 0 4px; }
-  p.sub { margin: 0 0 20px; color: #94a3b8; font-size: 13px; }
-  .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-  label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
-  input { width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 14px; margin-bottom: 10px; }
-  button { width: 100%; padding: 10px; border-radius: 8px; border: 0; background: #3b82f6; color: white; font-weight: 600; cursor: pointer; font-size: 14px; }
-  button:hover { background: #2563eb; }
-  button.ghost { background: transparent; color: #94a3b8; border: 1px solid #334155; }
-  button.danger { background: #dc2626; }
-  .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-  .badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-  .on { background: #166534; color: #bbf7d0; }
-  .off { background: #7f1d1d; color: #fecaca; }
-  .current { font-size: 16px; font-weight: 600; color: #e2e8f0; }
-  .proc { font-size: 11px; color: #64748b; font-family: ui-monospace, monospace; }
-  .err { color: #fca5a5; font-size: 12px; margin-top: 6px; }
-  .hide { display: none; }
-  .switch { display:flex; align-items:center; justify-content:space-between; padding: 8px 0; font-size: 13px; }
-</style>
-</head>
-<body>
-  <h1>Focus Track Monitor</h1>
-  <p class="sub">Registra os aplicativos usados na sua máquina.</p>
+  <head>
+    <meta charset="utf-8" />
+    <title>Focus Track Monitor</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      p.sub {
+        margin: 0 0 20px;
+        color: #94a3b8;
+        font-size: 13px;
+      }
+      .card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: #94a3b8;
+        margin-bottom: 4px;
+      }
+      input {
+        width: 100%;
+        padding: 9px 11px;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-size: 14px;
+        margin-bottom: 10px;
+      }
+      button {
+        width: 100%;
+        padding: 10px;
+        border-radius: 8px;
+        border: 0;
+        background: #3b82f6;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      button:hover {
+        background: #2563eb;
+      }
+      button.ghost {
+        background: transparent;
+        color: #94a3b8;
+        border: 1px solid #334155;
+      }
+      button.danger {
+        background: #dc2626;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .on {
+        background: #166534;
+        color: #bbf7d0;
+      }
+      .off {
+        background: #7f1d1d;
+        color: #fecaca;
+      }
+      .current {
+        font-size: 16px;
+        font-weight: 600;
+        color: #e2e8f0;
+      }
+      .proc {
+        font-size: 11px;
+        color: #64748b;
+        font-family: ui-monospace, monospace;
+      }
+      .err {
+        color: #fca5a5;
+        font-size: 12px;
+        margin-top: 6px;
+      }
+      .hide {
+        display: none;
+      }
+      .switch {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Focus Track Monitor</h1>
+    <p class="sub">Registra os aplicativos usados na sua máquina.</p>
 
-  <!-- LOGIN -->
-  <div id="login" class="card">
-    <label>E-mail</label>
-    <input id="email" type="email" autocomplete="username" />
-    <label>Senha</label>
-    <input id="password" type="password" autocomplete="current-password" />
-    <button id="btn-login">Entrar</button>
-    <div id="login-err" class="err"></div>
-  </div>
+    <!-- LOGIN -->
+    <div id="login" class="card">
+      <label>E-mail</label>
+      <input id="email" type="email" autocomplete="username" />
+      <label>Senha</label>
+      <input id="password" type="password" autocomplete="current-password" />
+      <button id="btn-login">Entrar</button>
+      <div id="login-err" class="err"></div>
+    </div>
 
-  <!-- DASHBOARD -->
-  <div id="dash" class="card hide">
-    <div class="row">
-      <div>
-        <div style="font-size:12px;color:#94a3b8">Logado como</div>
-        <div id="who" style="font-size:14px;font-weight:600"></div>
+    <!-- DASHBOARD -->
+    <div id="dash" class="card hide">
+      <div class="row">
+        <div>
+          <div style="font-size: 12px; color: #94a3b8">Logado como</div>
+          <div id="who" style="font-size: 14px; font-weight: 600"></div>
+        </div>
+        <span id="status-badge" class="badge off">parado</span>
       </div>
-      <span id="status-badge" class="badge off">parado</span>
+
+      <div style="margin: 14px 0 6px; font-size: 12px; color: #94a3b8">Aplicativo ativo</div>
+      <div id="current-app" class="current">—</div>
+      <div id="current-proc" class="proc"></div>
+
+      <div style="height: 14px"></div>
+      <div class="row">
+        <button id="btn-toggle">Iniciar monitoramento</button>
+      </div>
+
+      <div class="switch">
+        <span>Iniciar com o Windows/macOS</span>
+        <input id="auto-launch" type="checkbox" />
+      </div>
+
+      <div style="height: 6px"></div>
+      <button class="ghost" id="btn-logout">Sair</button>
     </div>
 
-    <div style="margin: 14px 0 6px; font-size:12px; color:#94a3b8">Aplicativo ativo</div>
-    <div id="current-app" class="current">—</div>
-    <div id="current-proc" class="proc"></div>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let monitoring = false;
 
-    <div style="height: 14px"></div>
-    <div class="row">
-      <button id="btn-toggle">Iniciar monitoramento</button>
-    </div>
+      async function refresh() {
+        const user = await window.api.getUser();
+        if (user) {
+          $("login").classList.add("hide");
+          $("dash").classList.remove("hide");
+          $("who").textContent = user.email;
+          const s = await window.api.status();
+          applyStatus(s);
+          $("auto-launch").checked = await window.api.getAutoLaunch();
+        } else {
+          $("login").classList.remove("hide");
+          $("dash").classList.add("hide");
+        }
+      }
 
-    <div class="switch">
-      <span>Iniciar com o Windows/macOS</span>
-      <input id="auto-launch" type="checkbox" />
-    </div>
+      function applyStatus(s) {
+        monitoring = s.monitoring;
+        $("status-badge").textContent = s.monitoring ? "monitorando" : "parado";
+        $("status-badge").className = "badge " + (s.monitoring ? "on" : "off");
+        $("btn-toggle").textContent = s.monitoring
+          ? "Parar monitoramento"
+          : "Iniciar monitoramento";
+        $("btn-toggle").className = s.monitoring ? "danger" : "";
+        $("current-app").textContent = s.current?.label || "—";
+        $("current-proc").textContent = s.current?.process || "";
+      }
 
-    <div style="height: 6px"></div>
-    <button class="ghost" id="btn-logout">Sair</button>
-  </div>
+      $("btn-login").onclick = async () => {
+        $("login-err").textContent = "";
+        $("btn-login").disabled = true;
+        const r = await window.api.login($("email").value.trim(), $("password").value);
+        $("btn-login").disabled = false;
+        if (r.error) {
+          $("login-err").textContent = r.error;
+          return;
+        }
+        refresh();
+      };
 
-<script>
-  const $ = (id) => document.getElementById(id);
-  let monitoring = false;
+      $("btn-logout").onclick = async () => {
+        await window.api.logout();
+        refresh();
+      };
+      $("btn-toggle").onclick = async () => {
+        monitoring ? await window.api.stop() : await window.api.start();
+      };
+      $("auto-launch").onchange = async (e) => {
+        await window.api.setAutoLaunch(e.target.checked);
+      };
 
-  async function refresh() {
-    const user = await window.api.getUser();
-    if (user) {
-      $("login").classList.add("hide");
-      $("dash").classList.remove("hide");
-      $("who").textContent = user.email;
-      const s = await window.api.status();
-      applyStatus(s);
-      $("auto-launch").checked = await window.api.getAutoLaunch();
-    } else {
-      $("login").classList.remove("hide");
-      $("dash").classList.add("hide");
-    }
-  }
-
-  function applyStatus(s) {
-    monitoring = s.monitoring;
-    $("status-badge").textContent = s.monitoring ? "monitorando" : "parado";
-    $("status-badge").className = "badge " + (s.monitoring ? "on" : "off");
-    $("btn-toggle").textContent = s.monitoring ? "Parar monitoramento" : "Iniciar monitoramento";
-    $("btn-toggle").className = s.monitoring ? "danger" : "";
-    $("current-app").textContent = s.current?.label || "—";
-    $("current-proc").textContent = s.current?.process || "";
-  }
-
-  $("btn-login").onclick = async () => {
-    $("login-err").textContent = "";
-    $("btn-login").disabled = true;
-    const r = await window.api.login($("email").value.trim(), $("password").value);
-    $("btn-login").disabled = false;
-    if (r.error) { $("login-err").textContent = r.error; return; }
-    refresh();
-  };
-
-  $("btn-logout").onclick = async () => { await window.api.logout(); refresh(); };
-  $("btn-toggle").onclick = async () => { monitoring ? await window.api.stop() : await window.api.start(); };
-  $("auto-launch").onchange = async (e) => { await window.api.setAutoLaunch(e.target.checked); };
-
-  window.api.onStatus(applyStatus);
-  refresh();
-</script>
-</body>
+      window.api.onStatus(applyStatus);
+      refresh();
+    </script>
+  </body>
 </html>

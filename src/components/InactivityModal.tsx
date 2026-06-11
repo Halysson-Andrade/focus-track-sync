@@ -11,7 +11,8 @@ export function InactivityModal({ open, onResume }: { open: boolean; onResume: (
         </div>
         <h2 className="text-2xl font-bold">Você foi marcado como inativo</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Não detectamos atividade por mais de 10 minutos. Quando estiver pronto, retome seu expediente.
+          Não detectamos atividade por mais de 10 minutos. Quando estiver pronto, retome seu
+          expediente.
         </p>
         <Button onClick={onResume} className="mt-6 w-full" size="lg">
           Voltar ao Trabalho
