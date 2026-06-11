@@ -114,14 +114,14 @@ export function useCurrentSession(userId: string | undefined) {
     toast.success("Expediente iniciado");
   }, [transition]);
 
-  const pause = useCallback(async () => {
-    await transition("PAUSA");
+  const pause = useCallback(async (observacao: string) => {
+    await transition("PAUSA", observacao);
     notify("Pausa iniciada", "Aproveite seu intervalo.");
     toast("Pausa iniciada");
   }, [transition]);
 
-  const lunch = useCallback(async () => {
-    await transition("ALMOCO");
+  const lunch = useCallback(async (observacao: string) => {
+    await transition("ALMOCO", observacao);
     notify("Almoço iniciado", "Bom apetite!");
     toast("Almoço iniciado");
   }, [transition]);
@@ -134,10 +134,26 @@ export function useCurrentSession(userId: string | undefined) {
   }, [transition]);
 
   const stop = useCallback(async () => {
-    await transition("ENCERRADO");
+    if (!userId) return;
+    // If currently paused or at lunch, close that record first, then mark journey end.
+    if (current && (current.status === "PAUSA" || current.status === "ALMOCO")) {
+      const now = new Date().toISOString();
+      const dur = (new Date(now).getTime() - new Date(current.inicio).getTime()) / 60000;
+      await supabase.from("registros_atividade").update({
+        fim: now, duracao_minutos: dur,
+      }).eq("id", current.id);
+      // Mark journey end as a zero-length ENCERRADO row.
+      await supabase.from("registros_atividade").insert({
+        usuario_id: userId, status: "ENCERRADO", inicio: now, fim: now, duracao_minutos: 0,
+      });
+      setCurrent(null);
+      await refresh();
+    } else {
+      await transition("ENCERRADO");
+    }
     notify("Expediente encerrado", "Até logo!");
     toast.success("Expediente encerrado");
-  }, [transition]);
+  }, [current, userId, transition, refresh]);
 
   return {
     current, todayRecords, showInactive, setShowInactive,

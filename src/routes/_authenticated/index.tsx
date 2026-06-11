@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext, PaginationEllipsis } from "@/components/ui/pagination";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatHM } from "@/lib/format";
 import {
@@ -48,6 +51,9 @@ function formatSeconds(s: number) {
 function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
+  const [breakDialog, setBreakDialog] = useState<{ kind: "PAUSA" | "ALMOCO" } | null>(null);
+  const [breakReason, setBreakReason] = useState("");
+  const [breakBusy, setBreakBusy] = useState(false);
   const [now, setNow] = useState(new Date());
   const [history30, setHistory30] = useState<{ date: Date; records: Registro[] }[]>([]);
 
@@ -329,10 +335,10 @@ function Dashboard() {
             <Button onClick={session.start} disabled={!canStart} size="lg">
               <Play className="mr-2 h-4 w-4" /> Iniciar Expediente
             </Button>
-            <Button onClick={session.pause} disabled={!isActive} variant="secondary" size="lg">
+            <Button onClick={() => setBreakDialog({ kind: "PAUSA" })} disabled={!isActive} variant="secondary" size="lg">
               <Pause className="mr-2 h-4 w-4" /> Pausa
             </Button>
-            <Button onClick={session.lunch} disabled={!isActive} variant="secondary" size="lg">
+            <Button onClick={() => setBreakDialog({ kind: "ALMOCO" })} disabled={!isActive} variant="secondary" size="lg">
               <Utensils className="mr-2 h-4 w-4" /> Almoço
             </Button>
             <Button onClick={session.resume} disabled={!isPaused} variant="default" size="lg">
@@ -344,6 +350,47 @@ function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog
+        open={!!breakDialog}
+        onOpenChange={(o) => { if (!o) { setBreakDialog(null); setBreakReason(""); } }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{breakDialog?.kind === "ALMOCO" ? "Iniciar almoço" : "Iniciar pausa"}</DialogTitle>
+            <DialogDescription>Informe uma justificativa antes de continuar.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="break-reason">Justificativa</Label>
+            <Textarea
+              id="break-reason"
+              value={breakReason}
+              onChange={(e) => setBreakReason(e.target.value)}
+              placeholder={breakDialog?.kind === "ALMOCO" ? "Ex: horário de almoço" : "Ex: pausa para café"}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={breakBusy || breakReason.trim().length < 3}
+              onClick={async () => {
+                if (!breakDialog) return;
+                setBreakBusy(true);
+                try {
+                  const reason = breakReason.trim();
+                  if (breakDialog.kind === "PAUSA") await session.pause(reason);
+                  else await session.lunch(reason);
+                  setBreakDialog(null);
+                  setBreakReason("");
+                } finally { setBreakBusy(false); }
+              }}
+            >
+              {breakBusy ? "..." : "Confirmar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
