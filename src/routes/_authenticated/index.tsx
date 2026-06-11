@@ -11,6 +11,7 @@ import { Coffee, Pause, Play, Square, Utensils, Clock, TrendingUp, Activity as A
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext, PaginationEllipsis } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatHM } from "@/lib/format";
 import {
@@ -54,6 +55,8 @@ function Dashboard() {
   const startOfToday = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday);
   const [openDomain, setOpenDomain] = useState<string | null>(null);
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(10);
   const isToday = selectedDate.getTime() === startOfToday.getTime();
   const dayRange = useMemo(() => {
     const s = new Date(selectedDate); s.setHours(0,0,0,0);
@@ -462,7 +465,7 @@ function Dashboard() {
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>Logs de navegação — últimas visitas</CardTitle>
+            <CardTitle>Logs de navegação — {isToday ? "hoje" : "no dia"}</CardTitle>
             <div className="flex items-center gap-2 text-xs">
               <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/5">
                 <Globe className="h-3 w-3" /> App {formatSeconds(sourceTotals.app)}
@@ -477,26 +480,57 @@ function Dashboard() {
           {unifiedLogs.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Sem logs. Instale a extensão para capturar navegação fora do app.</p>
           ) : (
-            <ul className="space-y-1.5 text-sm">
-              {unifiedLogs.slice(0, 30).map((l) => (
-                <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-mono text-xs text-muted-foreground shrink-0">{formatHM(l.inicio)}</span>
-                    {l.origem === "app" ? (
-                      <Badge variant="outline" className="gap-1 shrink-0 border-primary/40 text-primary"><Globe className="h-3 w-3" /> App</Badge>
-                    ) : (
-                      <Badge variant="outline" className="gap-1 shrink-0 border-warning/40 text-warning"><Chrome className="h-3 w-3" /> Chrome</Badge>
-                    )}
-                    <span className="font-medium truncate">{l.label}</span>
-                    <span className="font-mono text-xs text-muted-foreground truncate">{l.sub}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs shrink-0">
-                    <span className="font-mono">{formatSeconds(l.duracao)}</span>
-                    {l.inativo > 0 && <span className="font-mono text-destructive">idle {formatSeconds(l.inativo)}</span>}
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="space-y-1.5 text-sm">
+                {unifiedLogs.slice((logPage - 1) * logPageSize, logPage * logPageSize).map((l) => (
+                  <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="font-mono text-xs text-muted-foreground shrink-0">{formatHM(l.inicio)}</span>
+                      {l.origem === "app" ? (
+                        <Badge variant="outline" className="gap-1 shrink-0 border-primary/40 text-primary"><Globe className="h-3 w-3" /> App</Badge>
+                      ) : (
+                        <Badge variant="outline" className="gap-1 shrink-0 border-warning/40 text-warning"><Chrome className="h-3 w-3" /> Chrome</Badge>
+                      )}
+                      <span className="font-medium truncate">{l.label}</span>
+                      <span className="font-mono text-xs text-muted-foreground truncate">{l.sub}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs shrink-0">
+                      <span className="font-mono">{formatSeconds(l.duracao)}</span>
+                      {l.inativo > 0 && <span className="font-mono text-destructive">idle {formatSeconds(l.inativo)}</span>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Itens por página:</span>
+                  <Select value={String(logPageSize)} onValueChange={(v) => { setLogPageSize(Number(v)); setLogPage(1); }}>
+                    <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span>{unifiedLogs.length} total</span>
+                </div>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious onClick={() => setLogPage((p) => Math.max(1, p - 1))} className={logPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                    </PaginationItem>
+                    {Array.from({ length: Math.ceil(unifiedLogs.length / logPageSize) }, (_, i) => i + 1).map((p) => (
+                      <PaginationItem key={p}>
+                        <PaginationLink isActive={p === logPage} onClick={() => setLogPage(p)} className="cursor-pointer">{p}</PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext onClick={() => setLogPage((p) => Math.min(Math.ceil(unifiedLogs.length / logPageSize), p + 1))} className={logPage === Math.ceil(unifiedLogs.length / logPageSize) ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
