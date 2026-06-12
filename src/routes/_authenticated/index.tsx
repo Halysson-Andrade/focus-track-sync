@@ -793,6 +793,67 @@ function Dashboard() {
         </Card>
       )}
 
+      {/* Gate: exige extensão + app desktop online antes de iniciar expediente */}
+      <Dialog open={startGateOpen} onOpenChange={setStartGateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              Não é possível iniciar o expediente
+            </DialogTitle>
+            <DialogDescription>
+              Para iniciar o expediente é necessário que as ferramentas de monitoramento estejam online.
+              Faça login nelas e tente novamente.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-2 text-sm">
+            <li className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "inline-block h-2.5 w-2.5 rounded-full",
+                  presence.extOnline ? "bg-success" : "bg-destructive",
+                )}
+              />
+              <Chrome className="h-4 w-4" />
+              <span className="font-medium">Extensão do Chrome:</span>
+              <span className={presence.extOnline ? "text-success" : "text-destructive"}>
+                {presence.extOnline ? "online" : "offline — faça login na extensão"}
+              </span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "inline-block h-2.5 w-2.5 rounded-full",
+                  presence.desktopOnline ? "bg-success" : "bg-destructive",
+                )}
+              />
+              <Monitor className="h-4 w-4" />
+              <span className="font-medium">App Desktop:</span>
+              <span className={presence.desktopOnline ? "text-success" : "text-destructive"}>
+                {presence.desktopOnline ? "online" : "offline — abra e faça login no app"}
+              </span>
+            </li>
+          </ul>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStartGateOpen(false)}>
+              Fechar
+            </Button>
+            <Button
+              onClick={() => {
+                if (presence.extOnline && presence.desktopOnline) {
+                  setStartGateOpen(false);
+                  session.start();
+                }
+              }}
+              disabled={!presence.extOnline || !presence.desktopOnline}
+            >
+              <Play className="mr-2 h-4 w-4" /> Iniciar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
       <Dialog
         open={!!breakDialog}
         onOpenChange={(o) => {
