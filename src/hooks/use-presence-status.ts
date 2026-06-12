@@ -70,5 +70,31 @@ export function usePresenceStatus(userId: string | undefined) {
     return () => window.clearInterval(i);
   }, [lastExt, lastDesktop]);
 
-  return { extOnline, desktopOnline };
+  /**
+   * Verificação autoritativa no momento do clique — não confia no estado
+   * renderizado (que pode estar desatualizado). Reconsulta o banco para o
+   * desktop e usa o último heartbeat REAL da extensão (ref síncrona).
+   */
+  const checkNow = useCallback(async (): Promise<{ ext: boolean; desktop: boolean }> => {
+    const now = Date.now();
+    const ext = lastExtRef.current > 0 && now - lastExtRef.current < ONLINE_WINDOW_MS;
+    let desktop = false;
+    if (userId) {
+      const { data } = await supabase
+        .from("presenca_desktop")
+        .select("ultimo_ativo")
+        .eq("usuario_id", userId)
+        .maybeSingle();
+      if (data?.ultimo_ativo) {
+        const ts = new Date(data.ultimo_ativo).getTime();
+        desktop = now - ts < ONLINE_WINDOW_MS;
+        setLastDesktop(ts);
+      }
+    }
+    setExtOnline(ext);
+    setDesktopOnline(desktop);
+    return { ext, desktop };
+  }, [userId]);
+
+  return { extOnline, desktopOnline, checkNow };
 }
