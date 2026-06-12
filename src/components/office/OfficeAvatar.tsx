@@ -3,6 +3,15 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
 import type { UserSnapshot } from "@/lib/operacional-snapshot";
 import { isMeeting } from "./office-config";
+import avatarSprite from "@/assets/office-avatar.png";
+
+/** Hash determinístico → matiz, p/ variar levemente a cor do sprite por pessoa. */
+function hueFor(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
 
 /** Emoji do "humor" do avatar conforme estado. */
 function statusEmoji(s: UserSnapshot): string {
