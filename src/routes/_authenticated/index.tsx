@@ -1125,12 +1125,14 @@ function SourceCard({
   accent,
   trabalhado,
   idle,
+  hint,
 }: {
   icon: React.ReactNode;
   label: string;
   accent: "primary" | "warning" | "info";
   trabalhado: number;
   idle: number;
+  hint?: string;
 }) {
   const colors: Record<string, string> = {
     primary: "var(--color-primary)",
@@ -1140,6 +1142,7 @@ function SourceCard({
   const total = trabalhado + idle;
   const pct = total > 0 ? Math.round((trabalhado / total) * 100) : 0;
   const fmt = (s: number) => (s < 60 ? `${Math.round(s)}s` : formatDuration(s / 60));
+
   return (
     <Card>
       <CardContent className="p-5">
