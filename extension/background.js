@@ -370,6 +370,9 @@ const APP_URL_PATTERNS = [
 ];
 
 async function broadcastHeartbeat() {
+  // Só conta como "extensão online" se houver sessão (usuário logado).
+  const session = await getSession();
+  if (!session) return;
   // Envia se o sistema está ativo OU se a aba atual é um site passivo
   // (reunião/vídeo no navegador) — senão o app marcaria falso INATIVO.
   // Não envia com o sistema ocioso fora de site passivo (máquina bloqueada).
