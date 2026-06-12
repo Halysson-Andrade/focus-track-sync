@@ -176,6 +176,9 @@ export function roomForSnapshot(s: UserSnapshot): RoomId {
   // está offline. Se ainda há sinal de presença (registro aberto ou navegação
   // recente), ele aparece DENTRO do escritório conforme o status.
   if (!s.isOnline) return "externa";
+  // Online mas sem registro de expediente aberto (currentSince null) —
+  // logou no sistema/desktop mas ainda não iniciou a jornada. Vai pra espera.
+  if (!s.currentSince) return "espera";
   switch (s.currentStatus) {
     case "ATIVO":
       return isMeeting(s) ? "reuniao" : "trabalho";
@@ -190,7 +193,7 @@ export function roomForSnapshot(s: UserSnapshot): RoomId {
       // (saindo do prédio) em vez de pular pra área externa.
       return "recepcao";
     default:
-      return "trabalho";
+      return "espera";
   }
 }
 
