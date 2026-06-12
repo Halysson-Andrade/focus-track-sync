@@ -79,7 +79,12 @@ export function buildSnapshots(
 ): UserSnapshot[] {
   return profiles.map((p) => {
     const myReg = registros.filter((r) => r.usuario_id === p.id);
-    const open = myReg.find((r) => !r.fim) ?? null;
+    // Pega o registro ABERTO mais recente (por inicio). Robusto contra possíveis
+    // múltiplos registros sem `fim` (ex.: stale ATIVO não fechado + PAUSA atual).
+    const open =
+      myReg
+        .filter((r) => !r.fim)
+        .sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime())[0] ?? null;
     const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
     let lastSeen: string | null = null;
     myReg.forEach((r) => {
