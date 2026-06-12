@@ -764,8 +764,28 @@ function Dashboard() {
             <CardTitle>Controles</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
-            <Button onClick={handleStartClick} disabled={!canStart} size="lg">
+            <Button
+              onClick={handleStartClick}
+              disabled={!canStart}
+              variant={
+                canStart && (!presence.extOnline || !presence.desktopOnline)
+                  ? "secondary"
+                  : "default"
+              }
+              size="lg"
+              title={
+                !presence.extOnline || !presence.desktopOnline
+                  ? "Extensão ou app desktop offline — clique para detalhes"
+                  : undefined
+              }
+            >
               <Play className="mr-2 h-4 w-4" /> Iniciar Expediente
+              {canStart && (!presence.extOnline || !presence.desktopOnline) && (
+                <span className="ml-2 inline-flex items-center gap-1 text-xs text-destructive">
+                  <AlertTriangle className="h-3 w-3" />
+                  serviços offline
+                </span>
+              )}
             </Button>
             <Button
               onClick={() => setBreakDialog({ kind: "PAUSA" })}
