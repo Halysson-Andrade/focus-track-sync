@@ -4,7 +4,6 @@ import { useAvatarMovement } from "@/hooks/use-avatar-movement";
 import { ManagerHud } from "./ManagerHud";
 import { OfficeAvatar } from "./OfficeAvatar";
 import { OfficeInsights } from "./OfficeInsights";
-import { RoomFurniture } from "./RoomFurniture";
 import { buildWalkGrid, type WalkGrid } from "./pathfinding";
 import {
   ROOM_ORDER,
@@ -18,6 +17,8 @@ import {
 } from "./office-config";
 import type { Insight } from "./insights";
 import { Flame } from "lucide-react";
+import officeMap from "@/assets/office-map.jpg";
+
 
 interface Stats {
   total: number;
