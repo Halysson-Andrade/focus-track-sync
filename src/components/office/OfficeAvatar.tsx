@@ -110,37 +110,49 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
                 {line}
               </span>
             )}
-            {/* avatar */}
+            {/* avatar pixel-art */}
             <span className="relative grid place-items-center">
-              {/* halo pulsante (atrás) */}
+              {/* anel de status pulsante (atrás) */}
               {s.isOnline && (
                 <span
                   aria-hidden
-                  className={`absolute h-9 w-9 rounded-full ${inactive ? "office-snore" : "office-halo"}`}
+                  className={`absolute h-11 w-11 rounded-full ${inactive ? "office-snore" : "office-halo"}`}
                   style={{
                     background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
                     color,
                   }}
                 />
               )}
-              <span
-                className={`relative grid h-9 w-9 place-items-center rounded-full text-xs font-bold text-white shadow-lg ring-2 ring-card transition-transform group-hover:scale-110 ${
-                  s.isOnline ? "" : "opacity-50 grayscale"
-                } ${moving ? "office-walking" : ""}`}
-                style={{
-                  background: `radial-gradient(circle at 30% 25%, color-mix(in oklch, ${color} 30%, white), ${color})`,
-                  boxShadow: `0 4px 10px -2px color-mix(in oklch, ${color} 70%, transparent)`,
-                }}
-              >
-                {initialsOf(s.profile.nome)}
-              </span>
-              {/* sombra no chão */}
+              {/* sombra elíptica no chão */}
               <span
                 aria-hidden
-                className="absolute -bottom-1.5 h-1.5 w-7 rounded-full bg-foreground/40 blur-[2px]"
+                className="absolute bottom-0 h-1.5 w-8 rounded-full bg-black/55 blur-[2px]"
               />
+              {/* base circular = anel colorido do status */}
+              <span
+                className="relative grid h-10 w-10 place-items-center rounded-full shadow-lg ring-2 transition-transform group-hover:scale-110"
+                style={{
+                  background: "rgba(20,20,28,0.55)",
+                  // @ts-expect-error CSS var inline
+                  "--tw-ring-color": color,
+                  boxShadow: `0 0 0 2px ${color}, 0 4px 10px -2px rgba(0,0,0,0.5)`,
+                }}
+              >
+                <img
+                  src={avatarSprite}
+                  alt={s.profile.nome}
+                  draggable={false}
+                  className={`h-9 w-9 select-none ${s.isOnline ? "" : "opacity-50 grayscale"} ${
+                    moving ? "office-walking" : ""
+                  }`}
+                  style={{
+                    imageRendering: "pixelated",
+                    filter: `hue-rotate(${hueFor(s.profile.id)}deg) saturate(${s.isOnline ? 1.1 : 0.4})`,
+                  }}
+                />
+              </span>
               {/* emoji de humor */}
-              <span className="absolute -right-1.5 -top-1.5 text-sm drop-shadow-sm">
+              <span className="absolute -right-2 -top-2 text-base drop-shadow-md">
                 {statusEmoji(s)}
               </span>
               {/* ponto de alerta colorido */}
@@ -152,11 +164,16 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
               )}
             </span>
             {/* nome */}
-            <span className="max-w-[64px] truncate text-[10px] font-medium leading-tight text-foreground/90">
+            <span
+              className="max-w-[72px] truncate rounded px-1 text-[10px] font-semibold leading-tight text-white"
+              style={{ background: "rgba(0,0,0,0.55)" }}
+            >
               {s.profile.nome.split(" ")[0]}
             </span>
           </button>
         </HoverCardTrigger>
+
+
 
 
         <HoverCardContent className="w-72" align="center">
