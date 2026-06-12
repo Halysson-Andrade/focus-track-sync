@@ -101,17 +101,8 @@ type UsoApp = {
   duracao_segundos: number | null;
   inativo_segundos: number | null;
 };
-type Origem = "app" | "chrome" | "desktop";
-type UnifiedLog = {
-  id: string;
-  origem: Origem;
-  label: string;
-  sub: string;
-  inicio: string;
-  fim: string | null;
-  duracao: number;
-  inativo: number;
-};
+
+
 
 function formatSeconds(s: number) {
   if (!s || s < 60) return `${Math.round(s)}s`;
