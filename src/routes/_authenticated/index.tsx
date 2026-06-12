@@ -1106,11 +1106,13 @@ function StatCard({
   label,
   value,
   accent,
+  badge,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   accent: string;
+  badge?: React.ReactNode;
 }) {
   const colors: Record<string, string> = {
     success: "var(--color-success)",
@@ -1137,6 +1139,7 @@ function StatCard({
           </span>
         </div>
         <div className="mt-3 text-2xl font-bold">{value}</div>
+        {badge && <div className="mt-1">{badge}</div>}
       </CardContent>
     </Card>
   );
