@@ -36,7 +36,8 @@ export const Route = createFileRoute("/_authenticated/operacional")({
 
 function OperacionalPage() {
   const { isAdmin } = useAuth();
-  const { profiles, registros, navApp, navExt, navDesk, connected } = useOfficeData(isAdmin);
+  const { profiles, registros, navApp, navExt, navDesk, presenca, connected } =
+    useOfficeData(isAdmin);
   const [now, setNow] = useState(Date.now());
   const [filter, setFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"todos" | "online" | "offline">("todos");
@@ -49,8 +50,8 @@ function OperacionalPage() {
   }, []);
 
   const snapshots: UserSnapshot[] = useMemo(
-    () => buildSnapshots(profiles, registros, navApp, navExt, navDesk, now),
-    [profiles, registros, navApp, navExt, navDesk, now],
+    () => buildSnapshots(profiles, registros, navApp, navExt, navDesk, now, presenca),
+    [profiles, registros, navApp, navExt, navDesk, now, presenca],
   );
 
   const filtered = useMemo(() => {

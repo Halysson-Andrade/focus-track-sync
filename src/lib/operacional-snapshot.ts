@@ -35,6 +35,12 @@ export type NavRow = {
   app_label?: string;
 };
 
+/** Heartbeat de presença do app desktop (cadência ~30s enquanto não-ocioso). */
+export type Presenca = {
+  usuario_id: string;
+  ultimo_ativo: string;
+};
+
 export interface UserSnapshot {
   profile: Profile;
   isOnline: boolean;
@@ -76,7 +82,15 @@ export function buildSnapshots(
   navExt: NavRow[],
   navDesk: NavRow[],
   nowTs: number,
+  presenca: Presenca[] = [],
 ): UserSnapshot[] {
+  // Heartbeat desktop por usuário (último por `ultimo_ativo`).
+  const presencaByUser = new Map<string, number>();
+  for (const pr of presenca) {
+    const ts = new Date(pr.ultimo_ativo).getTime();
+    const prev = presencaByUser.get(pr.usuario_id) ?? 0;
+    if (ts > prev) presencaByUser.set(pr.usuario_id, ts);
+  }
   return profiles.map((p) => {
     const myReg = registros.filter((r) => r.usuario_id === p.id);
     // Pega o registro ABERTO mais recente (por inicio). Robusto contra possíveis
@@ -119,17 +133,29 @@ export function buildSnapshots(
     // Ócio nunca pode exceder o tempo ATIVO monitorado da jornada.
     const idleSeconds = activeSec > 0 ? Math.min(rawIdle, activeSec) : rawIdle;
 
-    // Presença: há registro aberto OU navegação/uso em aberto recente.
-    // Janela ampla (15 min) porque o desktop só faz heartbeat a cada 5 min e o
-    // `inicio` não muda durante a sessão — uma janela curta marcaria um usuário
-    // ativo como offline assim que `inicio` ficasse > 5min no passado.
+    // Presença ancorada no ÚLTIMO instante conhecido de atividade — NÃO no
+    // `inicio` do segmento aberto. A extensão/desktop mantêm UMA linha aberta
+    // por página e só atualizam `duracao_segundos` via heartbeat (~5 min); o
+    // `inicio` NÃO muda durante a sessão. Ancorar no `inicio` marcava como
+    // offline quem ficasse > 15 min na mesma página (reunião, WhatsApp, doc) —
+    // e o avatar ficava preso "Fora do prédio".
+    //
+    // Liveness do segmento aberto = `inicio + duracao_segundos` (o heartbeat
+    // empurra `duracao` para perto de agora; se o cliente trava, `duracao`
+    // congela e a presença expira corretamente). Some-se o heartbeat dedicado
+    // `presenca_desktop` (~30s), sinal mais confiável p/ apps nativos.
     const PRESENCE_MS = 15 * 60_000;
-    const hasOpenNav = [...myApp, ...myExt, ...myDesk].some(
-      (n) => !n.fim && nowTs - new Date(n.inicio).getTime() < PRESENCE_MS,
-    );
-    const isOnline = !!open || hasOpenNav;
+    const openNavBeat = [...myApp, ...myExt, ...myDesk]
+      .filter((n) => !n.fim)
+      .reduce(
+        (max, n) => Math.max(max, new Date(n.inicio).getTime() + (n.duracao_segundos ?? 0) * 1000),
+        0,
+      );
+    const deskBeat = presencaByUser.get(p.id) ?? 0;
+    const lastBeat = Math.max(openNavBeat, deskBeat);
+    const hasRecentSignal = lastBeat > 0 && nowTs - lastBeat < PRESENCE_MS;
+    const isOnline = !!open || hasRecentSignal;
     const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
-
 
     const lastExt = latestOpenOrRecent(myExt);
     const lastUrl =
