@@ -775,7 +775,7 @@ function Dashboard() {
           <CardContent className="flex flex-wrap gap-3">
             <Button
               onClick={handleStartClick}
-              disabled={!canStart}
+              disabled={!canStart || startChecking}
               variant={
                 canStart && (!presence.extOnline || !presence.desktopOnline)
                   ? "secondary"
@@ -788,8 +788,9 @@ function Dashboard() {
                   : undefined
               }
             >
-              <Play className="mr-2 h-4 w-4" /> Iniciar Expediente
-              {canStart && (!presence.extOnline || !presence.desktopOnline) && (
+              <Play className="mr-2 h-4 w-4" />
+              {startChecking ? "Verificando serviços..." : "Iniciar Expediente"}
+              {!startChecking && canStart && (!presence.extOnline || !presence.desktopOnline) && (
                 <span className="ml-2 inline-flex items-center gap-1 text-xs text-destructive">
                   <AlertTriangle className="h-3 w-3" />
                   serviços offline
@@ -868,8 +869,10 @@ function Dashboard() {
               Fechar
             </Button>
             <Button
-              onClick={() => {
-                if (presence.extOnline && presence.desktopOnline) {
+              onClick={async () => {
+                // Reverifica de forma autoritativa antes de liberar o início.
+                const { ext, desktop } = await presence.checkNow();
+                if (ext && desktop) {
                   setStartGateOpen(false);
                   session.start();
                 }
