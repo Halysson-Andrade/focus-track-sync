@@ -9,7 +9,7 @@ module.exports = {
   FLUSH_INTERVAL_MS: 300000, // heartbeat da linha aberta no banco (5 min — antes 60s).
   // O total final é calculado no `close` a partir de inicio/fim, então
   // espaçar o heartbeat não muda o resultado — só reduz writes ~5×.
-  MACRO_POLL_MS: 120000, // lê o status da sessão macro a cada 2 min (antes 30s)
+  MACRO_POLL_MS: 60000, // lê o status macro a cada 1 min — pausa do usuário vale em ≤1 min
   WHITELIST_REFRESH_MS: 300000, // recarrega a whitelist a cada 5 min
   MIN_DURATION_S: 3, // descarta sessão de app < 3s (ruído de troca rápida)
 
