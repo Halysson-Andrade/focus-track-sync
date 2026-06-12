@@ -136,6 +136,10 @@ async function closeStaleRow() {
   } catch {}
 }
 
+// Sessões muito curtas (< 3s) são ruído de troca rápida de aba — descartamos
+// para não inflar a tabela. Em vez de PATCH com fim, apagamos a linha.
+const MIN_DURATION_S = 3;
+
 async function closeCurrent() {
   if (!currentRow || !currentRow.id) {
     currentRow = null;
@@ -152,13 +156,18 @@ async function closeCurrent() {
     await chrome.storage.session.remove("openRow");
   } catch {}
   try {
-    await api(`navegacao_externa?id=eq.${id}`, "PATCH", {
-      fim: new Date(now).toISOString(),
-      duracao_segundos: dur,
-      inativo_segundos: idle,
-    });
+    if (dur < MIN_DURATION_S) {
+      await api(`navegacao_externa?id=eq.${id}`, "DELETE");
+    } else {
+      await api(`navegacao_externa?id=eq.${id}`, "PATCH", {
+        fim: new Date(now).toISOString(),
+        duracao_segundos: dur,
+        inativo_segundos: idle,
+      });
+    }
   } catch {}
 }
+
 
 async function openRow(tab) {
   if (trackingPaused) return; // sessão macro não-ATIVA: não abre navegação
