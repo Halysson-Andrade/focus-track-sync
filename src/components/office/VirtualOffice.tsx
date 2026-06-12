@@ -53,7 +53,7 @@ const CEIL_LIGHTS = [
   { x: 75, y: 55 },
 ];
 
-// Partículas de "poeira" que sobem devagar pelo palco.
+  // Partículas de "poeira" que sobem devagar pelo palco (escuras p/ piso claro).
 const DUST = Array.from({ length: 14 }, (_, i) => ({
   left: (i * 73) % 100,
   top: ((i * 41) % 80) + 10,
@@ -137,7 +137,7 @@ export function VirtualOffice({ snapshots, stats, nowTs, insights, onSelect }: P
             <span
               key={i}
               aria-hidden
-              className="office-dust pointer-events-none absolute rounded-full bg-white/40"
+              className="office-dust pointer-events-none absolute rounded-full bg-black/20"
               style={{
                 left: `${d.left}%`,
                 top: `${d.top}%`,
