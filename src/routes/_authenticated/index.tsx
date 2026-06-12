@@ -143,10 +143,14 @@ function Dashboard() {
     return d;
   }, []);
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday);
-  const [openDomain, setOpenDomain] = useState<string | null>(null);
-  // (logs consolidados — paginação removida; detalhe vai por exportação)
 
   const isToday = selectedDate.getTime() === startOfToday.getTime();
+  // Janela bruta confiável: últimos 30 dias (retenção). Antes disso, lemos dos
+  // agregados *_diario para garantir que os gráficos continuem populados após o purge.
+  const daysAgo = Math.floor(
+    (startOfToday.getTime() - selectedDate.getTime()) / (24 * 3600_000),
+  );
+  const useAggregates = daysAgo > 25;
   const dayRange = useMemo(() => {
     const s = new Date(selectedDate);
     s.setHours(0, 0, 0, 0);
@@ -154,6 +158,7 @@ function Dashboard() {
     e.setDate(e.getDate() + 1);
     return { start: s.toISOString(), end: e.toISOString() };
   }, [selectedDate]);
+  const dayKey = selectedDate.toISOString().slice(0, 10);
   const [dayRecords, setDayRecords] = useState<Registro[]>([]);
 
   // Admin: filter by target user
@@ -167,6 +172,20 @@ function Dashboard() {
   const [pages, setPages] = useState<Pagina[]>([]);
   const [externalNav, setExternalNav] = useState<NavExterna[]>([]);
   const [appUsage, setAppUsage] = useState<UsoApp[]>([]);
+  // Agregados (fallback para datas antigas / fora da retenção bruta)
+  const [navDiario, setNavDiario] = useState<
+    { domain: string; segundos_totais: number; segundos_inativos: number; visitas: number }[]
+  >([]);
+  const [appDiario, setAppDiario] = useState<
+    {
+      process_name: string;
+      app_label: string | null;
+      segundos_totais: number;
+      segundos_inativos: number;
+      sessoes: number;
+    }[]
+  >([]);
+
 
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 1000);
