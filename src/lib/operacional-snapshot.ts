@@ -114,10 +114,11 @@ export function buildSnapshots(
     // Ócio nunca pode exceder o tempo ATIVO monitorado da jornada.
     const idleSeconds = activeSec > 0 ? Math.min(rawIdle, activeSec) : rawIdle;
 
-    // Presença: há registro aberto OU navegação/uso em aberto recente (<= 5 min).
-    // Isso garante que um usuário usando o app/extensão/desktop apareça "no
-    // escritório" mesmo que ainda não exista um registro_atividade aberto.
-    const PRESENCE_MS = 5 * 60_000;
+    // Presença: há registro aberto OU navegação/uso em aberto recente.
+    // Janela ampla (15 min) porque o desktop só faz heartbeat a cada 5 min e o
+    // `inicio` não muda durante a sessão — uma janela curta marcaria um usuário
+    // ativo como offline assim que `inicio` ficasse > 5min no passado.
+    const PRESENCE_MS = 15 * 60_000;
     const hasOpenNav = [...myApp, ...myExt, ...myDesk].some(
       (n) => !n.fim && nowTs - new Date(n.inicio).getTime() < PRESENCE_MS,
     );
