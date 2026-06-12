@@ -9,6 +9,36 @@ let trackingPaused = false; // true quando não devemos rastrear navegação
 
 chrome.idle.setDetectionInterval(IDLE_THRESHOLD_S);
 
+// MV3: o service worker hiberna e perde o estado em memória. Persistimos a
+// linha aberta (com acumuladores de ociosidade) e restauramos ao acordar —
+// senão o tempo ocioso da extensão se perde e diverge do desktop.
+const restored = restoreState();
+async function restoreState() {
+  try {
+    const { openRow } = await chrome.storage.session.get("openRow");
+    if (openRow && openRow.id && !currentRow) currentRow = { ...openRow };
+  } catch {}
+  try {
+    const state = await chrome.idle.queryState(IDLE_THRESHOLD_S);
+    lastSystemState = state;
+    if (currentRow && !currentRow.passive && state !== "active" && !currentRow.idleStart) {
+      // Não sabemos há quanto tempo está ocioso; retroage pelo threshold.
+      currentRow.idleStart = Math.max(currentRow.enteredAt, Date.now() - IDLE_THRESHOLD_S * 1000);
+    }
+  } catch {}
+}
+
+// Persiste o snapshot completo da linha aberta (id + acumuladores de ócio).
+async function persistRow() {
+  try {
+    if (currentRow && currentRow.id) {
+      await chrome.storage.session.set({ openRow: { ...currentRow } });
+    } else {
+      await chrome.storage.session.remove("openRow");
+    }
+  } catch {}
+}
+
 function isWhitelistedDomain(host) {
   if (!host) return false;
   const h = host.toLowerCase();
@@ -121,7 +151,8 @@ async function applyMacroStatus(next) {
   }
 }
 
-// Fecha qualquer linha aberta que ficou "órfã" após o service worker reiniciar.
+// Fecha qualquer linha aberta que ficou "órfã" após o service worker reiniciar,
+// preservando a ociosidade acumulada persistida no snapshot.
 async function closeStaleRow() {
   try {
     const { openRow } = await chrome.storage.session.get("openRow");
@@ -129,9 +160,12 @@ async function closeStaleRow() {
     await chrome.storage.session.remove("openRow");
     const now = Date.now();
     const dur = Math.max(0, (now - openRow.enteredAt) / 1000);
+    const idleNowMs = openRow.idleStart ? now - openRow.idleStart : 0;
+    const idle = Math.min(((openRow.idleAccum || 0) + idleNowMs) / 1000, dur);
     await api(`navegacao_externa?id=eq.${openRow.id}`, "PATCH", {
       fim: new Date(now).toISOString(),
       duracao_segundos: dur,
+      inativo_segundos: idle,
     });
   } catch {}
 }
@@ -201,9 +235,7 @@ async function openRow(tab) {
       const [row] = await res.json();
       if (row && currentRow && currentRow.url === tab.url && !trackingPaused) {
         currentRow.id = row.id;
-        try {
-          await chrome.storage.session.set({ openRow: { id: row.id, enteredAt: now } });
-        } catch {}
+        await persistRow();
       } else if (row) {
         // currentRow mudou enquanto criávamos — fecha imediatamente
         try {
@@ -218,6 +250,7 @@ async function openRow(tab) {
 }
 
 async function handleActive(tab) {
+  await restored;
   if (!tab) return;
   if (currentRow && currentRow.url === tab.url) {
     // título pode ter mudado
@@ -263,6 +296,7 @@ chrome.windows.onFocusChanged.addListener(async (winId) => {
 });
 
 chrome.idle.onStateChanged.addListener(async (state) => {
+  await restored;
   lastSystemState = state;
   if (!currentRow) return;
   if (currentRow.passive) return; // app/site passivo: ausência de input não conta
@@ -278,28 +312,45 @@ chrome.idle.onStateChanged.addListener(async (state) => {
     currentRow.idleAccum += Date.now() - currentRow.idleStart;
     currentRow.idleStart = null;
   }
+  await persistRow(); // mantém os acumuladores vivos entre hibernações do SW
 });
 
 // Heartbeat de banco a cada 5 min (atualiza linha aberta caso o SW reinicie).
 // Antes era 1 min — espaçar reduz writes em ~5× sem afetar a contabilização,
 // que é calculada no `close` a partir de enteredAt/now (heartbeat só serve
 // para "não perder muito" se o processo morrer).
-let heartbeatTicks = 0;
 chrome.alarms.create("heartbeat", { periodInMinutes: 5 });
+// Status macro a cada 1 min: pausa/retomada do usuário passa a valer em até
+// 1 min (antes 5 min — a extensão seguia monitorando durante a PAUSA).
+chrome.alarms.create("macroStatus", { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener(async (a) => {
+  if (a.name === "macroStatus") {
+    await restored;
+    await fetchMacroStatus();
+    return;
+  }
   if (a.name !== "heartbeat") return;
-  // Lê o status macro p/ pausar/retomar o tracking; precisa rodar mesmo sem
-  // linha aberta (durante pausa currentRow é null) para detectar a retomada.
+  await restored;
   await fetchMacroStatus();
-  heartbeatTicks += 1;
-  if (heartbeatTicks % 1 === 0) await loadWhitelist(); // a cada 5 min (tick = 5 min)
+  await loadWhitelist();
 
   if (!currentRow || !currentRow.id) {
-    // SW reiniciou e perdeu a referência — fecha a linha órfã para não
-    // continuar contando tempo de uma aba que pode nem estar mais em foco.
+    // Sem linha restaurável — fecha eventual órfã (com o ócio persistido).
     await closeStaleRow();
     return;
   }
+  // Auto-correção: confere se a aba ativa ainda é a registrada (eventos podem
+  // ter sido perdidos enquanto o SW hibernava).
+  try {
+    const w = await chrome.windows.getLastFocused();
+    if (w && w.focused) {
+      const [tab] = await chrome.tabs.query({ active: true, windowId: w.id });
+      if (tab && (!currentRow || currentRow.url !== tab.url)) await handleActive(tab);
+    } else if (currentRow) {
+      await closeCurrent();
+    }
+  } catch {}
+  if (!currentRow || !currentRow.id) return;
   const now = Date.now();
   const dur = (now - currentRow.enteredAt) / 1000;
   const idleNowMs = currentRow.idleStart ? now - currentRow.idleStart : 0;
@@ -309,6 +360,7 @@ chrome.alarms.onAlarm.addListener(async (a) => {
       inativo_segundos: Math.min((currentRow.idleAccum + idleNowMs) / 1000, dur),
     });
   } catch {}
+  await persistRow();
 });
 
 const APP_URL_PATTERNS = [
@@ -391,8 +443,9 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (tab) handleActive(tab);
 });
 
-// SW pode reiniciar a qualquer momento: ao acordar, fecha linha órfã e
-// recarrega whitelist/status (o SW perde o estado em memória ao hibernar).
-closeStaleRow();
-loadWhitelist();
-fetchMacroStatus();
+// SW pode reiniciar a qualquer momento: ao acordar, restaura a linha aberta
+// (com acumuladores de ócio) e recarrega whitelist/status.
+restored.then(() => {
+  loadWhitelist();
+  fetchMacroStatus();
+});
