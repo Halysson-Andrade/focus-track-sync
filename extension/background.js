@@ -136,6 +136,10 @@ async function closeStaleRow() {
   } catch {}
 }
 
+// Sessões muito curtas (< 3s) são ruído de troca rápida de aba — descartamos
+// para não inflar a tabela. Em vez de PATCH com fim, apagamos a linha.
+const MIN_DURATION_S = 3;
+
 async function closeCurrent() {
   if (!currentRow || !currentRow.id) {
     currentRow = null;
@@ -152,13 +156,18 @@ async function closeCurrent() {
     await chrome.storage.session.remove("openRow");
   } catch {}
   try {
-    await api(`navegacao_externa?id=eq.${id}`, "PATCH", {
-      fim: new Date(now).toISOString(),
-      duracao_segundos: dur,
-      inativo_segundos: idle,
-    });
+    if (dur < MIN_DURATION_S) {
+      await api(`navegacao_externa?id=eq.${id}`, "DELETE");
+    } else {
+      await api(`navegacao_externa?id=eq.${id}`, "PATCH", {
+        fim: new Date(now).toISOString(),
+        duracao_segundos: dur,
+        inativo_segundos: idle,
+      });
+    }
   } catch {}
 }
+
 
 async function openRow(tab) {
   if (trackingPaused) return; // sessão macro não-ATIVA: não abre navegação
@@ -271,16 +280,20 @@ chrome.idle.onStateChanged.addListener(async (state) => {
   }
 });
 
-// Heartbeat: atualiza linha aberta periodicamente (caso o SW reinicie)
+// Heartbeat de banco a cada 5 min (atualiza linha aberta caso o SW reinicie).
+// Antes era 1 min — espaçar reduz writes em ~5× sem afetar a contabilização,
+// que é calculada no `close` a partir de enteredAt/now (heartbeat só serve
+// para "não perder muito" se o processo morrer).
 let heartbeatTicks = 0;
-chrome.alarms.create("heartbeat", { periodInMinutes: 1 });
+chrome.alarms.create("heartbeat", { periodInMinutes: 5 });
 chrome.alarms.onAlarm.addListener(async (a) => {
   if (a.name !== "heartbeat") return;
   // Lê o status macro p/ pausar/retomar o tracking; precisa rodar mesmo sem
   // linha aberta (durante pausa currentRow é null) para detectar a retomada.
   await fetchMacroStatus();
   heartbeatTicks += 1;
-  if (heartbeatTicks % 5 === 1) await loadWhitelist(); // ~a cada 5 min
+  if (heartbeatTicks % 1 === 0) await loadWhitelist(); // a cada 5 min (tick = 5 min)
+
   if (!currentRow || !currentRow.id) {
     // SW reiniciou e perdeu a referência — fecha a linha órfã para não
     // continuar contando tempo de uma aba que pode nem estar mais em foco.

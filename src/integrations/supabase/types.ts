@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      atividade_diaria: {
+        Row: {
+          dia: string
+          fim_jornada: string | null
+          inicio_jornada: string | null
+          minutos_almoco: number
+          minutos_ativo: number
+          minutos_inativo: number
+          minutos_pausa: number
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          dia: string
+          fim_jornada?: string | null
+          inicio_jornada?: string | null
+          minutos_almoco?: number
+          minutos_ativo?: number
+          minutos_inativo?: number
+          minutos_pausa?: number
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          dia?: string
+          fim_jornada?: string | null
+          inicio_jornada?: string | null
+          minutos_almoco?: number
+          minutos_ativo?: number
+          minutos_inativo?: number
+          minutos_pausa?: number
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       monitor_idle_whitelist: {
         Row: {
           ativo: boolean
@@ -38,6 +74,36 @@ export type Database = {
           identificador?: string
           label?: string | null
           tipo?: string
+        }
+        Relationships: []
+      }
+      navegacao_diaria: {
+        Row: {
+          dia: string
+          domain: string
+          segundos_inativos: number
+          segundos_totais: number
+          updated_at: string
+          usuario_id: string
+          visitas: number
+        }
+        Insert: {
+          dia: string
+          domain: string
+          segundos_inativos?: number
+          segundos_totais?: number
+          updated_at?: string
+          usuario_id: string
+          visitas?: number
+        }
+        Update: {
+          dia?: string
+          domain?: string
+          segundos_inativos?: number
+          segundos_totais?: number
+          updated_at?: string
+          usuario_id?: string
+          visitas?: number
         }
         Relationships: []
       }
@@ -277,11 +343,45 @@ export type Database = {
         }
         Relationships: []
       }
+      uso_app_diario: {
+        Row: {
+          app_label: string | null
+          dia: string
+          process_name: string
+          segundos_inativos: number
+          segundos_totais: number
+          sessoes: number
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          app_label?: string | null
+          dia: string
+          process_name: string
+          segundos_inativos?: number
+          segundos_totais?: number
+          sessoes?: number
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          app_label?: string | null
+          dia?: string
+          process_name?: string
+          segundos_inativos?: number
+          segundos_totais?: number
+          sessoes?: number
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      agregar_dia: { Args: { p_dia: string }; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -290,6 +390,13 @@ export type Database = {
         Returns: boolean
       }
       is_active: { Args: { _user_id: string }; Returns: boolean }
+      purgar_brutos_antigos: {
+        Args: { p_dias_retencao?: number }
+        Returns: {
+          removidos: number
+          tabela: string
+        }[]
+      }
     }
     Enums: {
       activity_status: "ATIVO" | "PAUSA" | "ALMOCO" | "INATIVO" | "ENCERRADO"
