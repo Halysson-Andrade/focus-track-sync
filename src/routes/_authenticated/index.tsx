@@ -118,6 +118,35 @@ function safeDur(duracao: number | null, inicio: string, fim: string | null) {
   return Math.min(Math.max(live, 0), (duracao ?? 0) + 90);
 }
 
+// Processos do navegador Chrome — desconsiderados na monitoração de "Apps Desktop"
+// porque a navegação já é capturada pela extensão (evita contagem dupla).
+const CHROME_PROCESS_RE = /chrome|chromium|google chrome/i;
+const isChromeProcess = (p: string) => CHROME_PROCESS_RE.test(p || "");
+
+// União de intervalos [start, end] em segundos — desduplica sobreposições
+// (a extensão às vezes mantém 2 linhas abertas em troca rápida de aba).
+function unionSeconds(intervals: { start: number; end: number }[]): number {
+  if (intervals.length === 0) return 0;
+  const sorted = [...intervals]
+    .filter((i) => i.end > i.start)
+    .sort((a, b) => a.start - b.start);
+  let total = 0;
+  let curStart = -1;
+  let curEnd = -1;
+  for (const it of sorted) {
+    if (curEnd < it.start) {
+      if (curStart >= 0) total += curEnd - curStart;
+      curStart = it.start;
+      curEnd = it.end;
+    } else if (it.end > curEnd) {
+      curEnd = it.end;
+    }
+  }
+  if (curStart >= 0) total += curEnd - curStart;
+  return total / 1000;
+}
+
+
 function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
@@ -336,11 +365,11 @@ function Dashboard() {
 
   const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
 
-  // Estatísticas normalizadas por DOMÍNIO (web: app interno + chrome) e por APP desktop.
-  // Origens são INDEPENDENTES no tempo (sobrepõem-se), portanto nunca somamos cross-origem.
+  // Estatísticas por DOMÍNIO (somente extensão Chrome — o app interno não é mais
+  // exibido pois já é coberto pela extensão) e por APP desktop (excluindo Chrome
+  // para não duplicar com a navegação capturada pela extensão).
   type SiteStat = {
     domain: string;
-    origem: "app" | "chrome";
     total: number;
     idle: number;
     trabalhado: number;
@@ -357,49 +386,29 @@ function Dashboard() {
 
   const siteStats: SiteStat[] = useMemo(() => {
     const m = new Map<string, SiteStat>();
-    const add = (
-      domain: string,
-      origem: "app" | "chrome",
-      total: number,
-      idle: number,
-      visitas: number,
-    ) => {
-      const key = `${origem}::${domain}`;
-      const cur = m.get(key);
+    const add = (domain: string, total: number, idle: number, visitas: number) => {
+      const cur = m.get(domain);
       if (cur) {
         cur.total += total;
         cur.idle += idle;
         cur.visitas += visitas;
         cur.trabalhado = tempoTrabalhado(cur.total, cur.idle);
       } else {
-        m.set(key, {
-          domain,
-          origem,
-          total,
-          idle,
-          visitas,
-          trabalhado: tempoTrabalhado(total, idle),
-        });
+        m.set(domain, { domain, total, idle, visitas, trabalhado: tempoTrabalhado(total, idle) });
       }
     };
     if (useAggregates) {
-      // No agregado não separamos app interno vs chrome — tratamos tudo como "chrome" (web externa)
-      // pois a maior parte vem dele; o app interno gera linhas em navegacao_paginas, não navegacao_diaria.
       navDiario.forEach((n) =>
-        add(n.domain || "desconhecido", "chrome", n.segundos_totais, n.segundos_inativos, n.visitas),
+        add(n.domain || "desconhecido", n.segundos_totais, n.segundos_inativos, n.visitas),
       );
     } else {
-      pages.forEach((p) => {
-        const dur = safeDur(p.duracao_segundos, p.inicio, p.fim);
-        add("App interno", "app", dur, p.inativo_segundos || 0, 1);
-      });
       externalNav.forEach((n) => {
         const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
-        add(n.domain || "desconhecido", "chrome", dur, n.inativo_segundos || 0, 1);
+        add(n.domain || "desconhecido", dur, n.inativo_segundos || 0, 1);
       });
     }
     return Array.from(m.values()).sort((a, b) => b.trabalhado - a.trabalhado);
-  }, [useAggregates, pages, externalNav, navDiario, now]);
+  }, [useAggregates, externalNav, navDiario, now]);
 
   const appStats: AppStat[] = useMemo(() => {
     const m = new Map<string, AppStat>();
@@ -410,6 +419,7 @@ function Dashboard() {
       idle: number,
       sessoes: number,
     ) => {
+      if (isChromeProcess(process_name) || isChromeProcess(label)) return; // evita duplicar com a extensão
       const cur = m.get(process_name);
       if (cur) {
         cur.total += total;
@@ -447,32 +457,82 @@ function Dashboard() {
     return Array.from(m.values()).sort((a, b) => b.trabalhado - a.trabalhado);
   }, [useAggregates, appUsage, appDiario, now]);
 
-  // Totais por ORIGEM. Independentes entre si (não somamos cross-origem).
-  const sourceTotals = useMemo(() => {
-    const aggSite = (origem: "app" | "chrome") => {
-      const rows = siteStats.filter((s) => s.origem === origem);
-      const dur = rows.reduce((a, r) => a + r.total, 0);
-      const idle = rows.reduce((a, r) => a + r.idle, 0);
-      return { dur, idle, trabalhado: tempoTrabalhado(dur, idle) };
-    };
-    const dDur = appStats.reduce((a, r) => a + r.total, 0);
-    const dIdle = appStats.reduce((a, r) => a + r.idle, 0);
-    return {
-      app: aggSite("app"),
-      chrome: aggSite("chrome"),
-      desktop: { dur: dDur, idle: dIdle, trabalhado: tempoTrabalhado(dDur, dIdle) },
-    };
-  }, [siteStats, appStats]);
+  // Tempo CONSOLIDADO monitorado — desduplica intervalos sobrepostos da
+  // extensão (Chrome) e dos apps desktop (excluindo Chrome), e clampa ao
+  // tempo efetivamente trabalhado (ATIVO) da jornada do dia. Garante que a
+  // monitoração nunca ultrapasse o tempo de trabalho registrado.
+  const monitored = useMemo(() => {
+    const jornadaAtivoSec = totals.ATIVO * 60;
 
-  // Donut Web (app interno + chrome) vs Desktop — usa tempo trabalhado.
+    // Intervalos brutos (só disponíveis na janela de retenção).
+    const chromeIntervals = externalNav.map((n) => ({
+      start: new Date(n.inicio).getTime(),
+      end: n.fim
+        ? new Date(n.fim).getTime()
+        : new Date(n.inicio).getTime() + safeDur(n.duracao_segundos, n.inicio, n.fim) * 1000,
+    }));
+    const deskIntervals = appUsage
+      .filter((a) => !isChromeProcess(a.process_name) && !isChromeProcess(a.app_label || ""))
+      .map((a) => ({
+        start: new Date(a.inicio).getTime(),
+        end: a.fim
+          ? new Date(a.fim).getTime()
+          : new Date(a.inicio).getTime() + safeDur(a.duracao_segundos, a.inicio, a.fim) * 1000,
+      }));
+
+    const chromeRawSec = externalNav.reduce(
+      (acc, n) => acc + safeDur(n.duracao_segundos, n.inicio, n.fim),
+      0,
+    );
+    const chromeIdleSec = externalNav.reduce((acc, n) => acc + (n.inativo_segundos || 0), 0);
+    const deskRawSec = appStats.reduce((a, r) => a + r.total, 0);
+    const deskIdleSec = appStats.reduce((a, r) => a + r.idle, 0);
+
+    let chromeUnion = useAggregates ? chromeRawSec : unionSeconds(chromeIntervals);
+    let deskUnion = useAggregates ? deskRawSec : unionSeconds(deskIntervals);
+
+    // Desconta idle proporcional à fração efetiva do union (vs soma bruta).
+    const chromeFactor = chromeRawSec > 0 ? chromeUnion / chromeRawSec : 0;
+    const deskFactor = deskRawSec > 0 ? deskUnion / deskRawSec : 0;
+    let chromeWorked = Math.max(0, chromeUnion - chromeIdleSec * chromeFactor);
+    let deskWorked = Math.max(0, deskUnion - deskIdleSec * deskFactor);
+
+    // União Chrome + Desktop (interseção entre eles também é descontada).
+    const totalUnion = useAggregates
+      ? chromeUnion + deskUnion
+      : unionSeconds([...chromeIntervals, ...deskIntervals]);
+    const combinedFactor =
+      chromeUnion + deskUnion > 0 ? totalUnion / (chromeUnion + deskUnion) : 0;
+    let totalWorked = Math.max(
+      0,
+      totalUnion - (chromeIdleSec * chromeFactor + deskIdleSec * deskFactor) * combinedFactor,
+    );
+
+    // Clampa ao tempo ATIVO da jornada (a monitoração nunca pode exceder).
+    if (jornadaAtivoSec > 0 && totalWorked > jornadaAtivoSec) {
+      const scale = jornadaAtivoSec / totalWorked;
+      chromeWorked *= scale;
+      deskWorked *= scale;
+      totalWorked = jornadaAtivoSec;
+    }
+
+    return {
+      chrome: { trabalhado: chromeWorked, bruto: chromeRawSec, union: chromeUnion },
+      desktop: { trabalhado: deskWorked, bruto: deskRawSec, union: deskUnion },
+      total: { trabalhado: totalWorked, jornadaAtivoSec },
+      foraJornada: Math.max(0, totalUnion - jornadaAtivoSec),
+    };
+  }, [externalNav, appUsage, appStats, useAggregates, totals.ATIVO, now]);
+
+  // Donut Web (Chrome) vs Desktop — usa tempo consolidado (já clampado).
   const webVsDesktop = useMemo(() => {
-    const web = sourceTotals.app.trabalhado + sourceTotals.chrome.trabalhado;
-    const desk = sourceTotals.desktop.trabalhado;
     return [
-      { name: "Web (app + Chrome)", value: web, color: "var(--color-primary)" },
-      { name: "Apps desktop", value: desk, color: "var(--color-info)" },
+      { name: "Web (Chrome)", value: monitored.chrome.trabalhado, color: "var(--color-primary)" },
+      { name: "Apps desktop", value: monitored.desktop.trabalhado, color: "var(--color-info)" },
     ].filter((d) => d.value > 0);
-  }, [sourceTotals]);
+  }, [monitored]);
+
+
 
   const topSites = useMemo(
     () =>
@@ -923,30 +983,38 @@ function Dashboard() {
         </Card>
       </div>
 
-      {/* Resumo de fontes — números rápidos */}
+      {/* Resumo de fontes — consolidado e clampado à jornada ATIVA */}
       <div className="grid gap-4 md:grid-cols-3">
         <SourceCard
-          icon={<Globe className="h-4 w-4" />}
-          label="App interno"
+          icon={<ActivityIcon className="h-4 w-4" />}
+          label="Monitorado consolidado"
           accent="primary"
-          trabalhado={sourceTotals.app.trabalhado}
-          idle={sourceTotals.app.idle}
+          trabalhado={monitored.total.trabalhado}
+          idle={0}
+          hint={
+            monitored.total.jornadaAtivoSec > 0
+              ? `${Math.round((monitored.total.trabalhado / monitored.total.jornadaAtivoSec) * 100)}% da jornada ATIVA (${formatDuration(monitored.total.jornadaAtivoSec / 60)})`
+              : "Sem jornada ATIVA registrada"
+          }
         />
         <SourceCard
           icon={<Chrome className="h-4 w-4" />}
           label="Chrome (extensão)"
           accent="warning"
-          trabalhado={sourceTotals.chrome.trabalhado}
-          idle={sourceTotals.chrome.idle}
+          trabalhado={monitored.chrome.trabalhado}
+          idle={0}
+          hint="Tempo deduplicado (sobreposições de abas descontadas)"
         />
         <SourceCard
           icon={<Monitor className="h-4 w-4" />}
-          label="Desktop"
+          label="Apps desktop"
           accent="info"
-          trabalhado={sourceTotals.desktop.trabalhado}
-          idle={sourceTotals.desktop.idle}
+          trabalhado={monitored.desktop.trabalhado}
+          idle={0}
+          hint="Sem contagem do Chrome (já coberto pela extensão)"
         />
       </div>
+
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-2">
@@ -1057,12 +1125,14 @@ function SourceCard({
   accent,
   trabalhado,
   idle,
+  hint,
 }: {
   icon: React.ReactNode;
   label: string;
   accent: "primary" | "warning" | "info";
   trabalhado: number;
   idle: number;
+  hint?: string;
 }) {
   const colors: Record<string, string> = {
     primary: "var(--color-primary)",
@@ -1072,6 +1142,7 @@ function SourceCard({
   const total = trabalhado + idle;
   const pct = total > 0 ? Math.round((trabalhado / total) * 100) : 0;
   const fmt = (s: number) => (s < 60 ? `${Math.round(s)}s` : formatDuration(s / 60));
+
   return (
     <Card>
       <CardContent className="p-5">
@@ -1099,10 +1170,14 @@ function SourceCard({
             style={{ width: `${pct}%`, background: colors[accent] }}
           />
         </div>
-        <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
-          <span>{pct}% ativo</span>
-          {idle > 0 && <span className="text-destructive">idle {fmt(idle)}</span>}
-        </div>
+        {idle > 0 && (
+          <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
+            <span>{pct}% ativo</span>
+            <span className="text-destructive">idle {fmt(idle)}</span>
+          </div>
+        )}
+        {hint && <p className="mt-2 text-[11px] text-muted-foreground">{hint}</p>}
+
       </CardContent>
     </Card>
   );
