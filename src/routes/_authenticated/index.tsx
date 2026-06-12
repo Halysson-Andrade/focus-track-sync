@@ -29,6 +29,7 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  Hourglass,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -44,7 +45,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { formatDuration, formatHM } from "@/lib/format";
+import { formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
 import { tempoTrabalhado } from "@/lib/activity-config";
 import {
   ResponsiveContainer,
@@ -542,6 +543,10 @@ function Dashboard() {
       chrome: { trabalhado: chromeWorked, bruto: chromeRawSec, union: chromeUnion },
       desktop: { trabalhado: deskWorked, bruto: deskRawSec, union: deskUnion },
       total: { trabalhado: totalWorked, jornadaAtivoSec },
+      // Ociosidade detectada (micro-ócio dentro de apps/sites). Já vem
+      // desduplicada: web = extensão + Chrome desktop; apps = desktop sem Chrome.
+      // Independe do INATIVO macro de registros_atividade.
+      ocioso: { apps: deskIdleSec, web: chromeIdleSec, total: chromeIdleSec + deskIdleSec },
       foraJornada: Math.max(0, totalUnion - jornadaAtivoSec),
     };
   }, [externalNav, appUsage, appStats, useAggregates, totals.ATIVO, now]);
@@ -592,7 +597,7 @@ function Dashboard() {
     { name: "Ativo", value: totals.ATIVO, color: "var(--color-success)" },
     { name: "Pausa", value: totals.PAUSA, color: "var(--color-warning)" },
     { name: "Almoço", value: totals.ALMOCO, color: "var(--color-info)" },
-    { name: "Inativo", value: totals.INATIVO, color: "var(--color-destructive)" },
+    { name: "Inativo", value: totals.INATIVO, color: "var(--color-muted-foreground)" },
   ].filter((d) => d.value > 0);
 
   const canStart = !session.current || session.current.status === "ENCERRADO";
@@ -821,7 +826,7 @@ function Dashboard() {
       </Dialog>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
         <StatCard
           icon={<ActivityIcon className="h-4 w-4" />}
           label="Trabalhadas"
@@ -855,9 +860,17 @@ function Dashboard() {
         />
         <StatCard
           icon={<AlertTriangle className="h-4 w-4" />}
-          label="Inativo"
+          label="Inativo (sessão)"
           value={formatDuration(totals.INATIVO)}
-          accent="destructive"
+          accent="slate"
+          hint="Sessão parada por mais de 10 min (status macro)"
+        />
+        <StatCard
+          icon={<Hourglass className="h-4 w-4" />}
+          label="Ociosidade detectada"
+          value={formatSeconds(monitored.ocioso.total)}
+          accent="idle"
+          hint="Tempo sem mouse/teclado dentro de apps e navegação (já incluído no trabalhado)"
         />
         <StatCard
           icon={<Clock className="h-4 w-4" />}
@@ -894,6 +907,16 @@ function Dashboard() {
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
+            )}
+            {monitored.ocioso.total > 0 && (
+              <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{ background: "var(--color-idle)" }}
+                />
+                Inclui {formatSeconds(monitored.ocioso.total)} de ociosidade detectada dentro do
+                tempo trabalhado.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -972,11 +995,11 @@ function Dashboard() {
                   <Tooltip
                     formatter={(v: number, n: string) => [
                       formatSeconds(v as number),
-                      n === "trabalhado" ? "Trabalhado" : "Inativo",
+                      n === "trabalhado" ? "Trabalhado" : "Ocioso",
                     ]}
                   />
                   <Bar dataKey="trabalhado" stackId="t" fill="var(--color-success)" />
-                  <Bar dataKey="idle" stackId="t" fill="var(--color-destructive)" />
+                  <Bar dataKey="idle" stackId="t" fill="var(--color-idle)" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -1007,11 +1030,11 @@ function Dashboard() {
                   <Tooltip
                     formatter={(v: number, n: string) => [
                       formatSeconds(v as number),
-                      n === "trabalhado" ? "Trabalhado" : "Inativo",
+                      n === "trabalhado" ? "Trabalhado" : "Ocioso",
                     ]}
                   />
                   <Bar dataKey="trabalhado" stackId="t" fill="var(--color-info)" />
-                  <Bar dataKey="idle" stackId="t" fill="var(--color-destructive)" />
+                  <Bar dataKey="idle" stackId="t" fill="var(--color-idle)" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -1120,12 +1143,14 @@ function StatCard({
   value,
   accent,
   badge,
+  hint,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   accent: string;
   badge?: React.ReactNode;
+  hint?: string;
 }) {
   const colors: Record<string, string> = {
     success: "var(--color-success)",
@@ -1133,12 +1158,17 @@ function StatCard({
     info: "var(--color-info)",
     destructive: "var(--color-destructive)",
     primary: "var(--color-primary)",
+    slate: "var(--color-muted-foreground)",
+    idle: "var(--color-idle)",
   };
   return (
     <Card>
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <span
+            className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+            title={hint}
+          >
             {label}
           </span>
           <span
@@ -1153,6 +1183,9 @@ function StatCard({
         </div>
         <div className="mt-3 text-2xl font-bold">{value}</div>
         {badge && <div className="mt-1">{badge}</div>}
+        {hint && !badge && (
+          <p className="mt-1 text-[11px] leading-tight text-muted-foreground">{hint}</p>
+        )}
       </CardContent>
     </Card>
   );
@@ -1225,11 +1258,10 @@ function SourceCard({
 
 
 function HorizontalTimeline({ records }: { records: Registro[] }) {
+  // Reaproveita o mapa central; ENCERRADO usa o muted (mais claro) por ser fundo
+  // de faixa, não texto.
   const colorByStatus: Record<string, string> = {
-    ATIVO: "var(--color-success)",
-    PAUSA: "var(--color-warning)",
-    ALMOCO: "var(--color-info)",
-    INATIVO: "var(--color-destructive)",
+    ...STATUS_COLOR,
     ENCERRADO: "var(--color-muted)",
   };
   const labelByStatus: Record<string, string> = {

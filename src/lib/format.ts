@@ -38,10 +38,13 @@ export const STATUS_LABEL: Record<string, string> = {
   ENCERRADO: "Encerrado",
 };
 
+// Fonte única de cor por status. INATIVO macro = slate (afastado, não erro);
+// o vermelho destructive fica reservado para ações destrutivas. A ociosidade
+// granular (micro-ócio dentro de apps/sites) usa --color-idle, separadamente.
 export const STATUS_COLOR: Record<string, string> = {
   ATIVO: "var(--color-success)",
   PAUSA: "var(--color-warning)",
   ALMOCO: "var(--color-info)",
-  INATIVO: "var(--color-destructive)",
+  INATIVO: "var(--color-muted-foreground)",
   ENCERRADO: "var(--color-muted-foreground)",
 };

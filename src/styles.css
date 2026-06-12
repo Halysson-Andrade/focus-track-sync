@@ -31,6 +31,7 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-idle: var(--idle);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -75,6 +76,9 @@
   --warning-foreground: oklch(0.2 0.04 70);
   --info: oklch(0.62 0.15 240);
   --info-foreground: oklch(0.99 0 0);
+  /* Ociosidade (micro-ócio dentro de apps/sites) — âmbar, distinto do vermelho
+     reservado a ações destrutivas e do slate do INATIVO macro. */
+  --idle: oklch(0.7 0.15 55);
   --border: oklch(0.9 0.015 250);
   --input: oklch(0.92 0.012 250);
   --ring: oklch(0.6 0.18 256);
@@ -116,6 +120,7 @@
   --warning-foreground: oklch(0.15 0.04 70);
   --info: oklch(0.68 0.15 240);
   --info-foreground: oklch(0.1 0.02 240);
+  --idle: oklch(0.76 0.15 55);
   --border: oklch(0.28 0.04 260);
   --input: oklch(0.28 0.04 260);
   --ring: oklch(0.5 0.16 256);
