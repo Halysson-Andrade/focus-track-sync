@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 // Janela "online": agente reportou-se nos últimos N ms.
@@ -19,6 +19,7 @@ export function usePresenceStatus(userId: string | undefined) {
   const [desktopOnline, setDesktopOnline] = useState(false);
   const [lastExt, setLastExt] = useState<number>(0);
   const [lastDesktop, setLastDesktop] = useState<number>(0);
+  const lastExtRef = useRef(0);
 
   // Extensão: escuta heartbeats via postMessage (mesma origem)
   useEffect(() => {
@@ -26,6 +27,7 @@ export function usePresenceStatus(userId: string | undefined) {
       if (e.source !== window) return;
       const d = e.data;
       if (d && d.source === "monitor-atividade" && d.type === "HEARTBEAT") {
+        lastExtRef.current = Date.now();
         setLastExt(Date.now());
       }
     };
