@@ -4,7 +4,6 @@ import { useAvatarMovement } from "@/hooks/use-avatar-movement";
 import { ManagerHud } from "./ManagerHud";
 import { OfficeAvatar } from "./OfficeAvatar";
 import { OfficeInsights } from "./OfficeInsights";
-import { RoomFurniture } from "./RoomFurniture";
 import { buildWalkGrid, type WalkGrid } from "./pathfinding";
 import {
   ROOM_ORDER,
@@ -18,6 +17,8 @@ import {
 } from "./office-config";
 import type { Insight } from "./insights";
 import { Flame } from "lucide-react";
+import officeMap from "@/assets/office-map.jpg";
+
 
 interface Stats {
   total: number;
@@ -88,50 +89,33 @@ export function VirtualOffice({ snapshots, stats, nowTs, insights, onSelect }: P
         </button>
       </div>
 
-      {/* Palco do escritório */}
-      <div
-        className="relative overflow-hidden rounded-2xl border shadow-2xl"
-        style={{
-          background:
-            "radial-gradient(ellipse at 30% 0%, color-mix(in oklch, var(--color-primary) 10%, transparent), transparent 55%), radial-gradient(ellipse at 90% 100%, color-mix(in oklch, var(--color-accent) 9%, transparent), transparent 55%), linear-gradient(180deg, color-mix(in oklch, var(--color-muted) 60%, var(--color-background)) 0%, var(--color-background) 100%)",
-        }}
-      >
-        {/* Skylight superior */}
+      {/* Palco do escritório — mapa pixel-art top-down */}
+      <div className="relative overflow-hidden rounded-2xl border-2 border-foreground/15 bg-black shadow-2xl">
         <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-20 opacity-60"
-          style={{
-            background:
-              "linear-gradient(180deg, color-mix(in oklch, var(--color-primary) 18%, transparent), transparent)",
-          }}
-        />
-        <div
-          className="relative w-full p-3 sm:p-5"
+          className="relative w-full"
           style={{ aspectRatio: `${WORLD.cols} / ${WORLD.rows}` }}
         >
-          {/* Piso: tabuleiro com leve perspectiva e brilho central */}
+          {/* Mapa do escritório (background pixel-art) */}
+          <img
+            src={officeMap}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ imageRendering: "pixelated" }}
+            loading="lazy"
+          />
+
+          {/* Vinheta sutil nas bordas para dar profundidade */}
           <div
             aria-hidden
-            className="absolute inset-3 sm:inset-5 rounded-xl"
+            className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "radial-gradient(ellipse at 50% 60%, color-mix(in oklch, var(--color-primary) 6%, transparent), transparent 70%), color-mix(in oklch, var(--color-card) 80%, transparent)",
-              boxShadow:
-                "inset 0 1px 0 color-mix(in oklch, var(--color-foreground) 8%, transparent), inset 0 -40px 80px color-mix(in oklch, var(--color-foreground) 12%, transparent)",
-            }}
-          />
-          {/* Grid sutil do chão */}
-          <div
-            aria-hidden
-            className="absolute inset-3 sm:inset-5 rounded-xl opacity-[0.07]"
-            style={{
-              backgroundImage:
-                "linear-gradient(to right, var(--color-foreground) 1px, transparent 1px), linear-gradient(to bottom, var(--color-foreground) 1px, transparent 1px)",
-              backgroundSize: `${100 / WORLD.cols}% ${100 / WORLD.rows}%`,
+                "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.35) 100%)",
             }}
           />
 
-          {/* Luzes de teto */}
+          {/* Luzes de teto (glow ambiente) */}
           {CEIL_LIGHTS.map((l, i) => (
             <span
               key={i}
@@ -141,19 +125,19 @@ export function VirtualOffice({ snapshots, stats, nowTs, insights, onSelect }: P
                 left: `${l.x}%`,
                 top: `${l.y}%`,
                 background:
-                  "radial-gradient(circle, color-mix(in oklch, var(--color-warning) 35%, transparent), transparent 70%)",
+                  "radial-gradient(circle, rgba(255,210,120,0.35), transparent 70%)",
                 animationDelay: `${i * 0.6}s`,
                 transform: "translate(-50%, -50%)",
               }}
             />
           ))}
 
-          {/* Partículas */}
+          {/* Partículas de poeira */}
           {DUST.map((d, i) => (
             <span
               key={i}
               aria-hidden
-              className="office-dust pointer-events-none absolute rounded-full bg-foreground/40"
+              className="office-dust pointer-events-none absolute rounded-full bg-white/40"
               style={{
                 left: `${d.left}%`,
                 top: `${d.top}%`,
@@ -164,7 +148,7 @@ export function VirtualOffice({ snapshots, stats, nowTs, insights, onSelect }: P
             />
           ))}
 
-          {/* Salas (com mobília decorativa) */}
+          {/* Salas (overlay leve: placa + contagem + heatmap opcional) */}
           {ROOM_ORDER.map((id) => (
             <RoomBox
               key={id}
@@ -190,6 +174,7 @@ export function VirtualOffice({ snapshots, stats, nowTs, insights, onSelect }: P
     </div>
   );
 }
+
 
 function AnimatedAvatar({
   snapshot,
@@ -223,36 +208,35 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
   const top = (room.y / WORLD.rows) * 100;
   const width = (room.w / WORLD.cols) * 100;
   const height = (room.h / WORLD.rows) * 100;
-  const bg =
-    heat > 0
-      ? `color-mix(in oklch, var(--color-destructive) ${Math.round(10 + heat * 50)}%, transparent)`
-      : `color-mix(in oklch, ${room.tint} 12%, transparent)`;
-  const borderColor =
-    heat > 0
-      ? `color-mix(in oklch, var(--color-destructive) ${Math.round(40 + heat * 40)}%, transparent)`
-      : `color-mix(in oklch, ${room.tint} 45%, transparent)`;
   return (
     <div
-      className="absolute overflow-hidden rounded-xl border-2 backdrop-blur-[1px] transition-colors duration-500"
+      className="pointer-events-none absolute rounded-lg transition-colors duration-500"
       style={{
         left: `${left}%`,
         top: `${top}%`,
         width: `${width}%`,
         height: `${height}%`,
-        background: bg,
-        borderColor,
-        boxShadow: `inset 0 0 0 1px color-mix(in oklch, ${room.tint} 20%, transparent), 0 6px 18px -10px color-mix(in oklch, ${room.tint} 60%, transparent)`,
+        background:
+          heat > 0
+            ? `color-mix(in oklch, var(--color-destructive) ${Math.round(15 + heat * 45)}%, transparent)`
+            : "transparent",
+        border:
+          heat > 0
+            ? `1px solid color-mix(in oklch, var(--color-destructive) 70%, transparent)`
+            : `1px dashed rgba(255,255,255,0.12)`,
+        boxShadow:
+          heat > 0
+            ? `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent)`
+            : undefined,
       }}
     >
-      {/* mobília decorativa */}
-      <RoomFurniture id={room.id} />
-
-      {/* placa da sala */}
+      {/* placa flutuante da sala */}
       <div
-        className="relative z-10 m-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold shadow-sm backdrop-blur sm:text-xs"
+        className="pointer-events-auto m-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold shadow-lg backdrop-blur-md sm:text-xs"
         style={{
-          background: `color-mix(in oklch, var(--color-background) 70%, ${room.tint})`,
-          color: `color-mix(in oklch, var(--color-foreground) 85%, ${room.tint})`,
+          background: "rgba(15,15,20,0.72)",
+          color: "white",
+          border: `1px solid color-mix(in oklch, ${room.tint} 60%, transparent)`,
         }}
       >
         <span>{room.emoji}</span>
@@ -260,10 +244,7 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
         {count > 0 && (
           <span
             className="ml-1 rounded-full px-1.5 text-[9px] font-bold"
-            style={{
-              background: room.tint,
-              color: "var(--color-background)",
-            }}
+            style={{ background: room.tint, color: "white" }}
           >
             {count}
           </span>
@@ -272,6 +253,7 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
     </div>
   );
 }
+
 
 function Legend() {
   const items: Array<{ color: string; label: string; dot?: boolean }> = [
