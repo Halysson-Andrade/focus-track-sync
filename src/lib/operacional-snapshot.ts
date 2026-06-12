@@ -151,7 +151,7 @@ export function buildSnapshots(
     return {
       profile: p,
       isOnline,
-      currentStatus: open?.status ?? "OFFLINE",
+      currentStatus: open?.status ?? (isOnline ? "ATIVO" : "OFFLINE"),
       currentSince: open?.inicio ?? null,
       totals,
       totalOnline,
