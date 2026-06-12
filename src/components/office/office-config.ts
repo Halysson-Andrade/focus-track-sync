@@ -249,16 +249,6 @@ export function placeAvatars(snapshots: UserSnapshot[]): PlacedAvatar[] {
   const byRoom = new Map<RoomId, UserSnapshot[]>();
   for (const s of snapshots) {
     const room = roomForSnapshot(s);
-    if (s.profile.nome?.toLowerCase().includes("rafael")) {
-      // eslint-disable-next-line no-console
-      console.log("[OFFICE-DEBUG] Rafael →", {
-        room,
-        isOnline: s.isOnline,
-        currentStatus: s.currentStatus,
-        currentSince: s.currentSince,
-        lastUrl: s.lastUrl?.domain,
-      });
-    }
     const arr = byRoom.get(room) ?? [];
     arr.push(s);
     byRoom.set(room, arr);
