@@ -172,6 +172,9 @@ export function isMeeting(s: UserSnapshot): boolean {
 
 /** Sala-destino de um colaborador conforme status atual (+ reunião derivada). */
 export function roomForSnapshot(s: UserSnapshot): RoomId {
+  // Só vai pro "externa" (fora do prédio) quando o colaborador realmente
+  // está offline. Se ainda há sinal de presença (registro aberto ou navegação
+  // recente), ele aparece DENTRO do escritório conforme o status.
   if (!s.isOnline) return "externa";
   switch (s.currentStatus) {
     case "ATIVO":
@@ -183,7 +186,9 @@ export function roomForSnapshot(s: UserSnapshot): RoomId {
     case "ALMOCO":
       return "copa";
     case "ENCERRADO":
-      return "externa";
+      // Encerrou o expediente mas continua navegando — fica na recepção
+      // (saindo do prédio) em vez de pular pra área externa.
+      return "recepcao";
     default:
       return "trabalho";
   }
