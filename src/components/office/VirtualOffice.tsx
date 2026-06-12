@@ -17,7 +17,7 @@ import {
 } from "./office-config";
 import type { Insight } from "./insights";
 import { Flame } from "lucide-react";
-import officeMap from "@/assets/office-map.jpg";
+import officeMap from "@/assets/office-map-light.jpg";
 
 
 interface Stats {
@@ -53,7 +53,7 @@ const CEIL_LIGHTS = [
   { x: 75, y: 55 },
 ];
 
-// Partículas de "poeira" que sobem devagar pelo palco.
+  // Partículas de "poeira" que sobem devagar pelo palco (escuras p/ piso claro).
 const DUST = Array.from({ length: 14 }, (_, i) => ({
   left: (i * 73) % 100,
   top: ((i * 41) % 80) + 10,
@@ -90,7 +90,7 @@ export function VirtualOffice({ snapshots, stats, nowTs, insights, onSelect }: P
       </div>
 
       {/* Palco do escritório — mapa pixel-art top-down */}
-      <div className="relative overflow-hidden rounded-2xl border-2 border-foreground/15 bg-black shadow-2xl">
+      <div className="relative overflow-hidden rounded-2xl border-2 border-foreground/10 bg-white shadow-2xl">
         <div
           className="relative w-full"
           style={{ aspectRatio: `${WORLD.cols} / ${WORLD.rows}` }}
@@ -105,13 +105,13 @@ export function VirtualOffice({ snapshots, stats, nowTs, insights, onSelect }: P
             loading="lazy"
           />
 
-          {/* Vinheta sutil nas bordas para dar profundidade */}
+          {/* Vinheta sutil nas bordas para dar profundidade (mais leve p/ piso claro) */}
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.35) 100%)",
+                "radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.12) 100%)",
             }}
           />
 
@@ -137,7 +137,7 @@ export function VirtualOffice({ snapshots, stats, nowTs, insights, onSelect }: P
             <span
               key={i}
               aria-hidden
-              className="office-dust pointer-events-none absolute rounded-full bg-white/40"
+              className="office-dust pointer-events-none absolute rounded-full bg-black/20"
               style={{
                 left: `${d.left}%`,
                 top: `${d.top}%`,
