@@ -118,6 +118,35 @@ function safeDur(duracao: number | null, inicio: string, fim: string | null) {
   return Math.min(Math.max(live, 0), (duracao ?? 0) + 90);
 }
 
+// Processos do navegador Chrome — desconsiderados na monitoração de "Apps Desktop"
+// porque a navegação já é capturada pela extensão (evita contagem dupla).
+const CHROME_PROCESS_RE = /chrome|chromium|google chrome/i;
+const isChromeProcess = (p: string) => CHROME_PROCESS_RE.test(p || "");
+
+// União de intervalos [start, end] em segundos — desduplica sobreposições
+// (a extensão às vezes mantém 2 linhas abertas em troca rápida de aba).
+function unionSeconds(intervals: { start: number; end: number }[]): number {
+  if (intervals.length === 0) return 0;
+  const sorted = [...intervals]
+    .filter((i) => i.end > i.start)
+    .sort((a, b) => a.start - b.start);
+  let total = 0;
+  let curStart = -1;
+  let curEnd = -1;
+  for (const it of sorted) {
+    if (curEnd < it.start) {
+      if (curStart >= 0) total += curEnd - curStart;
+      curStart = it.start;
+      curEnd = it.end;
+    } else if (it.end > curEnd) {
+      curEnd = it.end;
+    }
+  }
+  if (curStart >= 0) total += curEnd - curStart;
+  return total / 1000;
+}
+
+
 function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
