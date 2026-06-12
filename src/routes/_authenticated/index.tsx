@@ -615,12 +615,21 @@ function Dashboard() {
   // Gate de início de expediente: exigir extensão + app desktop online
   const presence = usePresenceStatus(effectiveUserId);
   const [startGateOpen, setStartGateOpen] = useState(false);
-  const handleStartClick = () => {
-    if (!presence.extOnline || !presence.desktopOnline) {
-      setStartGateOpen(true);
-      return;
+  const [startChecking, setStartChecking] = useState(false);
+  const handleStartClick = async () => {
+    if (startChecking) return;
+    setStartChecking(true);
+    try {
+      // Verificação fresca no clique — nunca confia só no estado renderizado.
+      const { ext, desktop } = await presence.checkNow();
+      if (!ext || !desktop) {
+        setStartGateOpen(true);
+        return;
+      }
+      await session.start();
+    } finally {
+      setStartChecking(false);
     }
-    session.start();
   };
 
   const selectedUser = users.find((u) => u.id === targetUserId);
