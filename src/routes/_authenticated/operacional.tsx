@@ -20,6 +20,7 @@ import {
   Monitor,
   Eye,
   ExternalLink,
+  Hourglass,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/operacional")({
@@ -298,7 +299,7 @@ function OperacionalPage() {
           label="Inativos"
           value={stats.INATIVO}
           icon={<AlertTriangle className="h-3 w-3" />}
-          color="bg-destructive"
+          color="bg-muted-foreground"
         />
       </div>
 
@@ -439,7 +440,28 @@ function UserCard({ snapshot, nowTs }: { snapshot: UserSnapshot; nowTs: number }
           <Stat label="Ativo" value={s.totals.ATIVO} variant="success" />
           <Stat label="Pausa" value={s.totals.PAUSA} variant="warning" />
           <Stat label="Almoço" value={s.totals.ALMOCO} variant="info" />
-          <Stat label="Inativo" value={s.totals.INATIVO} variant="destructive" />
+          <Stat label="Inativo" value={s.totals.INATIVO} variant="slate" />
+        </div>
+
+        {/* Ociosidade detectada — micro-ócio dentro de apps/sites (inativo_segundos
+            de app+chrome+desktop). Independe do INATIVO macro acima. */}
+        <div
+          className="mt-2 flex items-center justify-between rounded-md border px-2 py-1.5 text-xs"
+          style={{
+            borderColor: "color-mix(in oklch, var(--color-idle) 35%, transparent)",
+            background: "color-mix(in oklch, var(--color-idle) 10%, transparent)",
+          }}
+          title="Tempo sem mouse/teclado dentro de apps e navegação"
+        >
+          <span
+            className="flex items-center gap-1 font-medium"
+            style={{ color: "var(--color-idle)" }}
+          >
+            <Hourglass className="h-3 w-3" /> Ócio detectado
+          </span>
+          <span className="font-mono font-semibold" style={{ color: "var(--color-idle)" }}>
+            {formatSec(s.idleSeconds)}
+          </span>
         </div>
 
         {s.lastUrl ? (
@@ -513,13 +535,14 @@ function Stat({
 }: {
   label: string;
   value: number;
-  variant: "success" | "warning" | "info" | "destructive";
+  variant: "success" | "warning" | "info" | "destructive" | "slate";
 }) {
   const colors = {
     success: "bg-success/10 text-success border-success/30",
     warning: "bg-warning/10 text-warning border-warning/30",
     info: "bg-info/10 text-info border-info/30",
     destructive: "bg-destructive/10 text-destructive border-destructive/30",
+    slate: "bg-muted-foreground/10 text-muted-foreground border-muted-foreground/30",
   };
   return (
     <div className={`rounded-md border px-1.5 py-1 ${colors[variant]}`}>
@@ -540,7 +563,7 @@ function statusColor(status: string) {
     case "ALMOCO":
       return "bg-info";
     case "INATIVO":
-      return "bg-destructive";
+      return "bg-muted-foreground";
     default:
       return "bg-muted-foreground";
   }
