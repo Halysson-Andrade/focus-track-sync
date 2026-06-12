@@ -23,16 +23,13 @@ import {
   TrendingUp,
   Activity as ActivityIcon,
   AlertTriangle,
-  MousePointer2,
   Chrome,
   Globe,
   Monitor,
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -49,7 +46,19 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatHM } from "@/lib/format";
 import { tempoTrabalhado } from "@/lib/activity-config";
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -92,17 +101,8 @@ type UsoApp = {
   duracao_segundos: number | null;
   inativo_segundos: number | null;
 };
-type Origem = "app" | "chrome" | "desktop";
-type UnifiedLog = {
-  id: string;
-  origem: Origem;
-  label: string;
-  sub: string;
-  inicio: string;
-  fim: string | null;
-  duracao: number;
-  inativo: number;
-};
+
+
 
 function formatSeconds(s: number) {
   if (!s || s < 60) return `${Math.round(s)}s`;
@@ -134,10 +134,14 @@ function Dashboard() {
     return d;
   }, []);
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday);
-  const [openDomain, setOpenDomain] = useState<string | null>(null);
-  // (logs consolidados — paginação removida; detalhe vai por exportação)
 
   const isToday = selectedDate.getTime() === startOfToday.getTime();
+  // Janela bruta confiável: últimos 30 dias (retenção). Antes disso, lemos dos
+  // agregados *_diario para garantir que os gráficos continuem populados após o purge.
+  const daysAgo = Math.floor(
+    (startOfToday.getTime() - selectedDate.getTime()) / (24 * 3600_000),
+  );
+  const useAggregates = daysAgo > 25;
   const dayRange = useMemo(() => {
     const s = new Date(selectedDate);
     s.setHours(0, 0, 0, 0);
@@ -145,6 +149,7 @@ function Dashboard() {
     e.setDate(e.getDate() + 1);
     return { start: s.toISOString(), end: e.toISOString() };
   }, [selectedDate]);
+  const dayKey = selectedDate.toISOString().slice(0, 10);
   const [dayRecords, setDayRecords] = useState<Registro[]>([]);
 
   // Admin: filter by target user
@@ -158,6 +163,20 @@ function Dashboard() {
   const [pages, setPages] = useState<Pagina[]>([]);
   const [externalNav, setExternalNav] = useState<NavExterna[]>([]);
   const [appUsage, setAppUsage] = useState<UsoApp[]>([]);
+  // Agregados (fallback para datas antigas / fora da retenção bruta)
+  const [navDiario, setNavDiario] = useState<
+    { domain: string; segundos_totais: number; segundos_inativos: number; visitas: number }[]
+  >([]);
+  const [appDiario, setAppDiario] = useState<
+    {
+      process_name: string;
+      app_label: string | null;
+      segundos_totais: number;
+      segundos_inativos: number;
+      sessoes: number;
+    }[]
+  >([]);
+
 
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 1000);
@@ -206,9 +225,33 @@ function Dashboard() {
     isToday ? now.getMinutes() : 0,
   ]);
 
-  // Page navigation (app) + external (chrome extension) — for the selected day
+  // Para o dia selecionado:
+  //   - dentro da retenção bruta (≤25d): lemos navegacao_paginas / navegacao_externa /
+  //     uso_aplicativos (mesma fidelidade de sessão-a-sessão).
+  //   - fora da retenção: caímos para os agregados navegacao_diaria / uso_app_diario,
+  //     que sobrevivem ao purge e mantêm os totais corretos por dia.
   useEffect(() => {
     if (!effectiveUserId) return;
+    if (useAggregates) {
+      setPages([]);
+      setExternalNav([]);
+      setAppUsage([]);
+      supabase
+        .from("navegacao_diaria")
+        .select("domain, segundos_totais, segundos_inativos, visitas")
+        .eq("usuario_id", effectiveUserId)
+        .eq("dia", dayKey)
+        .then(({ data }) => setNavDiario((data ?? []) as typeof navDiario));
+      supabase
+        .from("uso_app_diario")
+        .select("process_name, app_label, segundos_totais, segundos_inativos, sessoes")
+        .eq("usuario_id", effectiveUserId)
+        .eq("dia", dayKey)
+        .then(({ data }) => setAppDiario((data ?? []) as typeof appDiario));
+      return;
+    }
+    setNavDiario([]);
+    setAppDiario([]);
     supabase
       .from("navegacao_paginas")
       .select("*")
@@ -233,7 +276,14 @@ function Dashboard() {
       .lt("inicio", dayRange.end)
       .order("inicio", { ascending: true })
       .then(({ data }) => setAppUsage((data ?? []) as UsoApp[]));
-  }, [effectiveUserId, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
+  }, [
+    effectiveUserId,
+    useAggregates,
+    dayKey,
+    dayRange.start,
+    dayRange.end,
+    isToday ? now.getMinutes() : 0,
+  ]);
 
   // 30-day history for effective user — keep raw records grouped per day for the per-day timelines
   useEffect(() => {
@@ -268,7 +318,6 @@ function Dashboard() {
 
   // Records to display on the board for the selected day
   const todayRecords: Registro[] = isToday && !viewingOther ? session.todayRecords : dayRecords;
-  // Used as a fallback for the "other user today" legacy var
   void otherRecords;
 
   const totals = useMemo(() => {
@@ -287,199 +336,176 @@ function Dashboard() {
 
   const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
 
-  // Aggregate navigation by DOMAIN (combines app pages + chrome external nav)
-  const domainAgg = useMemo(() => {
-    type PageRow = { label: string; path: string; total: number; idle: number; visits: number };
-    type DomainRow = {
-      domain: string;
-      origem: Origem | "misto";
-      total: number;
-      idle: number;
-      visits: number;
-      pages: Map<string, PageRow>;
-    };
-    const APP_DOMAIN = "App interno";
-    const m = new Map<string, DomainRow>();
+  // Estatísticas normalizadas por DOMÍNIO (web: app interno + chrome) e por APP desktop.
+  // Origens são INDEPENDENTES no tempo (sobrepõem-se), portanto nunca somamos cross-origem.
+  type SiteStat = {
+    domain: string;
+    origem: "app" | "chrome";
+    total: number;
+    idle: number;
+    trabalhado: number;
+    visitas: number;
+  };
+  type AppStat = {
+    app: string;
+    process_name: string;
+    total: number;
+    idle: number;
+    trabalhado: number;
+    sessoes: number;
+  };
 
-    const upsert = (
+  const siteStats: SiteStat[] = useMemo(() => {
+    const m = new Map<string, SiteStat>();
+    const add = (
       domain: string,
-      origem: Origem,
-      key: string,
-      label: string,
-      path: string,
-      dur: number,
+      origem: "app" | "chrome",
+      total: number,
       idle: number,
+      visitas: number,
     ) => {
-      let d = m.get(domain);
-      if (!d) {
-        d = { domain, origem, total: 0, idle: 0, visits: 0, pages: new Map() };
-        m.set(domain, d);
-      } else if (d.origem !== origem) {
-        d.origem = "misto";
-      }
-      d.total += dur;
-      d.idle += idle;
-      d.visits += 1;
-      const p = d.pages.get(key);
-      if (p) {
-        p.total += dur;
-        p.idle += idle;
-        p.visits += 1;
-      } else d.pages.set(key, { label, path, total: dur, idle, visits: 1 });
-    };
-
-    pages.forEach((p) => {
-      const dur = safeDur(p.duracao_segundos, p.inicio, p.fim);
-      upsert(APP_DOMAIN, "app", p.path, p.title ?? p.path, p.path, dur, p.inativo_segundos || 0);
-    });
-    externalNav.forEach((n) => {
-      const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
-      upsert(
-        n.domain || "desconhecido",
-        "chrome",
-        n.url,
-        n.title ?? n.url,
-        n.url,
-        dur,
-        n.inativo_segundos || 0,
-      );
-    });
-    appUsage.forEach((a) => {
-      const dur = safeDur(a.duracao_segundos, a.inicio, a.fim);
-      const label = a.app_label || a.process_name;
-      upsert(label, "desktop", a.process_name, label, a.process_name, dur, a.inativo_segundos || 0);
-    });
-
-    return Array.from(m.values())
-      .map((d) => ({ ...d, pages: Array.from(d.pages.values()).sort((a, b) => b.total - a.total) }))
-      .sort((a, b) => b.total - a.total);
-  }, [pages, externalNav, appUsage, now]);
-
-  // Unified log: merge app pages + external chrome nav, sorted desc by inicio.
-  // Used only for the detailed export — on screen we show a consolidated view.
-  const unifiedLogs: UnifiedLog[] = useMemo(() => {
-    const appLogs: UnifiedLog[] = pages.map((p) => {
-      const dur = safeDur(p.duracao_segundos, p.inicio, p.fim);
-      return {
-        id: `a:${p.id}`,
-        origem: "app",
-        label: p.title ?? p.path,
-        sub: p.path,
-        inicio: p.inicio,
-        fim: p.fim,
-        duracao: dur,
-        inativo: p.inativo_segundos || 0,
-      };
-    });
-    const extLogs: UnifiedLog[] = externalNav.map((n) => {
-      const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
-      return {
-        id: `e:${n.id}`,
-        origem: "chrome",
-        label: n.title ?? n.domain,
-        sub: n.domain,
-        inicio: n.inicio,
-        fim: n.fim,
-        duracao: dur,
-        inativo: n.inativo_segundos || 0,
-      };
-    });
-    const deskLogs: UnifiedLog[] = appUsage.map((a) => {
-      const dur = safeDur(a.duracao_segundos, a.inicio, a.fim);
-      const label = a.app_label || a.process_name;
-      return {
-        id: `d:${a.id}`,
-        origem: "desktop",
-        label,
-        sub: label,
-        inicio: a.inicio,
-        fim: a.fim,
-        duracao: dur,
-        inativo: a.inativo_segundos || 0,
-      };
-    });
-    return [...appLogs, ...extLogs, ...deskLogs].sort(
-      (a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime(),
-    );
-  }, [pages, externalNav, appUsage, now]);
-
-  // Consolidated log: groups by origem + sub (path/domain), aggregating visits, total and idle.
-  const consolidatedLogs = useMemo(() => {
-    const m = new Map<
-      string,
-      {
-        origem: Origem;
-        label: string;
-        sub: string;
-        visitas: number;
-        total: number;
-        inativo: number;
-        ultimo: string;
-      }
-    >();
-    for (const l of unifiedLogs) {
-      const key = `${l.origem}::${l.sub}`;
+      const key = `${origem}::${domain}`;
       const cur = m.get(key);
       if (cur) {
-        cur.visitas += 1;
-        cur.total += l.duracao;
-        cur.inativo += l.inativo;
-        if (new Date(l.inicio).getTime() > new Date(cur.ultimo).getTime()) {
-          cur.ultimo = l.inicio;
-          cur.label = l.label;
-        }
+        cur.total += total;
+        cur.idle += idle;
+        cur.visitas += visitas;
+        cur.trabalhado = tempoTrabalhado(cur.total, cur.idle);
       } else {
         m.set(key, {
-          origem: l.origem,
-          label: l.label,
-          sub: l.sub,
-          visitas: 1,
-          total: l.duracao,
-          inativo: l.inativo,
-          ultimo: l.inicio,
+          domain,
+          origem,
+          total,
+          idle,
+          visitas,
+          trabalhado: tempoTrabalhado(total, idle),
         });
       }
+    };
+    if (useAggregates) {
+      // No agregado não separamos app interno vs chrome — tratamos tudo como "chrome" (web externa)
+      // pois a maior parte vem dele; o app interno gera linhas em navegacao_paginas, não navegacao_diaria.
+      navDiario.forEach((n) =>
+        add(n.domain || "desconhecido", "chrome", n.segundos_totais, n.segundos_inativos, n.visitas),
+      );
+    } else {
+      pages.forEach((p) => {
+        const dur = safeDur(p.duracao_segundos, p.inicio, p.fim);
+        add("App interno", "app", dur, p.inativo_segundos || 0, 1);
+      });
+      externalNav.forEach((n) => {
+        const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
+        add(n.domain || "desconhecido", "chrome", dur, n.inativo_segundos || 0, 1);
+      });
     }
-    return Array.from(m.values()).sort((a, b) => b.total - a.total);
-  }, [unifiedLogs]);
+    return Array.from(m.values()).sort((a, b) => b.trabalhado - a.trabalhado);
+  }, [useAggregates, pages, externalNav, navDiario, now]);
 
-  // Totais por ORIGEM (App interno / Chrome / Desktop). Cada dimensão é
-  // independente — nunca somamos entre origens (elas se sobrepõem no tempo).
+  const appStats: AppStat[] = useMemo(() => {
+    const m = new Map<string, AppStat>();
+    const add = (
+      process_name: string,
+      label: string,
+      total: number,
+      idle: number,
+      sessoes: number,
+    ) => {
+      const cur = m.get(process_name);
+      if (cur) {
+        cur.total += total;
+        cur.idle += idle;
+        cur.sessoes += sessoes;
+        cur.trabalhado = tempoTrabalhado(cur.total, cur.idle);
+        if (!cur.app && label) cur.app = label;
+      } else {
+        m.set(process_name, {
+          app: label || process_name,
+          process_name,
+          total,
+          idle,
+          sessoes,
+          trabalhado: tempoTrabalhado(total, idle),
+        });
+      }
+    };
+    if (useAggregates) {
+      appDiario.forEach((a) =>
+        add(
+          a.process_name,
+          a.app_label || a.process_name,
+          a.segundos_totais,
+          a.segundos_inativos,
+          a.sessoes,
+        ),
+      );
+    } else {
+      appUsage.forEach((a) => {
+        const dur = safeDur(a.duracao_segundos, a.inicio, a.fim);
+        add(a.process_name, a.app_label || a.process_name, dur, a.inativo_segundos || 0, 1);
+      });
+    }
+    return Array.from(m.values()).sort((a, b) => b.trabalhado - a.trabalhado);
+  }, [useAggregates, appUsage, appDiario, now]);
+
+  // Totais por ORIGEM. Independentes entre si (não somamos cross-origem).
   const sourceTotals = useMemo(() => {
-    const agg = (origem: Origem) => {
-      const rows = unifiedLogs.filter((l) => l.origem === origem);
-      const dur = rows.reduce((a, r) => a + r.duracao, 0);
-      const idle = rows.reduce((a, r) => a + r.inativo, 0);
+    const aggSite = (origem: "app" | "chrome") => {
+      const rows = siteStats.filter((s) => s.origem === origem);
+      const dur = rows.reduce((a, r) => a + r.total, 0);
+      const idle = rows.reduce((a, r) => a + r.idle, 0);
       return { dur, idle, trabalhado: tempoTrabalhado(dur, idle) };
     };
-    return { app: agg("app"), chrome: agg("chrome"), desktop: agg("desktop") };
-  }, [unifiedLogs]);
+    const dDur = appStats.reduce((a, r) => a + r.total, 0);
+    const dIdle = appStats.reduce((a, r) => a + r.idle, 0);
+    return {
+      app: aggSite("app"),
+      chrome: aggSite("chrome"),
+      desktop: { dur: dDur, idle: dIdle, trabalhado: tempoTrabalhado(dDur, dIdle) },
+    };
+  }, [siteStats, appStats]);
 
-  const exportNavLogs = () => {
-    const rows = unifiedLogs.map((l) => ({
-      Origem: l.origem === "app" ? "App" : l.origem === "chrome" ? "Chrome" : "Desktop",
-      Início: formatHM(l.inicio),
-      Fim: l.fim ? formatHM(l.fim) : "Em andamento",
-      Título: l.label,
-      "URL/Path": l.sub,
-      "Duração (s)": Math.round(l.duracao),
-      "Inativo (s)": Math.round(l.inativo),
-      "Trabalhado (s)": Math.round(tempoTrabalhado(l.duracao, l.inativo)),
-    }));
-    import("xlsx").then((XLSX) => {
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Navegação");
-      const day = selectedDate.toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `navegacao-${day}.xlsx`);
-    });
-  };
+  // Donut Web (app interno + chrome) vs Desktop — usa tempo trabalhado.
+  const webVsDesktop = useMemo(() => {
+    const web = sourceTotals.app.trabalhado + sourceTotals.chrome.trabalhado;
+    const desk = sourceTotals.desktop.trabalhado;
+    return [
+      { name: "Web (app + Chrome)", value: web, color: "var(--color-primary)" },
+      { name: "Apps desktop", value: desk, color: "var(--color-info)" },
+    ].filter((d) => d.value > 0);
+  }, [sourceTotals]);
+
+  const topSites = useMemo(
+    () =>
+      siteStats
+        .filter((s) => s.trabalhado > 0)
+        .slice(0, 10)
+        .map((s) => ({
+          domain: s.domain.length > 22 ? s.domain.slice(0, 21) + "…" : s.domain,
+          trabalhado: Math.round(s.trabalhado),
+          idle: Math.round(s.idle),
+        })),
+    [siteStats],
+  );
+
+  const topApps = useMemo(
+    () =>
+      appStats
+        .filter((a) => a.trabalhado > 0)
+        .slice(0, 5)
+        .map((a) => ({
+          app: a.app.length > 22 ? a.app.slice(0, 21) + "…" : a.app,
+          trabalhado: Math.round(a.trabalhado),
+          idle: Math.round(a.idle),
+        })),
+    [appStats],
+  );
 
   const currentOpen =
     isToday && !viewingOther ? session.current : (todayRecords.find((r) => !r.fim) ?? null);
   const status = currentOpen?.status ?? "ENCERRADO";
 
   const pieData = [
+
     { name: "Ativo", value: totals.ATIVO, color: "var(--color-success)" },
     { name: "Pausa", value: totals.PAUSA, color: "var(--color-warning)" },
     { name: "Almoço", value: totals.ALMOCO, color: "var(--color-info)" },
@@ -790,220 +816,137 @@ function Dashboard() {
         </Card>
       </div>
 
-      {/* Page navigation tracking */}
-      <Card>
-        <CardHeader className="flex flex-row items-center gap-2">
-          <MousePointer2 className="h-4 w-4 text-primary" />
-          <CardTitle>Atividade monitorada — {isToday ? "hoje" : "no dia"}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {domainAgg.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Nenhuma atividade registrada.
+      {/* Monitoração — Web vs Desktop + rankings */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Web vs Desktop</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {webVsDesktop.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">Sem dados.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={webVsDesktop}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={50}
+                    outerRadius={90}
+                  >
+                    {webVsDesktop.map((d, i) => (
+                      <Cell key={i} fill={d.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v: number, n: string) => [formatSeconds(v as number), n]}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Distribuição do tempo trabalhado entre páginas web (app + Chrome) e apps desktop.
             </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {domainAgg.map((d) => {
-                const isOpen = openDomain === d.domain;
-                const ativo = Math.max(0, d.total - d.idle);
-                const pctActive = d.total > 0 ? (ativo / d.total) * 100 : 0;
-                return (
-                  <li key={d.domain} className="py-2">
-                    <button
-                      type="button"
-                      onClick={() => setOpenDomain(isOpen ? null : d.domain)}
-                      className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted/40"
-                    >
-                      <span
-                        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${d.origem === "app" ? "border-primary/40 text-primary" : d.origem === "chrome" ? "border-warning/40 text-warning" : d.origem === "desktop" ? "border-info/40 text-info" : "border-border text-muted-foreground"}`}
-                      >
-                        {d.origem === "app" ? (
-                          <Globe className="h-3.5 w-3.5" />
-                        ) : d.origem === "chrome" ? (
-                          <Chrome className="h-3.5 w-3.5" />
-                        ) : d.origem === "desktop" ? (
-                          <Monitor className="h-3.5 w-3.5" />
-                        ) : (
-                          <MousePointer2 className="h-3.5 w-3.5" />
-                        )}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate font-medium">{d.domain}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            {d.visits} {d.visits === 1 ? "visita" : "visitas"} · {d.pages.length}{" "}
-                            {d.pages.length === 1 ? "página" : "páginas"}
-                          </span>
-                        </div>
-                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                          <div className="h-full bg-success" style={{ width: `${pctActive}%` }} />
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs">
-                        <span className="font-mono text-sm">{formatSeconds(d.total)}</span>
-                        <span className="font-mono text-success">ativo {formatSeconds(ativo)}</span>
-                        {d.idle > 0 && (
-                          <span className="font-mono text-destructive">
-                            idle {formatSeconds(d.idle)}
-                          </span>
-                        )}
-                      </div>
-                      <ChevronDown
-                        className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
-                      />
-                    </button>
-                    {isOpen && (
-                      <div className="mt-1 ml-10 overflow-x-auto rounded-md border border-border/60 bg-muted/20">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b border-border/60 text-left uppercase tracking-wider text-muted-foreground">
-                              <th className="px-3 py-1.5">Página</th>
-                              <th className="px-3 py-1.5">Visitas</th>
-                              <th className="px-3 py-1.5">Tempo</th>
-                              <th className="px-3 py-1.5">Ativo</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {d.pages.map((p) => (
-                              <tr
-                                key={p.path}
-                                className="border-b border-border/40 last:border-b-0"
-                              >
-                                <td className="px-3 py-1.5">
-                                  <div className="truncate font-medium">{p.label}</div>
-                                  <div className="truncate font-mono text-[10px] text-muted-foreground">
-                                    {p.path}
-                                  </div>
-                                </td>
-                                <td className="px-3 py-1.5 font-mono">{p.visits}</td>
-                                <td className="px-3 py-1.5 font-mono">{formatSeconds(p.total)}</td>
-                                <td className="px-3 py-1.5 font-mono text-success">
-                                  {formatSeconds(Math.max(0, p.total - p.idle))}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Consolidated navigation log */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>Logs de atividade — {isToday ? "hoje" : "no dia"}</CardTitle>
-            <div className="flex items-center gap-2 text-xs">
-              <Badge
-                variant="outline"
-                className="gap-1 border-primary/30 bg-primary/5"
-                title="Tempo trabalhado (duração − inativo)"
-              >
-                <Globe className="h-3 w-3" /> App {formatSeconds(sourceTotals.app.trabalhado)}
-              </Badge>
-              <Badge
-                variant="outline"
-                className="gap-1 border-warning/30 bg-warning/5"
-                title="Tempo trabalhado (duração − inativo)"
-              >
-                <Chrome className="h-3 w-3" /> Chrome{" "}
-                {formatSeconds(sourceTotals.chrome.trabalhado)}
-              </Badge>
-              <Badge
-                variant="outline"
-                className="gap-1 border-info/30 bg-info/5"
-                title="Tempo trabalhado (duração − inativo)"
-              >
-                <Monitor className="h-3 w-3" /> Desktop{" "}
-                {formatSeconds(sourceTotals.desktop.trabalhado)}
-              </Badge>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={exportNavLogs}
-                disabled={unifiedLogs.length === 0}
-              >
-                Exportar detalhado
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {consolidatedLogs.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Sem logs. Instale a extensão (navegação) ou o app desktop (aplicativos) para capturar
-              atividade fora do app.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
-                    <th className="px-3 py-2">Origem</th>
-                    <th className="px-3 py-2">Página / Domínio</th>
-                    <th className="px-3 py-2 text-right">Visitas</th>
-                    <th className="px-3 py-2 text-right">Tempo</th>
-                    <th className="px-3 py-2 text-right">Inativo</th>
-                    <th className="px-3 py-2 text-right">Trabalhado</th>
-                    <th className="px-3 py-2 text-right">Último acesso</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {consolidatedLogs.map((l) => (
-                    <tr
-                      key={`${l.origem}:${l.sub}`}
-                      className="border-b border-border/50 last:border-0"
-                    >
-                      <td className="px-3 py-2">
-                        {l.origem === "app" ? (
-                          <Badge variant="outline" className="gap-1 border-primary/40 text-primary">
-                            <Globe className="h-3 w-3" /> App
-                          </Badge>
-                        ) : l.origem === "chrome" ? (
-                          <Badge variant="outline" className="gap-1 border-warning/40 text-warning">
-                            <Chrome className="h-3 w-3" /> Chrome
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="gap-1 border-info/40 text-info">
-                            <Monitor className="h-3 w-3" /> Desktop
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="min-w-0 max-w-[420px] px-3 py-2">
-                        <div className="truncate font-medium">{l.label}</div>
-                        <div className="truncate font-mono text-[11px] text-muted-foreground">
-                          {l.sub}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono">{l.visitas}</td>
-                      <td className="px-3 py-2 text-right font-mono">{formatSeconds(l.total)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-destructive">
-                        {l.inativo > 0 ? formatSeconds(l.inativo) : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-success">
-                        {formatSeconds(tempoTrabalhado(l.total, l.inativo))}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
-                        {formatHM(l.ultimo)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Visão consolidada por página/domínio. Use “Exportar detalhado” para baixar o
-                histórico completo de visitas.
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <Globe className="h-4 w-4 text-primary" />
+            <CardTitle>Top sites visitados</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topSites.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                Nenhuma navegação no dia.
               </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(160, topSites.length * 32)}>
+                <BarChart data={topSites} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v) => formatSeconds(v as number)} />
+                  <YAxis
+                    type="category"
+                    dataKey="domain"
+                    width={120}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <Tooltip
+                    formatter={(v: number, n: string) => [
+                      formatSeconds(v as number),
+                      n === "trabalhado" ? "Trabalhado" : "Inativo",
+                    ]}
+                  />
+                  <Bar dataKey="trabalhado" stackId="t" fill="var(--color-success)" />
+                  <Bar dataKey="idle" stackId="t" fill="var(--color-destructive)" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <Monitor className="h-4 w-4 text-info" />
+            <CardTitle>Top 5 apps desktop</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topApps.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                Sem uso de apps desktop.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(160, topApps.length * 38)}>
+                <BarChart data={topApps} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v) => formatSeconds(v as number)} />
+                  <YAxis
+                    type="category"
+                    dataKey="app"
+                    width={120}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <Tooltip
+                    formatter={(v: number, n: string) => [
+                      formatSeconds(v as number),
+                      n === "trabalhado" ? "Trabalhado" : "Inativo",
+                    ]}
+                  />
+                  <Bar dataKey="trabalhado" stackId="t" fill="var(--color-info)" />
+                  <Bar dataKey="idle" stackId="t" fill="var(--color-destructive)" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Resumo de fontes — números rápidos */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <SourceCard
+          icon={<Globe className="h-4 w-4" />}
+          label="App interno"
+          accent="primary"
+          trabalhado={sourceTotals.app.trabalhado}
+          idle={sourceTotals.app.idle}
+        />
+        <SourceCard
+          icon={<Chrome className="h-4 w-4" />}
+          label="Chrome (extensão)"
+          accent="warning"
+          trabalhado={sourceTotals.chrome.trabalhado}
+          idle={sourceTotals.chrome.idle}
+        />
+        <SourceCard
+          icon={<Monitor className="h-4 w-4" />}
+          label="Desktop"
+          accent="info"
+          trabalhado={sourceTotals.desktop.trabalhado}
+          idle={sourceTotals.desktop.idle}
+        />
+      </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-2">
@@ -1107,6 +1050,65 @@ function StatCard({
     </Card>
   );
 }
+
+function SourceCard({
+  icon,
+  label,
+  accent,
+  trabalhado,
+  idle,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  accent: "primary" | "warning" | "info";
+  trabalhado: number;
+  idle: number;
+}) {
+  const colors: Record<string, string> = {
+    primary: "var(--color-primary)",
+    warning: "var(--color-warning)",
+    info: "var(--color-info)",
+  };
+  const total = trabalhado + idle;
+  const pct = total > 0 ? Math.round((trabalhado / total) * 100) : 0;
+  const fmt = (s: number) => (s < 60 ? `${Math.round(s)}s` : formatDuration(s / 60));
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {label}
+          </span>
+          <span
+            className="grid h-8 w-8 place-items-center rounded-md"
+            style={{
+              background: `color-mix(in oklch, ${colors[accent]} 15%, transparent)`,
+              color: colors[accent],
+            }}
+          >
+            {icon}
+          </span>
+        </div>
+        <div className="mt-3 flex items-baseline gap-2">
+          <span className="text-2xl font-bold">{fmt(trabalhado)}</span>
+          <span className="text-xs text-muted-foreground">trabalhado</span>
+        </div>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full"
+            style={{ width: `${pct}%`, background: colors[accent] }}
+          />
+        </div>
+        <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
+          <span>{pct}% ativo</span>
+          {idle > 0 && <span className="text-destructive">idle {fmt(idle)}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
 
 function HorizontalTimeline({ records }: { records: Registro[] }) {
   const colorByStatus: Record<string, string> = {
