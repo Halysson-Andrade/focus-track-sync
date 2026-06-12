@@ -464,13 +464,27 @@ function Dashboard() {
   const monitored = useMemo(() => {
     const jornadaAtivoSec = totals.ATIVO * 60;
 
-    // Intervalos brutos (só disponíveis na janela de retenção).
-    const chromeIntervals = externalNav.map((n) => ({
+    // Intervalos do Chrome desktop (processo do navegador) — a extensão pode
+    // ter perdido eventos (chrome://, devtools, abriu depois), então usamos
+    // o desktop como piso para garantir que nenhum tempo de foco no Chrome
+    // se perca. A extensão continua sendo a fonte do breakdown por domínio.
+    const chromeDeskRows = appUsage.filter(
+      (a) => isChromeProcess(a.process_name) || isChromeProcess(a.app_label || ""),
+    );
+    const chromeExtIntervals = externalNav.map((n) => ({
       start: new Date(n.inicio).getTime(),
       end: n.fim
         ? new Date(n.fim).getTime()
         : new Date(n.inicio).getTime() + safeDur(n.duracao_segundos, n.inicio, n.fim) * 1000,
     }));
+    const chromeDeskIntervals = chromeDeskRows.map((a) => ({
+      start: new Date(a.inicio).getTime(),
+      end: a.fim
+        ? new Date(a.fim).getTime()
+        : new Date(a.inicio).getTime() + safeDur(a.duracao_segundos, a.inicio, a.fim) * 1000,
+    }));
+    const chromeIntervals = [...chromeExtIntervals, ...chromeDeskIntervals];
+
     const deskIntervals = appUsage
       .filter((a) => !isChromeProcess(a.process_name) && !isChromeProcess(a.app_label || ""))
       .map((a) => ({
@@ -480,24 +494,32 @@ function Dashboard() {
           : new Date(a.inicio).getTime() + safeDur(a.duracao_segundos, a.inicio, a.fim) * 1000,
       }));
 
-    const chromeRawSec = externalNav.reduce(
+    const chromeExtRawSec = externalNav.reduce(
       (acc, n) => acc + safeDur(n.duracao_segundos, n.inicio, n.fim),
       0,
     );
-    const chromeIdleSec = externalNav.reduce((acc, n) => acc + (n.inativo_segundos || 0), 0);
+    const chromeDeskRawSec = chromeDeskRows.reduce(
+      (acc, a) => acc + safeDur(a.duracao_segundos, a.inicio, a.fim),
+      0,
+    );
+    const chromeIdleSec =
+      externalNav.reduce((acc, n) => acc + (n.inativo_segundos || 0), 0) +
+      chromeDeskRows.reduce((acc, a) => acc + (a.inativo_segundos || 0), 0);
+    const chromeRawSec = chromeExtRawSec + chromeDeskRawSec;
     const deskRawSec = appStats.reduce((a, r) => a + r.total, 0);
     const deskIdleSec = appStats.reduce((a, r) => a + r.idle, 0);
 
-    let chromeUnion = useAggregates ? chromeRawSec : unionSeconds(chromeIntervals);
+    let chromeUnion = useAggregates
+      ? Math.max(chromeExtRawSec, chromeDeskRawSec)
+      : unionSeconds(chromeIntervals);
     let deskUnion = useAggregates ? deskRawSec : unionSeconds(deskIntervals);
 
-    // Desconta idle proporcional à fração efetiva do union (vs soma bruta).
+    // Idle proporcional à fração que sobrou após a deduplicação.
     const chromeFactor = chromeRawSec > 0 ? chromeUnion / chromeRawSec : 0;
     const deskFactor = deskRawSec > 0 ? deskUnion / deskRawSec : 0;
     let chromeWorked = Math.max(0, chromeUnion - chromeIdleSec * chromeFactor);
     let deskWorked = Math.max(0, deskUnion - deskIdleSec * deskFactor);
 
-    // União Chrome + Desktop (interseção entre eles também é descontada).
     const totalUnion = useAggregates
       ? chromeUnion + deskUnion
       : unionSeconds([...chromeIntervals, ...deskIntervals]);
@@ -508,7 +530,7 @@ function Dashboard() {
       totalUnion - (chromeIdleSec * chromeFactor + deskIdleSec * deskFactor) * combinedFactor,
     );
 
-    // Clampa ao tempo ATIVO da jornada (a monitoração nunca pode exceder).
+    // Clampa ao tempo ATIVO da jornada — monitoração nunca pode exceder.
     if (jornadaAtivoSec > 0 && totalWorked > jornadaAtivoSec) {
       const scale = jornadaAtivoSec / totalWorked;
       chromeWorked *= scale;
@@ -523,6 +545,7 @@ function Dashboard() {
       foraJornada: Math.max(0, totalUnion - jornadaAtivoSec),
     };
   }, [externalNav, appUsage, appStats, useAggregates, totals.ATIVO, now]);
+
 
   // Donut Web (Chrome) vs Desktop — usa tempo consolidado (já clampado).
   const webVsDesktop = useMemo(() => {
