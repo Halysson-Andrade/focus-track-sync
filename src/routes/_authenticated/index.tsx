@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrentSession } from "@/hooks/use-current-session";
+import { usePresenceStatus } from "@/hooks/use-presence-status";
 import { StatusBadge } from "@/components/StatusBadge";
 import { InactivityModal } from "@/components/InactivityModal";
 import { Button } from "@/components/ui/button";
@@ -611,6 +612,17 @@ function Dashboard() {
   const isActive = status === "ATIVO";
   const isPaused = status === "PAUSA" || status === "ALMOCO" || status === "INATIVO";
 
+  // Gate de início de expediente: exigir extensão + app desktop online
+  const presence = usePresenceStatus(effectiveUserId);
+  const [startGateOpen, setStartGateOpen] = useState(false);
+  const handleStartClick = () => {
+    if (!presence.extOnline || !presence.desktopOnline) {
+      setStartGateOpen(true);
+      return;
+    }
+    session.start();
+  };
+
   const selectedUser = users.find((u) => u.id === targetUserId);
   const displayName = viewingOther ? (selectedUser?.nome ?? "Usuário") : (profile?.nome ?? "...");
 
@@ -752,7 +764,7 @@ function Dashboard() {
             <CardTitle>Controles</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
-            <Button onClick={session.start} disabled={!canStart} size="lg">
+            <Button onClick={handleStartClick} disabled={!canStart} size="lg">
               <Play className="mr-2 h-4 w-4" /> Iniciar Expediente
             </Button>
             <Button
@@ -780,6 +792,67 @@ function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Gate: exige extensão + app desktop online antes de iniciar expediente */}
+      <Dialog open={startGateOpen} onOpenChange={setStartGateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              Não é possível iniciar o expediente
+            </DialogTitle>
+            <DialogDescription>
+              Para iniciar o expediente é necessário que as ferramentas de monitoramento estejam online.
+              Faça login nelas e tente novamente.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-2 text-sm">
+            <li className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "inline-block h-2.5 w-2.5 rounded-full",
+                  presence.extOnline ? "bg-success" : "bg-destructive",
+                )}
+              />
+              <Chrome className="h-4 w-4" />
+              <span className="font-medium">Extensão do Chrome:</span>
+              <span className={presence.extOnline ? "text-success" : "text-destructive"}>
+                {presence.extOnline ? "online" : "offline — faça login na extensão"}
+              </span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "inline-block h-2.5 w-2.5 rounded-full",
+                  presence.desktopOnline ? "bg-success" : "bg-destructive",
+                )}
+              />
+              <Monitor className="h-4 w-4" />
+              <span className="font-medium">App Desktop:</span>
+              <span className={presence.desktopOnline ? "text-success" : "text-destructive"}>
+                {presence.desktopOnline ? "online" : "offline — abra e faça login no app"}
+              </span>
+            </li>
+          </ul>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStartGateOpen(false)}>
+              Fechar
+            </Button>
+            <Button
+              onClick={() => {
+                if (presence.extOnline && presence.desktopOnline) {
+                  setStartGateOpen(false);
+                  session.start();
+                }
+              }}
+              disabled={!presence.extOnline || !presence.desktopOnline}
+            >
+              <Play className="mr-2 h-4 w-4" /> Iniciar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <Dialog
         open={!!breakDialog}
