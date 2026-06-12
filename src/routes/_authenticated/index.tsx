@@ -799,220 +799,137 @@ function Dashboard() {
         </Card>
       </div>
 
-      {/* Page navigation tracking */}
-      <Card>
-        <CardHeader className="flex flex-row items-center gap-2">
-          <MousePointer2 className="h-4 w-4 text-primary" />
-          <CardTitle>Atividade monitorada — {isToday ? "hoje" : "no dia"}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {domainAgg.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Nenhuma atividade registrada.
+      {/* Monitoração — Web vs Desktop + rankings */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Web vs Desktop</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {webVsDesktop.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">Sem dados.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={webVsDesktop}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={50}
+                    outerRadius={90}
+                  >
+                    {webVsDesktop.map((d, i) => (
+                      <Cell key={i} fill={d.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v: number, n: string) => [formatSeconds(v as number), n]}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Distribuição do tempo trabalhado entre páginas web (app + Chrome) e apps desktop.
             </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {domainAgg.map((d) => {
-                const isOpen = openDomain === d.domain;
-                const ativo = Math.max(0, d.total - d.idle);
-                const pctActive = d.total > 0 ? (ativo / d.total) * 100 : 0;
-                return (
-                  <li key={d.domain} className="py-2">
-                    <button
-                      type="button"
-                      onClick={() => setOpenDomain(isOpen ? null : d.domain)}
-                      className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted/40"
-                    >
-                      <span
-                        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${d.origem === "app" ? "border-primary/40 text-primary" : d.origem === "chrome" ? "border-warning/40 text-warning" : d.origem === "desktop" ? "border-info/40 text-info" : "border-border text-muted-foreground"}`}
-                      >
-                        {d.origem === "app" ? (
-                          <Globe className="h-3.5 w-3.5" />
-                        ) : d.origem === "chrome" ? (
-                          <Chrome className="h-3.5 w-3.5" />
-                        ) : d.origem === "desktop" ? (
-                          <Monitor className="h-3.5 w-3.5" />
-                        ) : (
-                          <MousePointer2 className="h-3.5 w-3.5" />
-                        )}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate font-medium">{d.domain}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            {d.visits} {d.visits === 1 ? "visita" : "visitas"} · {d.pages.length}{" "}
-                            {d.pages.length === 1 ? "página" : "páginas"}
-                          </span>
-                        </div>
-                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                          <div className="h-full bg-success" style={{ width: `${pctActive}%` }} />
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs">
-                        <span className="font-mono text-sm">{formatSeconds(d.total)}</span>
-                        <span className="font-mono text-success">ativo {formatSeconds(ativo)}</span>
-                        {d.idle > 0 && (
-                          <span className="font-mono text-destructive">
-                            idle {formatSeconds(d.idle)}
-                          </span>
-                        )}
-                      </div>
-                      <ChevronDown
-                        className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
-                      />
-                    </button>
-                    {isOpen && (
-                      <div className="mt-1 ml-10 overflow-x-auto rounded-md border border-border/60 bg-muted/20">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b border-border/60 text-left uppercase tracking-wider text-muted-foreground">
-                              <th className="px-3 py-1.5">Página</th>
-                              <th className="px-3 py-1.5">Visitas</th>
-                              <th className="px-3 py-1.5">Tempo</th>
-                              <th className="px-3 py-1.5">Ativo</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {d.pages.map((p) => (
-                              <tr
-                                key={p.path}
-                                className="border-b border-border/40 last:border-b-0"
-                              >
-                                <td className="px-3 py-1.5">
-                                  <div className="truncate font-medium">{p.label}</div>
-                                  <div className="truncate font-mono text-[10px] text-muted-foreground">
-                                    {p.path}
-                                  </div>
-                                </td>
-                                <td className="px-3 py-1.5 font-mono">{p.visits}</td>
-                                <td className="px-3 py-1.5 font-mono">{formatSeconds(p.total)}</td>
-                                <td className="px-3 py-1.5 font-mono text-success">
-                                  {formatSeconds(Math.max(0, p.total - p.idle))}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Consolidated navigation log */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>Logs de atividade — {isToday ? "hoje" : "no dia"}</CardTitle>
-            <div className="flex items-center gap-2 text-xs">
-              <Badge
-                variant="outline"
-                className="gap-1 border-primary/30 bg-primary/5"
-                title="Tempo trabalhado (duração − inativo)"
-              >
-                <Globe className="h-3 w-3" /> App {formatSeconds(sourceTotals.app.trabalhado)}
-              </Badge>
-              <Badge
-                variant="outline"
-                className="gap-1 border-warning/30 bg-warning/5"
-                title="Tempo trabalhado (duração − inativo)"
-              >
-                <Chrome className="h-3 w-3" /> Chrome{" "}
-                {formatSeconds(sourceTotals.chrome.trabalhado)}
-              </Badge>
-              <Badge
-                variant="outline"
-                className="gap-1 border-info/30 bg-info/5"
-                title="Tempo trabalhado (duração − inativo)"
-              >
-                <Monitor className="h-3 w-3" /> Desktop{" "}
-                {formatSeconds(sourceTotals.desktop.trabalhado)}
-              </Badge>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={exportNavLogs}
-                disabled={unifiedLogs.length === 0}
-              >
-                Exportar detalhado
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {consolidatedLogs.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Sem logs. Instale a extensão (navegação) ou o app desktop (aplicativos) para capturar
-              atividade fora do app.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
-                    <th className="px-3 py-2">Origem</th>
-                    <th className="px-3 py-2">Página / Domínio</th>
-                    <th className="px-3 py-2 text-right">Visitas</th>
-                    <th className="px-3 py-2 text-right">Tempo</th>
-                    <th className="px-3 py-2 text-right">Inativo</th>
-                    <th className="px-3 py-2 text-right">Trabalhado</th>
-                    <th className="px-3 py-2 text-right">Último acesso</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {consolidatedLogs.map((l) => (
-                    <tr
-                      key={`${l.origem}:${l.sub}`}
-                      className="border-b border-border/50 last:border-0"
-                    >
-                      <td className="px-3 py-2">
-                        {l.origem === "app" ? (
-                          <Badge variant="outline" className="gap-1 border-primary/40 text-primary">
-                            <Globe className="h-3 w-3" /> App
-                          </Badge>
-                        ) : l.origem === "chrome" ? (
-                          <Badge variant="outline" className="gap-1 border-warning/40 text-warning">
-                            <Chrome className="h-3 w-3" /> Chrome
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="gap-1 border-info/40 text-info">
-                            <Monitor className="h-3 w-3" /> Desktop
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="min-w-0 max-w-[420px] px-3 py-2">
-                        <div className="truncate font-medium">{l.label}</div>
-                        <div className="truncate font-mono text-[11px] text-muted-foreground">
-                          {l.sub}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono">{l.visitas}</td>
-                      <td className="px-3 py-2 text-right font-mono">{formatSeconds(l.total)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-destructive">
-                        {l.inativo > 0 ? formatSeconds(l.inativo) : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-success">
-                        {formatSeconds(tempoTrabalhado(l.total, l.inativo))}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
-                        {formatHM(l.ultimo)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Visão consolidada por página/domínio. Use “Exportar detalhado” para baixar o
-                histórico completo de visitas.
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <Globe className="h-4 w-4 text-primary" />
+            <CardTitle>Top sites visitados</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topSites.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                Nenhuma navegação no dia.
               </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(160, topSites.length * 32)}>
+                <BarChart data={topSites} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v) => formatSeconds(v as number)} />
+                  <YAxis
+                    type="category"
+                    dataKey="domain"
+                    width={120}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <Tooltip
+                    formatter={(v: number, n: string) => [
+                      formatSeconds(v as number),
+                      n === "trabalhado" ? "Trabalhado" : "Inativo",
+                    ]}
+                  />
+                  <Bar dataKey="trabalhado" stackId="t" fill="var(--color-success)" />
+                  <Bar dataKey="idle" stackId="t" fill="var(--color-destructive)" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <Monitor className="h-4 w-4 text-info" />
+            <CardTitle>Top 5 apps desktop</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topApps.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                Sem uso de apps desktop.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(160, topApps.length * 38)}>
+                <BarChart data={topApps} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v) => formatSeconds(v as number)} />
+                  <YAxis
+                    type="category"
+                    dataKey="app"
+                    width={120}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <Tooltip
+                    formatter={(v: number, n: string) => [
+                      formatSeconds(v as number),
+                      n === "trabalhado" ? "Trabalhado" : "Inativo",
+                    ]}
+                  />
+                  <Bar dataKey="trabalhado" stackId="t" fill="var(--color-info)" />
+                  <Bar dataKey="idle" stackId="t" fill="var(--color-destructive)" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Resumo de fontes — números rápidos */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <SourceCard
+          icon={<Globe className="h-4 w-4" />}
+          label="App interno"
+          accent="primary"
+          trabalhado={sourceTotals.app.trabalhado}
+          idle={sourceTotals.app.idle}
+        />
+        <SourceCard
+          icon={<Chrome className="h-4 w-4" />}
+          label="Chrome (extensão)"
+          accent="warning"
+          trabalhado={sourceTotals.chrome.trabalhado}
+          idle={sourceTotals.chrome.idle}
+        />
+        <SourceCard
+          icon={<Monitor className="h-4 w-4" />}
+          label="Desktop"
+          accent="info"
+          trabalhado={sourceTotals.desktop.trabalhado}
+          idle={sourceTotals.desktop.idle}
+        />
+      </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-2">
