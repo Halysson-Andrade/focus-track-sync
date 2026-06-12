@@ -98,16 +98,39 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
           <button
             type="button"
             onClick={() => onClick?.(s)}
-            className="group flex w-16 cursor-pointer flex-col items-center gap-0.5 focus:outline-none"
+            className="group flex w-20 cursor-pointer flex-col items-center gap-0.5 focus:outline-none"
           >
-            {/* balão de atividade */}
-            {line && (
+            {/* Mini "monitor" mostrando a tela atual da pessoa em tempo real */}
+            {s.isOnline && line && (
               <span
-                className="pointer-events-none max-w-[100px] truncate rounded-full border bg-popover/95 px-1.5 py-0.5 text-[9px] font-medium text-popover-foreground shadow-md backdrop-blur-sm"
+                className="pointer-events-none relative mb-0.5 flex w-[110px] flex-col items-center"
                 title={line}
-                style={{ borderColor: `color-mix(in oklch, ${color} 45%, transparent)` }}
               >
-                {line}
+                <span
+                  className="w-full rounded-t-md border border-b-0 px-1 py-0.5 text-[8px] font-semibold leading-tight text-white shadow-lg"
+                  style={{
+                    background: `linear-gradient(180deg, rgba(8,10,16,0.95), rgba(20,24,36,0.95))`,
+                    borderColor: `color-mix(in oklch, ${color} 55%, transparent)`,
+                  }}
+                >
+                  <span className="flex items-center gap-1">
+                    <span
+                      className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ background: color, boxShadow: `0 0 6px ${color}` }}
+                    />
+                    <span className="truncate">{line}</span>
+                  </span>
+                  {s.lastUrl?.domain && (
+                    <span className="block truncate text-[7px] font-normal opacity-70">
+                      {s.lastUrl.domain}
+                    </span>
+                  )}
+                </span>
+                {/* base do monitor */}
+                <span
+                  className="h-1 w-6 rounded-b-sm"
+                  style={{ background: "rgba(15,18,28,0.95)" }}
+                />
               </span>
             )}
             {/* avatar pixel-art */}
