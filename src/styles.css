@@ -154,3 +154,24 @@
   border-radius: 9999px;
   margin-right: 0.5rem;
 }
+
+/* Escritório virtual: "walk bob" enquanto o avatar caminha entre salas. */
+@keyframes office-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.office-walking {
+  animation: office-bob 0.45s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .office-walking {
+    animation: none;
+  }
+}

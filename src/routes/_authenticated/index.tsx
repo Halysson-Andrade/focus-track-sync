@@ -46,7 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
-import { tempoTrabalhado } from "@/lib/activity-config";
+import { tempoTrabalhado, isChromeProcess } from "@/lib/activity-config";
 import {
   ResponsiveContainer,
   PieChart,
@@ -118,11 +118,6 @@ function safeDur(duracao: number | null, inicio: string, fim: string | null) {
   const live = (Date.now() - new Date(inicio).getTime()) / 1000;
   return Math.min(Math.max(live, 0), (duracao ?? 0) + 90);
 }
-
-// Processos do navegador Chrome — desconsiderados na monitoração de "Apps Desktop"
-// porque a navegação já é capturada pela extensão (evita contagem dupla).
-const CHROME_PROCESS_RE = /chrome|chromium|google chrome/i;
-const isChromeProcess = (p: string) => CHROME_PROCESS_RE.test(p || "");
 
 // União de intervalos [start, end] em segundos — desduplica sobreposições
 // (a extensão às vezes mantém 2 linhas abertas em troca rápida de aba).
@@ -543,13 +538,25 @@ function Dashboard() {
       chrome: { trabalhado: chromeWorked, bruto: chromeRawSec, union: chromeUnion },
       desktop: { trabalhado: deskWorked, bruto: deskRawSec, union: deskUnion },
       total: { trabalhado: totalWorked, jornadaAtivoSec },
-      // Ociosidade detectada (micro-ócio dentro de apps/sites). Já vem
-      // desduplicada: web = extensão + Chrome desktop; apps = desktop sem Chrome.
-      // Independe do INATIVO macro de registros_atividade.
-      ocioso: { apps: deskIdleSec, web: chromeIdleSec, total: chromeIdleSec + deskIdleSec },
+      // Ociosidade detectada, RECONCILIADA entre fontes para não contar o mesmo
+      // intervalo de relógio mais de uma vez:
+      //   - web: só a extensão (navegacao_externa / navegacao_diaria). Ela é
+      //     passive-aware (reuniões não viram ócio). NÃO somamos o ócio do
+      //     chrome.exe do desktop (mesma janela → dupla contagem; e o desktop
+      //     não sabe que é reunião → falso ócio "ativo no web").
+      //   - apps: só uso_aplicativos NÃO-navegador (deskIdleSec já exclui Chrome).
+      // Clampado ao tempo ATIVO da jornada — ócio nunca excede o trabalhado.
+      ocioso: (() => {
+        const webIdle = useAggregates
+          ? navDiario.reduce((a, n) => a + (n.segundos_inativos || 0), 0)
+          : externalNav.reduce((a, n) => a + (n.inativo_segundos || 0), 0);
+        const total =
+          jornadaAtivoSec > 0 ? Math.min(webIdle + deskIdleSec, jornadaAtivoSec) : webIdle + deskIdleSec;
+        return { apps: deskIdleSec, web: webIdle, total };
+      })(),
       foraJornada: Math.max(0, totalUnion - jornadaAtivoSec),
     };
-  }, [externalNav, appUsage, appStats, useAggregates, totals.ATIVO, now]);
+  }, [externalNav, navDiario, appUsage, appStats, useAggregates, totals.ATIVO, now]);
 
 
   // Donut Web (Chrome) vs Desktop — usa tempo consolidado (já clampado).

@@ -27,6 +27,15 @@ export function isWhitelistedDomain(host: string | null | undefined, list: strin
   });
 }
 
+// Processos do navegador Chrome — desconsiderados na monitoração de "Apps
+// Desktop" e no cálculo de ociosidade, porque a navegação (e seu ócio
+// passive-aware) já é capturada pela extensão. Evita contagem dupla do mesmo
+// intervalo de relógio entre as fontes desktop e extensão.
+const CHROME_PROCESS_RE = /chrome|chromium|google chrome/i;
+export function isChromeProcess(p: string | null | undefined): boolean {
+  return CHROME_PROCESS_RE.test(p || "");
+}
+
 /** Tempo efetivamente trabalhado em uma linha granular (nunca negativo). */
 export function tempoTrabalhado(
   duracaoSegundos: number | null | undefined,

@@ -16,6 +16,14 @@ const WebSocket = require("ws");
 const cfg = require("./config");
 const { labelFor } = require("./app-labels");
 
+// Navegadores Chromium: a navegação (e seu ócio, que é passive-aware para
+// reuniões/vídeo) já é capturada pela extensão. O desktop NÃO atribui ócio a
+// esses processos — senão o mesmo intervalo de relógio seria contado duas vezes
+// (chrome.exe no desktop + navegacao_externa na extensão) e uma reunião no
+// navegador viraria falso "ocioso no desktop / ativo no web".
+const BROWSER_PROCESS_RE = /chrome|chromium|google chrome/i;
+const isBrowserProc = (p) => BROWSER_PROCESS_RE.test(p || "");
+
 // active-win é ESM-only — carregar dinamicamente
 let activeWinFn = null;
 async function getActiveWin() {
@@ -304,7 +312,10 @@ async function tick() {
       info && info.owner ? (info.owner.name || info.owner.path || "").toString() : "";
     // App passivo (reunião/vídeo/leitura): ausência de input não é ociosidade.
     const passive = procName ? idleWhitelist.has(procName.toLowerCase()) : false;
-    const isIdle = rawIdle && !passive;
+    // Navegador em foco: ócio é responsabilidade da extensão (passive-aware),
+    // então o desktop não acumula ócio para não duplicar/falsar a contagem.
+    const browser = isBrowserProc(procName);
+    const isIdle = rawIdle && !passive && !browser;
 
     if (current) {
       if (isIdle && !current.lastIdleStart) {

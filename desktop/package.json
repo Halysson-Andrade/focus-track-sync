@@ -1,6 +1,6 @@
 {
   "name": "monitor-desktop",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Monitor de Atividade - registra aplicativos usados na máquina",
   "main": "src/main.js",
   "author": "Focus Track",
@@ -25,6 +25,7 @@
   "build": {
     "appId": "app.lovable.focustrack.monitor",
     "productName": "Focus Track Monitor",
+    "npmRebuild": false,
     "files": [
       "src/**/*",
       "assets/**/*"
