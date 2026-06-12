@@ -208,36 +208,35 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
   const top = (room.y / WORLD.rows) * 100;
   const width = (room.w / WORLD.cols) * 100;
   const height = (room.h / WORLD.rows) * 100;
-  const bg =
-    heat > 0
-      ? `color-mix(in oklch, var(--color-destructive) ${Math.round(10 + heat * 50)}%, transparent)`
-      : `color-mix(in oklch, ${room.tint} 12%, transparent)`;
-  const borderColor =
-    heat > 0
-      ? `color-mix(in oklch, var(--color-destructive) ${Math.round(40 + heat * 40)}%, transparent)`
-      : `color-mix(in oklch, ${room.tint} 45%, transparent)`;
   return (
     <div
-      className="absolute overflow-hidden rounded-xl border-2 backdrop-blur-[1px] transition-colors duration-500"
+      className="pointer-events-none absolute rounded-lg transition-colors duration-500"
       style={{
         left: `${left}%`,
         top: `${top}%`,
         width: `${width}%`,
         height: `${height}%`,
-        background: bg,
-        borderColor,
-        boxShadow: `inset 0 0 0 1px color-mix(in oklch, ${room.tint} 20%, transparent), 0 6px 18px -10px color-mix(in oklch, ${room.tint} 60%, transparent)`,
+        background:
+          heat > 0
+            ? `color-mix(in oklch, var(--color-destructive) ${Math.round(15 + heat * 45)}%, transparent)`
+            : "transparent",
+        border:
+          heat > 0
+            ? `1px solid color-mix(in oklch, var(--color-destructive) 70%, transparent)`
+            : `1px dashed rgba(255,255,255,0.12)`,
+        boxShadow:
+          heat > 0
+            ? `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent)`
+            : undefined,
       }}
     >
-      {/* mobília decorativa */}
-      <RoomFurniture id={room.id} />
-
-      {/* placa da sala */}
+      {/* placa flutuante da sala */}
       <div
-        className="relative z-10 m-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold shadow-sm backdrop-blur sm:text-xs"
+        className="pointer-events-auto m-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold shadow-lg backdrop-blur-md sm:text-xs"
         style={{
-          background: `color-mix(in oklch, var(--color-background) 70%, ${room.tint})`,
-          color: `color-mix(in oklch, var(--color-foreground) 85%, ${room.tint})`,
+          background: "rgba(15,15,20,0.72)",
+          color: "white",
+          border: `1px solid color-mix(in oklch, ${room.tint} 60%, transparent)`,
         }}
       >
         <span>{room.emoji}</span>
@@ -245,10 +244,7 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
         {count > 0 && (
           <span
             className="ml-1 rounded-full px-1.5 text-[9px] font-bold"
-            style={{
-              background: room.tint,
-              color: "var(--color-background)",
-            }}
+            style={{ background: room.tint, color: "white" }}
           >
             {count}
           </span>
@@ -257,6 +253,7 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
     </div>
   );
 }
+
 
 function Legend() {
   const items: Array<{ color: string; label: string; dot?: boolean }> = [
