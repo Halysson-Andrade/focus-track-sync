@@ -612,6 +612,17 @@ function Dashboard() {
   const isActive = status === "ATIVO";
   const isPaused = status === "PAUSA" || status === "ALMOCO" || status === "INATIVO";
 
+  // Gate de início de expediente: exigir extensão + app desktop online
+  const presence = usePresenceStatus(effectiveUserId);
+  const [startGateOpen, setStartGateOpen] = useState(false);
+  const handleStartClick = () => {
+    if (!presence.extOnline || !presence.desktopOnline) {
+      setStartGateOpen(true);
+      return;
+    }
+    session.start();
+  };
+
   const selectedUser = users.find((u) => u.id === targetUserId);
   const displayName = viewingOther ? (selectedUser?.nome ?? "Usuário") : (profile?.nome ?? "...");
 
