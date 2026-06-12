@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 // Janela "online": agente reportou-se nos últimos N ms.
@@ -19,6 +19,7 @@ export function usePresenceStatus(userId: string | undefined) {
   const [desktopOnline, setDesktopOnline] = useState(false);
   const [lastExt, setLastExt] = useState<number>(0);
   const [lastDesktop, setLastDesktop] = useState<number>(0);
+  const lastExtRef = useRef(0);
 
   // Extensão: escuta heartbeats via postMessage (mesma origem)
   useEffect(() => {
@@ -26,6 +27,7 @@ export function usePresenceStatus(userId: string | undefined) {
       if (e.source !== window) return;
       const d = e.data;
       if (d && d.source === "monitor-atividade" && d.type === "HEARTBEAT") {
+        lastExtRef.current = Date.now();
         setLastExt(Date.now());
       }
     };
@@ -68,5 +70,31 @@ export function usePresenceStatus(userId: string | undefined) {
     return () => window.clearInterval(i);
   }, [lastExt, lastDesktop]);
 
-  return { extOnline, desktopOnline };
+  /**
+   * Verificação autoritativa no momento do clique — não confia no estado
+   * renderizado (que pode estar desatualizado). Reconsulta o banco para o
+   * desktop e usa o último heartbeat REAL da extensão (ref síncrona).
+   */
+  const checkNow = useCallback(async (): Promise<{ ext: boolean; desktop: boolean }> => {
+    const now = Date.now();
+    const ext = lastExtRef.current > 0 && now - lastExtRef.current < ONLINE_WINDOW_MS;
+    let desktop = false;
+    if (userId) {
+      const { data } = await supabase
+        .from("presenca_desktop")
+        .select("ultimo_ativo")
+        .eq("usuario_id", userId)
+        .maybeSingle();
+      if (data?.ultimo_ativo) {
+        const ts = new Date(data.ultimo_ativo).getTime();
+        desktop = now - ts < ONLINE_WINDOW_MS;
+        setLastDesktop(ts);
+      }
+    }
+    setExtOnline(ext);
+    setDesktopOnline(desktop);
+    return { ext, desktop };
+  }, [userId]);
+
+  return { extOnline, desktopOnline, checkNow };
 }
