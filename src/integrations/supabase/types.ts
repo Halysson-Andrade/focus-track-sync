@@ -220,7 +220,9 @@ export type Database = {
       profiles: {
         Row: {
           ativo: boolean
+          cargo: string | null
           created_at: string
+          departamento: string | null
           email: string
           id: string
           must_change_password: boolean
@@ -229,7 +231,9 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          cargo?: string | null
           created_at?: string
+          departamento?: string | null
           email: string
           id: string
           must_change_password?: boolean
@@ -238,7 +242,9 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          cargo?: string | null
           created_at?: string
+          departamento?: string | null
           email?: string
           id?: string
           must_change_password?: boolean
