@@ -1170,10 +1170,14 @@ function SourceCard({
             style={{ width: `${pct}%`, background: colors[accent] }}
           />
         </div>
-        <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
-          <span>{pct}% ativo</span>
-          {idle > 0 && <span className="text-destructive">idle {fmt(idle)}</span>}
-        </div>
+        {idle > 0 && (
+          <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
+            <span>{pct}% ativo</span>
+            <span className="text-destructive">idle {fmt(idle)}</span>
+          </div>
+        )}
+        {hint && <p className="mt-2 text-[11px] text-muted-foreground">{hint}</p>}
+
       </CardContent>
     </Card>
   );
