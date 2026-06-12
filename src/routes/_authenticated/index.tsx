@@ -1060,6 +1060,65 @@ function StatCard({
   );
 }
 
+function SourceCard({
+  icon,
+  label,
+  accent,
+  trabalhado,
+  idle,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  accent: "primary" | "warning" | "info";
+  trabalhado: number;
+  idle: number;
+}) {
+  const colors: Record<string, string> = {
+    primary: "var(--color-primary)",
+    warning: "var(--color-warning)",
+    info: "var(--color-info)",
+  };
+  const total = trabalhado + idle;
+  const pct = total > 0 ? Math.round((trabalhado / total) * 100) : 0;
+  const fmt = (s: number) => (s < 60 ? `${Math.round(s)}s` : formatDuration(s / 60));
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {label}
+          </span>
+          <span
+            className="grid h-8 w-8 place-items-center rounded-md"
+            style={{
+              background: `color-mix(in oklch, ${colors[accent]} 15%, transparent)`,
+              color: colors[accent],
+            }}
+          >
+            {icon}
+          </span>
+        </div>
+        <div className="mt-3 flex items-baseline gap-2">
+          <span className="text-2xl font-bold">{fmt(trabalhado)}</span>
+          <span className="text-xs text-muted-foreground">trabalhado</span>
+        </div>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full"
+            style={{ width: `${pct}%`, background: colors[accent] }}
+          />
+        </div>
+        <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
+          <span>{pct}% ativo</span>
+          {idle > 0 && <span className="text-destructive">idle {fmt(idle)}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+
 function HorizontalTimeline({ records }: { records: Registro[] }) {
   const colorByStatus: Record<string, string> = {
     ATIVO: "var(--color-success)",
