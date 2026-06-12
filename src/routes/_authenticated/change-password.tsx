@@ -32,7 +32,10 @@ function ChangePasswordPage() {
         await supabase.from("profiles").update({ must_change_password: false }).eq("id", user.id);
       }
       toast.success("Senha alterada com sucesso.");
-      router.navigate({ to: "/" });
+      // Hard reload: o layout _authenticated mantém `mustChange` em state
+      // (carregado no mount). Sem remontar, o useEffect redirecionaria de
+      // volta pra /change-password. O replace força refetch do profile.
+      window.location.replace("/");
     } catch (err) {
       toast.error((err as Error).message ?? "Erro ao alterar senha.");
     } finally {
