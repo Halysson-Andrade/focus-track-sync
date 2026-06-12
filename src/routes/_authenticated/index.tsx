@@ -234,9 +234,33 @@ function Dashboard() {
     isToday ? now.getMinutes() : 0,
   ]);
 
-  // Page navigation (app) + external (chrome extension) — for the selected day
+  // Para o dia selecionado:
+  //   - dentro da retenção bruta (≤25d): lemos navegacao_paginas / navegacao_externa /
+  //     uso_aplicativos (mesma fidelidade de sessão-a-sessão).
+  //   - fora da retenção: caímos para os agregados navegacao_diaria / uso_app_diario,
+  //     que sobrevivem ao purge e mantêm os totais corretos por dia.
   useEffect(() => {
     if (!effectiveUserId) return;
+    if (useAggregates) {
+      setPages([]);
+      setExternalNav([]);
+      setAppUsage([]);
+      supabase
+        .from("navegacao_diaria")
+        .select("domain, segundos_totais, segundos_inativos, visitas")
+        .eq("usuario_id", effectiveUserId)
+        .eq("dia", dayKey)
+        .then(({ data }) => setNavDiario((data ?? []) as typeof navDiario));
+      supabase
+        .from("uso_app_diario")
+        .select("process_name, app_label, segundos_totais, segundos_inativos, sessoes")
+        .eq("usuario_id", effectiveUserId)
+        .eq("dia", dayKey)
+        .then(({ data }) => setAppDiario((data ?? []) as typeof appDiario));
+      return;
+    }
+    setNavDiario([]);
+    setAppDiario([]);
     supabase
       .from("navegacao_paginas")
       .select("*")
@@ -261,7 +285,14 @@ function Dashboard() {
       .lt("inicio", dayRange.end)
       .order("inicio", { ascending: true })
       .then(({ data }) => setAppUsage((data ?? []) as UsoApp[]));
-  }, [effectiveUserId, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
+  }, [
+    effectiveUserId,
+    useAggregates,
+    dayKey,
+    dayRange.start,
+    dayRange.end,
+    isToday ? now.getMinutes() : 0,
+  ]);
 
   // 30-day history for effective user — keep raw records grouped per day for the per-day timelines
   useEffect(() => {
@@ -296,7 +327,6 @@ function Dashboard() {
 
   // Records to display on the board for the selected day
   const todayRecords: Registro[] = isToday && !viewingOther ? session.todayRecords : dayRecords;
-  // Used as a fallback for the "other user today" legacy var
   void otherRecords;
 
   const totals = useMemo(() => {
@@ -315,199 +345,176 @@ function Dashboard() {
 
   const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
 
-  // Aggregate navigation by DOMAIN (combines app pages + chrome external nav)
-  const domainAgg = useMemo(() => {
-    type PageRow = { label: string; path: string; total: number; idle: number; visits: number };
-    type DomainRow = {
-      domain: string;
-      origem: Origem | "misto";
-      total: number;
-      idle: number;
-      visits: number;
-      pages: Map<string, PageRow>;
-    };
-    const APP_DOMAIN = "App interno";
-    const m = new Map<string, DomainRow>();
+  // Estatísticas normalizadas por DOMÍNIO (web: app interno + chrome) e por APP desktop.
+  // Origens são INDEPENDENTES no tempo (sobrepõem-se), portanto nunca somamos cross-origem.
+  type SiteStat = {
+    domain: string;
+    origem: "app" | "chrome";
+    total: number;
+    idle: number;
+    trabalhado: number;
+    visitas: number;
+  };
+  type AppStat = {
+    app: string;
+    process_name: string;
+    total: number;
+    idle: number;
+    trabalhado: number;
+    sessoes: number;
+  };
 
-    const upsert = (
+  const siteStats: SiteStat[] = useMemo(() => {
+    const m = new Map<string, SiteStat>();
+    const add = (
       domain: string,
-      origem: Origem,
-      key: string,
-      label: string,
-      path: string,
-      dur: number,
+      origem: "app" | "chrome",
+      total: number,
       idle: number,
+      visitas: number,
     ) => {
-      let d = m.get(domain);
-      if (!d) {
-        d = { domain, origem, total: 0, idle: 0, visits: 0, pages: new Map() };
-        m.set(domain, d);
-      } else if (d.origem !== origem) {
-        d.origem = "misto";
-      }
-      d.total += dur;
-      d.idle += idle;
-      d.visits += 1;
-      const p = d.pages.get(key);
-      if (p) {
-        p.total += dur;
-        p.idle += idle;
-        p.visits += 1;
-      } else d.pages.set(key, { label, path, total: dur, idle, visits: 1 });
-    };
-
-    pages.forEach((p) => {
-      const dur = safeDur(p.duracao_segundos, p.inicio, p.fim);
-      upsert(APP_DOMAIN, "app", p.path, p.title ?? p.path, p.path, dur, p.inativo_segundos || 0);
-    });
-    externalNav.forEach((n) => {
-      const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
-      upsert(
-        n.domain || "desconhecido",
-        "chrome",
-        n.url,
-        n.title ?? n.url,
-        n.url,
-        dur,
-        n.inativo_segundos || 0,
-      );
-    });
-    appUsage.forEach((a) => {
-      const dur = safeDur(a.duracao_segundos, a.inicio, a.fim);
-      const label = a.app_label || a.process_name;
-      upsert(label, "desktop", a.process_name, label, a.process_name, dur, a.inativo_segundos || 0);
-    });
-
-    return Array.from(m.values())
-      .map((d) => ({ ...d, pages: Array.from(d.pages.values()).sort((a, b) => b.total - a.total) }))
-      .sort((a, b) => b.total - a.total);
-  }, [pages, externalNav, appUsage, now]);
-
-  // Unified log: merge app pages + external chrome nav, sorted desc by inicio.
-  // Used only for the detailed export — on screen we show a consolidated view.
-  const unifiedLogs: UnifiedLog[] = useMemo(() => {
-    const appLogs: UnifiedLog[] = pages.map((p) => {
-      const dur = safeDur(p.duracao_segundos, p.inicio, p.fim);
-      return {
-        id: `a:${p.id}`,
-        origem: "app",
-        label: p.title ?? p.path,
-        sub: p.path,
-        inicio: p.inicio,
-        fim: p.fim,
-        duracao: dur,
-        inativo: p.inativo_segundos || 0,
-      };
-    });
-    const extLogs: UnifiedLog[] = externalNav.map((n) => {
-      const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
-      return {
-        id: `e:${n.id}`,
-        origem: "chrome",
-        label: n.title ?? n.domain,
-        sub: n.domain,
-        inicio: n.inicio,
-        fim: n.fim,
-        duracao: dur,
-        inativo: n.inativo_segundos || 0,
-      };
-    });
-    const deskLogs: UnifiedLog[] = appUsage.map((a) => {
-      const dur = safeDur(a.duracao_segundos, a.inicio, a.fim);
-      const label = a.app_label || a.process_name;
-      return {
-        id: `d:${a.id}`,
-        origem: "desktop",
-        label,
-        sub: label,
-        inicio: a.inicio,
-        fim: a.fim,
-        duracao: dur,
-        inativo: a.inativo_segundos || 0,
-      };
-    });
-    return [...appLogs, ...extLogs, ...deskLogs].sort(
-      (a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime(),
-    );
-  }, [pages, externalNav, appUsage, now]);
-
-  // Consolidated log: groups by origem + sub (path/domain), aggregating visits, total and idle.
-  const consolidatedLogs = useMemo(() => {
-    const m = new Map<
-      string,
-      {
-        origem: Origem;
-        label: string;
-        sub: string;
-        visitas: number;
-        total: number;
-        inativo: number;
-        ultimo: string;
-      }
-    >();
-    for (const l of unifiedLogs) {
-      const key = `${l.origem}::${l.sub}`;
+      const key = `${origem}::${domain}`;
       const cur = m.get(key);
       if (cur) {
-        cur.visitas += 1;
-        cur.total += l.duracao;
-        cur.inativo += l.inativo;
-        if (new Date(l.inicio).getTime() > new Date(cur.ultimo).getTime()) {
-          cur.ultimo = l.inicio;
-          cur.label = l.label;
-        }
+        cur.total += total;
+        cur.idle += idle;
+        cur.visitas += visitas;
+        cur.trabalhado = tempoTrabalhado(cur.total, cur.idle);
       } else {
         m.set(key, {
-          origem: l.origem,
-          label: l.label,
-          sub: l.sub,
-          visitas: 1,
-          total: l.duracao,
-          inativo: l.inativo,
-          ultimo: l.inicio,
+          domain,
+          origem,
+          total,
+          idle,
+          visitas,
+          trabalhado: tempoTrabalhado(total, idle),
         });
       }
+    };
+    if (useAggregates) {
+      // No agregado não separamos app interno vs chrome — tratamos tudo como "chrome" (web externa)
+      // pois a maior parte vem dele; o app interno gera linhas em navegacao_paginas, não navegacao_diaria.
+      navDiario.forEach((n) =>
+        add(n.domain || "desconhecido", "chrome", n.segundos_totais, n.segundos_inativos, n.visitas),
+      );
+    } else {
+      pages.forEach((p) => {
+        const dur = safeDur(p.duracao_segundos, p.inicio, p.fim);
+        add("App interno", "app", dur, p.inativo_segundos || 0, 1);
+      });
+      externalNav.forEach((n) => {
+        const dur = safeDur(n.duracao_segundos, n.inicio, n.fim);
+        add(n.domain || "desconhecido", "chrome", dur, n.inativo_segundos || 0, 1);
+      });
     }
-    return Array.from(m.values()).sort((a, b) => b.total - a.total);
-  }, [unifiedLogs]);
+    return Array.from(m.values()).sort((a, b) => b.trabalhado - a.trabalhado);
+  }, [useAggregates, pages, externalNav, navDiario, now]);
 
-  // Totais por ORIGEM (App interno / Chrome / Desktop). Cada dimensão é
-  // independente — nunca somamos entre origens (elas se sobrepõem no tempo).
+  const appStats: AppStat[] = useMemo(() => {
+    const m = new Map<string, AppStat>();
+    const add = (
+      process_name: string,
+      label: string,
+      total: number,
+      idle: number,
+      sessoes: number,
+    ) => {
+      const cur = m.get(process_name);
+      if (cur) {
+        cur.total += total;
+        cur.idle += idle;
+        cur.sessoes += sessoes;
+        cur.trabalhado = tempoTrabalhado(cur.total, cur.idle);
+        if (!cur.app && label) cur.app = label;
+      } else {
+        m.set(process_name, {
+          app: label || process_name,
+          process_name,
+          total,
+          idle,
+          sessoes,
+          trabalhado: tempoTrabalhado(total, idle),
+        });
+      }
+    };
+    if (useAggregates) {
+      appDiario.forEach((a) =>
+        add(
+          a.process_name,
+          a.app_label || a.process_name,
+          a.segundos_totais,
+          a.segundos_inativos,
+          a.sessoes,
+        ),
+      );
+    } else {
+      appUsage.forEach((a) => {
+        const dur = safeDur(a.duracao_segundos, a.inicio, a.fim);
+        add(a.process_name, a.app_label || a.process_name, dur, a.inativo_segundos || 0, 1);
+      });
+    }
+    return Array.from(m.values()).sort((a, b) => b.trabalhado - a.trabalhado);
+  }, [useAggregates, appUsage, appDiario, now]);
+
+  // Totais por ORIGEM. Independentes entre si (não somamos cross-origem).
   const sourceTotals = useMemo(() => {
-    const agg = (origem: Origem) => {
-      const rows = unifiedLogs.filter((l) => l.origem === origem);
-      const dur = rows.reduce((a, r) => a + r.duracao, 0);
-      const idle = rows.reduce((a, r) => a + r.inativo, 0);
+    const aggSite = (origem: "app" | "chrome") => {
+      const rows = siteStats.filter((s) => s.origem === origem);
+      const dur = rows.reduce((a, r) => a + r.total, 0);
+      const idle = rows.reduce((a, r) => a + r.idle, 0);
       return { dur, idle, trabalhado: tempoTrabalhado(dur, idle) };
     };
-    return { app: agg("app"), chrome: agg("chrome"), desktop: agg("desktop") };
-  }, [unifiedLogs]);
+    const dDur = appStats.reduce((a, r) => a + r.total, 0);
+    const dIdle = appStats.reduce((a, r) => a + r.idle, 0);
+    return {
+      app: aggSite("app"),
+      chrome: aggSite("chrome"),
+      desktop: { dur: dDur, idle: dIdle, trabalhado: tempoTrabalhado(dDur, dIdle) },
+    };
+  }, [siteStats, appStats]);
 
-  const exportNavLogs = () => {
-    const rows = unifiedLogs.map((l) => ({
-      Origem: l.origem === "app" ? "App" : l.origem === "chrome" ? "Chrome" : "Desktop",
-      Início: formatHM(l.inicio),
-      Fim: l.fim ? formatHM(l.fim) : "Em andamento",
-      Título: l.label,
-      "URL/Path": l.sub,
-      "Duração (s)": Math.round(l.duracao),
-      "Inativo (s)": Math.round(l.inativo),
-      "Trabalhado (s)": Math.round(tempoTrabalhado(l.duracao, l.inativo)),
-    }));
-    import("xlsx").then((XLSX) => {
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Navegação");
-      const day = selectedDate.toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `navegacao-${day}.xlsx`);
-    });
-  };
+  // Donut Web (app interno + chrome) vs Desktop — usa tempo trabalhado.
+  const webVsDesktop = useMemo(() => {
+    const web = sourceTotals.app.trabalhado + sourceTotals.chrome.trabalhado;
+    const desk = sourceTotals.desktop.trabalhado;
+    return [
+      { name: "Web (app + Chrome)", value: web, color: "var(--color-primary)" },
+      { name: "Apps desktop", value: desk, color: "var(--color-info)" },
+    ].filter((d) => d.value > 0);
+  }, [sourceTotals]);
+
+  const topSites = useMemo(
+    () =>
+      siteStats
+        .filter((s) => s.trabalhado > 0)
+        .slice(0, 10)
+        .map((s) => ({
+          domain: s.domain.length > 22 ? s.domain.slice(0, 21) + "…" : s.domain,
+          trabalhado: Math.round(s.trabalhado),
+          idle: Math.round(s.idle),
+        })),
+    [siteStats],
+  );
+
+  const topApps = useMemo(
+    () =>
+      appStats
+        .filter((a) => a.trabalhado > 0)
+        .slice(0, 5)
+        .map((a) => ({
+          app: a.app.length > 22 ? a.app.slice(0, 21) + "…" : a.app,
+          trabalhado: Math.round(a.trabalhado),
+          idle: Math.round(a.idle),
+        })),
+    [appStats],
+  );
 
   const currentOpen =
     isToday && !viewingOther ? session.current : (todayRecords.find((r) => !r.fim) ?? null);
   const status = currentOpen?.status ?? "ENCERRADO";
 
   const pieData = [
+
     { name: "Ativo", value: totals.ATIVO, color: "var(--color-success)" },
     { name: "Pausa", value: totals.PAUSA, color: "var(--color-warning)" },
     { name: "Almoço", value: totals.ALMOCO, color: "var(--color-info)" },
