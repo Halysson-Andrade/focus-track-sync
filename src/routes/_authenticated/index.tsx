@@ -983,30 +983,38 @@ function Dashboard() {
         </Card>
       </div>
 
-      {/* Resumo de fontes — números rápidos */}
+      {/* Resumo de fontes — consolidado e clampado à jornada ATIVA */}
       <div className="grid gap-4 md:grid-cols-3">
         <SourceCard
-          icon={<Globe className="h-4 w-4" />}
-          label="App interno"
+          icon={<ActivityIcon className="h-4 w-4" />}
+          label="Monitorado consolidado"
           accent="primary"
-          trabalhado={sourceTotals.app.trabalhado}
-          idle={sourceTotals.app.idle}
+          trabalhado={monitored.total.trabalhado}
+          idle={0}
+          hint={
+            monitored.total.jornadaAtivoSec > 0
+              ? `${Math.round((monitored.total.trabalhado / monitored.total.jornadaAtivoSec) * 100)}% da jornada ATIVA (${formatDuration(monitored.total.jornadaAtivoSec / 60)})`
+              : "Sem jornada ATIVA registrada"
+          }
         />
         <SourceCard
           icon={<Chrome className="h-4 w-4" />}
           label="Chrome (extensão)"
           accent="warning"
-          trabalhado={sourceTotals.chrome.trabalhado}
-          idle={sourceTotals.chrome.idle}
+          trabalhado={monitored.chrome.trabalhado}
+          idle={0}
+          hint="Tempo deduplicado (sobreposições de abas descontadas)"
         />
         <SourceCard
           icon={<Monitor className="h-4 w-4" />}
-          label="Desktop"
+          label="Apps desktop"
           accent="info"
-          trabalhado={sourceTotals.desktop.trabalhado}
-          idle={sourceTotals.desktop.idle}
+          trabalhado={monitored.desktop.trabalhado}
+          idle={0}
+          hint="Sem contagem do Chrome (já coberto pela extensão)"
         />
       </div>
+
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-2">
