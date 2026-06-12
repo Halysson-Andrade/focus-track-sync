@@ -827,6 +827,19 @@ function Dashboard() {
           label="Trabalhadas"
           value={formatDuration(totals.ATIVO)}
           accent="success"
+          badge={
+            totals.ATIVO > 0 ? (
+              <span
+                className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                style={{
+                  background: `color-mix(in oklch, var(--color-success) 15%, transparent)`,
+                  color: `var(--color-success)`,
+                }}
+              >
+                {Math.round((monitored.total.trabalhado / (totals.ATIVO * 60)) * 100)}% monitorado
+              </span>
+            ) : undefined
+          }
         />
         <StatCard
           icon={<Pause className="h-4 w-4" />}
