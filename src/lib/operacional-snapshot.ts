@@ -114,8 +114,16 @@ export function buildSnapshots(
     // Ócio nunca pode exceder o tempo ATIVO monitorado da jornada.
     const idleSeconds = activeSec > 0 ? Math.min(rawIdle, activeSec) : rawIdle;
 
-    const isOnline = !!open;
+    // Presença: há registro aberto OU navegação/uso em aberto recente (<= 5 min).
+    // Isso garante que um usuário usando o app/extensão/desktop apareça "no
+    // escritório" mesmo que ainda não exista um registro_atividade aberto.
+    const PRESENCE_MS = 5 * 60_000;
+    const hasOpenNav = [...myApp, ...myExt, ...myDesk].some(
+      (n) => !n.fim && nowTs - new Date(n.inicio).getTime() < PRESENCE_MS,
+    );
+    const isOnline = !!open || hasOpenNav;
     const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
+
 
     const lastExt = latestOpenOrRecent(myExt);
     const lastUrl =
@@ -143,7 +151,7 @@ export function buildSnapshots(
     return {
       profile: p,
       isOnline,
-      currentStatus: open?.status ?? "OFFLINE",
+      currentStatus: open?.status ?? (isOnline ? "ATIVO" : "OFFLINE"),
       currentSince: open?.inicio ?? null,
       totals,
       totalOnline,

@@ -98,11 +98,45 @@ export function useAvatarMovement(target: Cell, grid: WalkGrid, speed = 7): Move
     }
   }
 
+  // Idle wander: enquanto parado, dá pequenos passos aleatórios ao redor do
+  // destino — o escritório fica "vivo". Cada avatar tem timing próprio.
+  useEffect(() => {
+    let stop = false;
+    function schedule() {
+      const delay = 6000 + Math.random() * 8000;
+      const t = setTimeout(() => {
+        if (stop) return;
+        if (pathRef.current.length === 0) {
+          const off = () => (Math.random() - 0.5) * 1.4;
+          const wander = { cx: target.cx + off(), cy: target.cy + off() };
+          const path = aStar(grid, posRef.current, wander);
+          const waypoints = path.slice(1);
+          if (waypoints.length > 0) {
+            pathRef.current = waypoints;
+            if (rafRef.current == null) {
+              lastTsRef.current = 0;
+              rafRef.current = requestAnimationFrame(tick);
+            }
+          }
+        }
+        schedule();
+      }, delay);
+      return t;
+    }
+    const t = schedule();
+    return () => {
+      stop = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target.cx, target.cy, grid]);
+
   useEffect(() => {
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
   }, []);
+
 
   return state;
 }
