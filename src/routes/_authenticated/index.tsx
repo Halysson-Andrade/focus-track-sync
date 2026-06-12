@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrentSession } from "@/hooks/use-current-session";
+import { usePresenceStatus } from "@/hooks/use-presence-status";
 import { StatusBadge } from "@/components/StatusBadge";
 import { InactivityModal } from "@/components/InactivityModal";
 import { Button } from "@/components/ui/button";
