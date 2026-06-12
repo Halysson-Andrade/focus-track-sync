@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Profile, Registro, NavRow } from "@/lib/operacional-snapshot";
+import type { Profile, Registro, NavRow, Presenca } from "@/lib/operacional-snapshot";
 
 interface OfficeData {
   profiles: Profile[];
@@ -8,6 +8,7 @@ interface OfficeData {
   navApp: NavRow[];
   navExt: NavRow[];
   navDesk: NavRow[];
+  presenca: Presenca[];
   /** true quando o canal de realtime está conectado (senão, cai no poll). */
   connected: boolean;
   refetch: () => void;
@@ -35,6 +36,7 @@ export function useOfficeData(enabled: boolean): OfficeData {
   const [navApp, setNavApp] = useState<NavRow[]>([]);
   const [navExt, setNavExt] = useState<NavRow[]>([]);
   const [navDesk, setNavDesk] = useState<NavRow[]>([]);
+  const [presenca, setPresenca] = useState<Presenca[]>([]);
   const [connected, setConnected] = useState(false);
 
   const debounceRef = useRef<number | null>(null);
@@ -43,7 +45,7 @@ export function useOfficeData(enabled: boolean): OfficeData {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const since = startOfDay.toISOString();
-    const [r, na, ne, nd] = await Promise.all([
+    const [r, na, ne, nd, pr] = await Promise.all([
       supabase
         .from("registros_atividade")
         .select("id, usuario_id, status, inicio, fim, duracao_minutos")
@@ -62,11 +64,15 @@ export function useOfficeData(enabled: boolean): OfficeData {
           "usuario_id, inicio, fim, duracao_segundos, inativo_segundos, process_name, app_label",
         )
         .gte("inicio", since),
+      // Heartbeat de presença (uma linha por usuário, upsert). Não filtra por
+      // `inicio` — o snapshot decide a janela de validade do último heartbeat.
+      supabase.from("presenca_desktop").select("usuario_id, ultimo_ativo"),
     ]);
     setRegistros((r.data ?? []) as Registro[]);
     setNavApp((na.data ?? []) as NavRow[]);
     setNavExt((ne.data ?? []) as NavRow[]);
     setNavDesk((nd.data ?? []) as NavRow[]);
+    setPresenca((pr.data ?? []) as Presenca[]);
   }, []);
 
   const scheduleRefetch = useCallback(() => {
@@ -119,5 +125,5 @@ export function useOfficeData(enabled: boolean): OfficeData {
     };
   }, [enabled, fetchData, scheduleRefetch]);
 
-  return { profiles, registros, navApp, navExt, navDesk, connected, refetch: fetchData };
+  return { profiles, registros, navApp, navExt, navDesk, presenca, connected, refetch: fetchData };
 }
