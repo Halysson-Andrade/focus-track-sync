@@ -207,17 +207,24 @@ async function closeCurrent() {
   const id = current.id;
   current = null;
   try {
-    await supabase
-      .from("uso_aplicativos")
-      .update({
-        fim: new Date(now).toISOString(),
-        duracao_segundos: dur,
-        inativo_segundos: Math.min(idleSeconds, dur),
-      })
-      .eq("id", id);
+    if (dur < (config.MIN_DURATION_S ?? 3)) {
+      // Sessão muito curta (ex.: alt-tab momentâneo) — descarta para não
+      // inflar a tabela. Não muda nenhum total relatado.
+      await supabase.from("uso_aplicativos").delete().eq("id", id);
+    } else {
+      await supabase
+        .from("uso_aplicativos")
+        .update({
+          fim: new Date(now).toISOString(),
+          duracao_segundos: dur,
+          inativo_segundos: Math.min(idleSeconds, dur),
+        })
+        .eq("id", id);
+    }
   } catch (e) {
     console.error("closeCurrent:", e.message);
   }
+
 }
 
 async function openRow(info) {
