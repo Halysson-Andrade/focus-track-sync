@@ -207,7 +207,7 @@ async function closeCurrent() {
   const id = current.id;
   current = null;
   try {
-    if (dur < (config.MIN_DURATION_S ?? 3)) {
+    if (dur < (cfg.MIN_DURATION_S ?? 3)) {
       // Sessão muito curta (ex.: alt-tab momentâneo) — descarta para não
       // inflar a tabela. Não muda nenhum total relatado.
       await supabase.from("uso_aplicativos").delete().eq("id", id);
