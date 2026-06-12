@@ -764,7 +764,7 @@ function Dashboard() {
             <CardTitle>Controles</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
-            <Button onClick={session.start} disabled={!canStart} size="lg">
+            <Button onClick={handleStartClick} disabled={!canStart} size="lg">
               <Play className="mr-2 h-4 w-4" /> Iniciar Expediente
             </Button>
             <Button
