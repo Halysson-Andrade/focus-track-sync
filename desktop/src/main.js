@@ -201,6 +201,26 @@ async function sendPresence() {
   }
 }
 
+// Persiste um intervalo de ociosidade FECHADO (apps nativos) em
+// eventos_ociosidade — a linha do tempo usa isso para mostrar EM QUE MOMENTO da
+// jornada houve ócio. O desktop só acumula ócio fora do navegador/passivo, então
+// é complementar à extensão (navegador): não há dupla contagem entre as fontes.
+async function emitIdleEvent(startMs, endMs) {
+  if (!startMs || !endMs || endMs <= startMs) return;
+  try {
+    const userId = await getUserId();
+    if (!userId) return;
+    await supabase.from("eventos_ociosidade").insert({
+      usuario_id: userId,
+      inicio: new Date(startMs).toISOString(),
+      fim: new Date(endMs).toISOString(),
+      fonte: "desktop",
+    });
+  } catch (e) {
+    console.error("idleEvent:", e.message);
+  }
+}
+
 async function closeCurrent() {
   if (!current || !current.id) {
     current = null;
@@ -212,8 +232,11 @@ async function closeCurrent() {
   // ms com segundos e garante inativo_segundos <= duracao_segundos).
   const idleNowMs = current.lastIdleStart ? now - current.lastIdleStart : 0;
   const idleSeconds = (current.idleAccum + idleNowMs) / 1000;
+  // Ócio ainda aberto ao fechar o app: registra o intervalo [início, agora].
+  const idleOpenStart = current.lastIdleStart;
   const id = current.id;
   current = null;
+  if (idleOpenStart) void emitIdleEvent(idleOpenStart, now);
   try {
     if (dur < (cfg.MIN_DURATION_S ?? 3)) {
       // Sessão muito curta (ex.: alt-tab momentâneo) — descarta para não
@@ -324,7 +347,9 @@ async function tick() {
         // IDLE_THRESHOLD_S iniciais. Clampa ao início da janela do app.
         current.lastIdleStart = Math.max(current.enteredAt, Date.now() - idleSec * 1000);
       } else if (!isIdle && current.lastIdleStart) {
-        current.idleAccum += Date.now() - current.lastIdleStart;
+        const idleEnd = Date.now();
+        current.idleAccum += idleEnd - current.lastIdleStart;
+        void emitIdleEvent(current.lastIdleStart, idleEnd);
         current.lastIdleStart = null;
       }
     }

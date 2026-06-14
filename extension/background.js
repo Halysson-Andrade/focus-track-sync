@@ -162,6 +162,7 @@ async function closeStaleRow() {
     const dur = Math.max(0, (now - openRow.enteredAt) / 1000);
     const idleNowMs = openRow.idleStart ? now - openRow.idleStart : 0;
     const idle = Math.min(((openRow.idleAccum || 0) + idleNowMs) / 1000, dur);
+    if (openRow.idleStart) void emitIdleEvent(openRow.idleStart, now);
     await api(`navegacao_externa?id=eq.${openRow.id}`, "PATCH", {
       fim: new Date(now).toISOString(),
       duracao_segundos: dur,
@@ -174,6 +175,24 @@ async function closeStaleRow() {
 // para não inflar a tabela. Em vez de PATCH com fim, apagamos a linha.
 const MIN_DURATION_S = 3;
 
+// Persiste um intervalo de ociosidade FECHADO (navegador) em eventos_ociosidade
+// para a linha do tempo mostrar EM QUE MOMENTO da jornada houve ócio. Complementa
+// o desktop (apps nativos): as fontes não cobrem a mesma janela de relógio, então
+// não há dupla contagem ao desenhar os dois conjuntos.
+async function emitIdleEvent(startMs, endMs) {
+  if (!startMs || !endMs || endMs <= startMs) return;
+  try {
+    const session = await getSession();
+    if (!session) return;
+    await api("eventos_ociosidade", "POST", {
+      usuario_id: session.user.id,
+      inicio: new Date(startMs).toISOString(),
+      fim: new Date(endMs).toISOString(),
+      fonte: "extension",
+    });
+  } catch {}
+}
+
 async function closeCurrent() {
   if (!currentRow || !currentRow.id) {
     currentRow = null;
@@ -184,8 +203,11 @@ async function closeCurrent() {
   const dur = (now - currentRow.enteredAt) / 1000;
   const idleNowMs = currentRow.idleStart ? now - currentRow.idleStart : 0;
   const idle = Math.min((currentRow.idleAccum + idleNowMs) / 1000, dur);
+  // Ócio ainda aberto ao fechar a aba: registra o intervalo [início, agora].
+  const idleOpenStart = currentRow.idleStart;
   const id = currentRow.id;
   currentRow = null;
+  if (idleOpenStart) void emitIdleEvent(idleOpenStart, now);
   try {
     await chrome.storage.session.remove("openRow");
   } catch {}
@@ -309,7 +331,9 @@ chrome.idle.onStateChanged.addListener(async (state) => {
       currentRow.idleStart = Math.max(currentRow.enteredAt, Date.now() - back);
     }
   } else if (state === "active" && currentRow.idleStart) {
-    currentRow.idleAccum += Date.now() - currentRow.idleStart;
+    const idleEnd = Date.now();
+    currentRow.idleAccum += idleEnd - currentRow.idleStart;
+    void emitIdleEvent(currentRow.idleStart, idleEnd);
     currentRow.idleStart = null;
   }
   await persistRow(); // mantém os acumuladores vivos entre hibernações do SW

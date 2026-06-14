@@ -19,6 +19,7 @@ import { Route as AuthenticatedExtensaoRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedDesktopRouteImport } from './routes/_authenticated/desktop'
 import { Route as AuthenticatedChangePasswordRouteImport } from './routes/_authenticated/change-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as ApiPublicHooksEncerrarOciosasRouteImport } from './routes/api/public/hooks/encerrar-ociosas'
 import { Route as ApiPublicHooksAgregarDiarioRouteImport } from './routes/api/public/hooks/agregar-diario'
 
 const AuthRoute = AuthRouteImport.update({
@@ -72,6 +73,12 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicHooksEncerrarOciosasRoute =
+  ApiPublicHooksEncerrarOciosasRouteImport.update({
+    id: '/api/public/hooks/encerrar-ociosas',
+    path: '/api/public/hooks/encerrar-ociosas',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksAgregarDiarioRoute =
   ApiPublicHooksAgregarDiarioRouteImport.update({
     id: '/api/public/hooks/agregar-diario',
@@ -90,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/ranking': typeof AuthenticatedRankingRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/api/public/hooks/agregar-diario': typeof ApiPublicHooksAgregarDiarioRoute
+  '/api/public/hooks/encerrar-ociosas': typeof ApiPublicHooksEncerrarOciosasRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -102,6 +110,7 @@ export interface FileRoutesByTo {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/': typeof AuthenticatedIndexRoute
   '/api/public/hooks/agregar-diario': typeof ApiPublicHooksAgregarDiarioRoute
+  '/api/public/hooks/encerrar-ociosas': typeof ApiPublicHooksEncerrarOciosasRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +125,7 @@ export interface FileRoutesById {
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/api/public/hooks/agregar-diario': typeof ApiPublicHooksAgregarDiarioRoute
+  '/api/public/hooks/encerrar-ociosas': typeof ApiPublicHooksEncerrarOciosasRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/ranking'
     | '/relatorios'
     | '/api/public/hooks/agregar-diario'
+    | '/api/public/hooks/encerrar-ociosas'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/'
     | '/api/public/hooks/agregar-diario'
+    | '/api/public/hooks/encerrar-ociosas'
   id:
     | '__root__'
     | '/_authenticated'
@@ -155,12 +167,14 @@ export interface FileRouteTypes {
     | '/_authenticated/relatorios'
     | '/_authenticated/'
     | '/api/public/hooks/agregar-diario'
+    | '/api/public/hooks/encerrar-ociosas'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicHooksAgregarDiarioRoute: typeof ApiPublicHooksAgregarDiarioRoute
+  ApiPublicHooksEncerrarOciosasRoute: typeof ApiPublicHooksEncerrarOciosasRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -235,6 +249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/hooks/encerrar-ociosas': {
+      id: '/api/public/hooks/encerrar-ociosas'
+      path: '/api/public/hooks/encerrar-ociosas'
+      fullPath: '/api/public/hooks/encerrar-ociosas'
+      preLoaderRoute: typeof ApiPublicHooksEncerrarOciosasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/agregar-diario': {
       id: '/api/public/hooks/agregar-diario'
       path: '/api/public/hooks/agregar-diario'
@@ -274,6 +295,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicHooksAgregarDiarioRoute: ApiPublicHooksAgregarDiarioRoute,
+  ApiPublicHooksEncerrarOciosasRoute: ApiPublicHooksEncerrarOciosasRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

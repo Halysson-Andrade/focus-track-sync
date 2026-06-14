@@ -103,6 +103,8 @@ type UsoApp = {
   duracao_segundos: number | null;
   inativo_segundos: number | null;
 };
+// Intervalo PRECISO de ociosidade (apps nativos = desktop, navegador = extensão).
+type IdleEvent = { inicio: string; fim: string; fonte: string };
 
 
 
@@ -177,6 +179,8 @@ function Dashboard() {
   }, [selectedDate]);
   const dayKey = selectedDate.toISOString().slice(0, 10);
   const [dayRecords, setDayRecords] = useState<Registro[]>([]);
+  // Intervalos de ociosidade do dia selecionado, para a linha do tempo.
+  const [idleEvents, setIdleEvents] = useState<IdleEvent[]>([]);
 
   // Admin: filter by target user
   const [users, setUsers] = useState<{ id: string; nome: string }[]>([]);
@@ -250,6 +254,23 @@ function Dashboard() {
     dayRange.end,
     isToday ? now.getMinutes() : 0,
   ]);
+
+  // Intervalos de ociosidade do dia selecionado (faixas na linha do tempo).
+  // Independe de useAggregates: eventos_ociosidade não é purgado pelo agregador.
+  useEffect(() => {
+    if (!effectiveUserId) {
+      setIdleEvents([]);
+      return;
+    }
+    supabase
+      .from("eventos_ociosidade")
+      .select("inicio, fim, fonte")
+      .eq("usuario_id", effectiveUserId)
+      .gte("inicio", dayRange.start)
+      .lt("inicio", dayRange.end)
+      .order("inicio", { ascending: true })
+      .then(({ data }) => setIdleEvents((data ?? []) as IdleEvent[]));
+  }, [effectiveUserId, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
 
   // Para o dia selecionado:
   //   - dentro da retenção bruta (≤25d): lemos navegacao_paginas / navegacao_externa /
@@ -1041,7 +1062,7 @@ function Dashboard() {
             {todayRecords.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Sem registros.</p>
             ) : (
-              <HorizontalTimeline records={todayRecords} />
+              <HorizontalTimeline records={todayRecords} idleEvents={idleEvents} />
             )}
           </CardContent>
         </Card>
@@ -1369,7 +1390,13 @@ function SourceCard({
 
 
 
-function HorizontalTimeline({ records }: { records: Registro[] }) {
+function HorizontalTimeline({
+  records,
+  idleEvents = [],
+}: {
+  records: Registro[];
+  idleEvents?: IdleEvent[];
+}) {
   // Reaproveita o mapa central; ENCERRADO usa o muted (mais claro) por ser fundo
   // de faixa, não texto.
   const colorByStatus: Record<string, string> = {
@@ -1554,6 +1581,32 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
           );
         })}
 
+        {/* Faixas de ociosidade — sobrepostas ao bloco ATIVO, mostram EM QUE
+            momento da jornada houve ócio (desktop = apps, web = navegador). */}
+        {idleEvents.map((ev, i) => {
+          const s = new Date(ev.inicio).getTime();
+          const e = new Date(ev.fim).getTime();
+          if (e <= axisStart || s >= axisEnd) return null;
+          const left = pct(s);
+          const width = Math.max(pct(e) - left, 0.3);
+          return (
+            <div
+              key={`idle-${i}`}
+              className="pointer-events-none absolute rounded-[1px]"
+              style={{
+                left: `${left}%`,
+                width: `${width}%`,
+                top: "26%",
+                bottom: "26%",
+                background:
+                  "repeating-linear-gradient(45deg, var(--color-muted-foreground) 0, var(--color-muted-foreground) 2px, transparent 2px, transparent 5px)",
+                opacity: 0.65,
+                zIndex: 3,
+              }}
+            />
+          );
+        })}
+
         {/* Start / End markers for the worked period */}
         {ativoStart != null && (
           <Marker
@@ -1599,6 +1652,19 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
               ) : (
                 <div className="text-muted-foreground">Offline</div>
               )}
+              {(() => {
+                const idle = idleEvents.find((ev) => {
+                  const s = new Date(ev.inicio).getTime();
+                  const e = new Date(ev.fim).getTime();
+                  return hover.ts >= s && hover.ts <= e;
+                });
+                return idle ? (
+                  <div className="text-muted-foreground">
+                    Ocioso • {formatHM(idle.inicio)} → {formatHM(idle.fim)} (
+                    {idle.fonte === "desktop" ? "app" : "web"})
+                  </div>
+                ) : null;
+              })()}
             </div>
           </>
         )}
@@ -1644,6 +1710,19 @@ function HorizontalTimeline({ records }: { records: Registro[] }) {
             {s === "ALMOCO" ? "Almoço" : s.charAt(0) + s.slice(1).toLowerCase()}
           </span>
         ))}
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="rounded-sm"
+            style={{
+              width: "10px",
+              height: "6px",
+              background:
+                "repeating-linear-gradient(45deg, var(--color-muted-foreground) 0, var(--color-muted-foreground) 2px, transparent 2px, transparent 5px)",
+              opacity: 0.65,
+            }}
+          />
+          Ocioso
+        </span>
       </div>
     </div>
   );

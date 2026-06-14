@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { INACTIVITY_LIMIT_MS, EXT_PRESENCE_WINDOW_MS } from "@/lib/activity-config";
+import {
+  INACTIVITY_LIMIT_MS,
+  EXT_PRESENCE_WINDOW_MS,
+  WEB_PRESENCE_HEARTBEAT_MS,
+} from "@/lib/activity-config";
 
 export type Status = "ATIVO" | "PAUSA" | "ALMOCO" | "INATIVO" | "ENCERRADO";
 
@@ -92,6 +96,33 @@ export function useCurrentSession(userId: string | undefined) {
       window.clearInterval(i);
     };
   }, [userId]);
+
+  // Heartbeat do próprio app web -> presenca_web. Rede de segurança para que o
+  // auto-encerramento server-side não feche por engano um usuário SÓ-web (sem
+  // extensão/desktop) que está ativo mas sem navegação interna recente. Só
+  // pulsa quando a sessão está ATIVA e houve input REAL recente (< 2x a
+  // cadência). NÃO é lido de volta pela detecção de INATIVO (acima lemos apenas
+  // presenca_desktop) — evita auto-alimentação que impediria o INATIVO.
+  useEffect(() => {
+    if (!userId || current?.status !== "ATIVO") return;
+    let cancelled = false;
+    const beat = async () => {
+      if (cancelled) return;
+      if (Date.now() - lastActivityRef.current > WEB_PRESENCE_HEARTBEAT_MS * 2) return;
+      await supabase
+        .from("presenca_web")
+        .upsert(
+          { usuario_id: userId, ultimo_ativo: new Date().toISOString() },
+          { onConflict: "usuario_id" },
+        );
+    };
+    void beat();
+    const i = window.setInterval(beat, WEB_PRESENCE_HEARTBEAT_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(i);
+    };
+  }, [userId, current?.status]);
 
   // Ask notification permission once
   useEffect(() => {
