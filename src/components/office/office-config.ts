@@ -184,13 +184,11 @@ export function isMeeting(s: UserSnapshot): boolean {
 
 /** Sala-destino de um colaborador conforme status atual (+ reunião derivada). */
 export function roomForSnapshot(s: UserSnapshot): RoomId {
-  // Admin SEMPRE na Liderança, mesmo sem expediente iniciado ou sem sinal
-  // recente — a liderança é considerada presente enquanto a conta existir.
-  if (s.isAdmin) return "lideranca";
-  // Só vai pro "externa" (fora do prédio) quando o colaborador realmente
-  // está offline. Se ainda há sinal de presença (registro aberto ou navegação
-  // recente), ele aparece DENTRO do escritório conforme o status.
+  // Offline = fora do prédio, independente de perfil.
   if (!s.isOnline) return "externa";
+
+  // Admin online vai para a sala de liderança.
+  if (s.isAdmin) return "lideranca";
 
   // Online mas sem registro de expediente aberto (currentSince null) —
   // logou no sistema/desktop mas ainda não iniciou a jornada. Vai pra espera.
