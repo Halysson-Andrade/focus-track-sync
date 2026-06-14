@@ -123,7 +123,7 @@ export const ROOMS: Record<RoomId, Room> = {
 export const DOORS: Record<RoomId, Cell[]> = {
   recepcao: [{ cx: 9, cy: 3 }],
   lideranca: [{ cx: 9, cy: 10 }],
-  espera: [{ cx: 9, cy: 17 }],
+  espera: [{ cx: 9, cy: 19 }],
   trabalho: [
     { cx: 11, cy: 5 },
     { cx: 11, cy: 15 },
