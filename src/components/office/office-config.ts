@@ -52,7 +52,7 @@ export const ROOMS: Record<RoomId, Room> = {
     x: 1,
     y: 8,
     w: 9,
-    h: 6,
+    h: 8,
     tint: "var(--color-primary)",
   },
   espera: {
@@ -60,11 +60,12 @@ export const ROOMS: Record<RoomId, Room> = {
     label: "Espera",
     emoji: "🪑",
     x: 1,
-    y: 15,
+    y: 17,
     w: 9,
-    h: 6,
+    h: 4,
     tint: "var(--color-muted-foreground)",
   },
+
   trabalho: {
     id: "trabalho",
     label: "Área de Trabalho",
@@ -122,7 +123,7 @@ export const ROOMS: Record<RoomId, Room> = {
 export const DOORS: Record<RoomId, Cell[]> = {
   recepcao: [{ cx: 9, cy: 3 }],
   lideranca: [{ cx: 9, cy: 10 }],
-  espera: [{ cx: 9, cy: 17 }],
+  espera: [{ cx: 9, cy: 19 }],
   trabalho: [
     { cx: 11, cy: 5 },
     { cx: 11, cy: 15 },
@@ -183,12 +184,14 @@ export function isMeeting(s: UserSnapshot): boolean {
 
 /** Sala-destino de um colaborador conforme status atual (+ reunião derivada). */
 export function roomForSnapshot(s: UserSnapshot): RoomId {
+  // Admin SEMPRE na Liderança, mesmo sem expediente iniciado ou sem sinal
+  // recente — a liderança é considerada presente enquanto a conta existir.
+  if (s.isAdmin) return "lideranca";
   // Só vai pro "externa" (fora do prédio) quando o colaborador realmente
   // está offline. Se ainda há sinal de presença (registro aberto ou navegação
   // recente), ele aparece DENTRO do escritório conforme o status.
   if (!s.isOnline) return "externa";
-  // Admin online sempre na Liderança — sobrepõe trabalho/reunião/pausa/almoço.
-  if (s.isAdmin) return "lideranca";
+
   // Online mas sem registro de expediente aberto (currentSince null) —
   // logou no sistema/desktop mas ainda não iniciou a jornada. Vai pra espera.
   if (!s.currentSince) return "espera";
