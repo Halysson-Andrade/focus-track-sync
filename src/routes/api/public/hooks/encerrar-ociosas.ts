@@ -15,9 +15,11 @@ export const Route = createFileRoute("/api/public/hooks/encerrar-ociosas")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apikey = request.headers.get("apikey");
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-        if (!expected || apikey !== expected) {
+        const provided =
+          request.headers.get("x-webhook-secret") ??
+          request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+        const expected = process.env.WEBHOOK_SECRET;
+        if (!expected || !provided || provided !== expected) {
           return new Response(JSON.stringify({ error: "unauthorized" }), {
             status: 401,
             headers: { "Content-Type": "application/json" },
@@ -31,10 +33,13 @@ export const Route = createFileRoute("/api/public/hooks/encerrar-ociosas")({
           /* corpo opcional */
         }
 
+        // Mínimo de 5 min — evita encerramento agressivo via parâmetro malicioso.
+        const timeoutMin = Math.max(5, Math.floor(body.timeout_min ?? 15));
+
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         const { data, error } = await supabaseAdmin.rpc("encerrar_sessoes_ociosas", {
-          p_timeout_min: body.timeout_min ?? 15,
+          p_timeout_min: timeoutMin,
         });
         if (error) {
           console.error("encerrar_sessoes_ociosas error", error);

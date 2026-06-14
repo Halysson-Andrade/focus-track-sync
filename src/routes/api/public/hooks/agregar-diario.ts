@@ -15,9 +15,11 @@ export const Route = createFileRoute("/api/public/hooks/agregar-diario")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apikey = request.headers.get("apikey");
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-        if (!expected || apikey !== expected) {
+        const provided =
+          request.headers.get("x-webhook-secret") ??
+          request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+        const expected = process.env.WEBHOOK_SECRET;
+        if (!expected || !provided || provided !== expected) {
           return new Response(JSON.stringify({ error: "unauthorized" }), {
             status: 401,
             headers: { "Content-Type": "application/json" },
@@ -48,8 +50,10 @@ export const Route = createFileRoute("/api/public/hooks/agregar-diario")({
 
         let purgeResult: unknown = null;
         if (body.purgar === true) {
+          // Mínimo de 30 dias — protege contra purge agressivo via parâmetro malicioso.
+          const retencao = Math.max(30, Math.floor(body.retencao_dias ?? 30));
           const { data, error: purgeErr } = await supabaseAdmin.rpc("purgar_brutos_antigos", {
-            p_dias_retencao: body.retencao_dias ?? 30,
+            p_dias_retencao: retencao,
           });
           if (purgeErr) {
             console.error("purgar_brutos_antigos error", purgeErr);
