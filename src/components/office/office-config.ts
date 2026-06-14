@@ -150,7 +150,10 @@ export const ROOM_ORDER: RoomId[] = [
 ];
 
 // --- Detecção de reunião (heurística sobre app/URL já capturados) ---
-const MEETING_PROCESS = ["teams", "ms-teams", "msteams", "zoom", "webex", "meet", "discord"];
+// Só processos EXCLUSIVOS de chamada. Teams/Discord ficam sempre abertos em
+// segundo plano (chat), então geravam falso positivo por processo — Teams é
+// detectado pela URL (teams.microsoft.com), que indica estar na chamada.
+const MEETING_PROCESS = ["zoom", "webex"];
 const MEETING_DOMAINS = [
   "meet.google.com",
   "teams.microsoft.com",
@@ -161,12 +164,20 @@ const MEETING_DOMAINS = [
   "meet.jit.si",
 ];
 
+/**
+ * Reunião só quando o sinal está VIVO (segmento em foco agora, via flag `live`),
+ * não por app/aba esquecido em segundo plano. Exige também status ATIVO.
+ */
 export function isMeeting(s: UserSnapshot): boolean {
   if (s.currentStatus !== "ATIVO") return false;
-  const proc = `${s.lastDesktopApp?.process ?? ""} ${s.lastDesktopApp?.label ?? ""}`.toLowerCase();
-  if (MEETING_PROCESS.some((k) => proc.includes(k))) return true;
-  const dom = (s.lastUrl?.domain ?? "").toLowerCase();
-  if (dom && MEETING_DOMAINS.some((d) => dom === d || dom.endsWith("." + d))) return true;
+  if (s.lastDesktopApp?.live) {
+    const proc = `${s.lastDesktopApp.process} ${s.lastDesktopApp.label}`.toLowerCase();
+    if (MEETING_PROCESS.some((k) => proc.includes(k))) return true;
+  }
+  if (s.lastUrl?.live) {
+    const dom = s.lastUrl.domain.toLowerCase();
+    if (dom && MEETING_DOMAINS.some((d) => dom === d || dom.endsWith("." + d))) return true;
+  }
   return false;
 }
 
@@ -176,6 +187,8 @@ export function roomForSnapshot(s: UserSnapshot): RoomId {
   // está offline. Se ainda há sinal de presença (registro aberto ou navegação
   // recente), ele aparece DENTRO do escritório conforme o status.
   if (!s.isOnline) return "externa";
+  // Admin online sempre na Liderança — sobrepõe trabalho/reunião/pausa/almoço.
+  if (s.isAdmin) return "lideranca";
   // Online mas sem registro de expediente aberto (currentSince null) —
   // logou no sistema/desktop mas ainda não iniciou a jornada. Vai pra espera.
   if (!s.currentSince) return "espera";

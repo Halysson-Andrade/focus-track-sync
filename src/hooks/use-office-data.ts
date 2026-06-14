@@ -9,6 +9,8 @@ interface OfficeData {
   navExt: NavRow[];
   navDesk: NavRow[];
   presenca: Presenca[];
+  /** Ids de usuários com papel admin (para alocá-los na sala de Liderança). */
+  adminIds: Set<string>;
   /** true quando o canal de realtime está conectado (senão, cai no poll). */
   connected: boolean;
   refetch: () => void;
@@ -37,6 +39,7 @@ export function useOfficeData(enabled: boolean): OfficeData {
   const [navExt, setNavExt] = useState<NavRow[]>([]);
   const [navDesk, setNavDesk] = useState<NavRow[]>([]);
   const [presenca, setPresenca] = useState<Presenca[]>([]);
+  const [adminIds, setAdminIds] = useState<Set<string>>(new Set());
   const [connected, setConnected] = useState(false);
 
   const debounceRef = useRef<number | null>(null);
@@ -90,12 +93,14 @@ export function useOfficeData(enabled: boolean): OfficeData {
     if (!enabled) return;
     let cancelled = false;
     (async () => {
-      const res = await supabase
-        .from("profiles")
-        .select("id, nome, email")
-        .eq("ativo", true)
-        .order("nome");
-      if (!cancelled) setProfiles((res.data ?? []) as Profile[]);
+      const [profRes, rolesRes] = await Promise.all([
+        supabase.from("profiles").select("id, nome, email").eq("ativo", true).order("nome"),
+        // Admin pode ler todos os papéis (RLS). Falha → set vazio (degrada sem crash).
+        supabase.from("user_roles").select("user_id").eq("role", "admin"),
+      ]);
+      if (cancelled) return;
+      setProfiles((profRes.data ?? []) as Profile[]);
+      setAdminIds(new Set((rolesRes.data ?? []).map((r) => r.user_id as string)));
     })();
     return () => {
       cancelled = true;
@@ -125,5 +130,15 @@ export function useOfficeData(enabled: boolean): OfficeData {
     };
   }, [enabled, fetchData, scheduleRefetch]);
 
-  return { profiles, registros, navApp, navExt, navDesk, presenca, connected, refetch: fetchData };
+  return {
+    profiles,
+    registros,
+    navApp,
+    navExt,
+    navDesk,
+    presenca,
+    adminIds,
+    connected,
+    refetch: fetchData,
+  };
 }

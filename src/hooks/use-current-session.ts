@@ -51,8 +51,14 @@ export function useCurrentSession(userId: string | undefined) {
       .order("inicio", { ascending: true });
     const list = (data ?? []) as Registro[];
     setTodayRecords(list);
-    const open = list.find((r) => !r.fim);
-    setCurrent(open ?? null);
+    // Pega o registro ABERTO mais RECENTE (a lista vem em ordem crescente de
+    // `inicio`, então `find` pegaria o mais antigo). Robusto contra eventuais
+    // registros abertos duplicados — o botão reflete o estado real da jornada.
+    const open =
+      list
+        .filter((r) => !r.fim)
+        .sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime())[0] ?? null;
+    setCurrent(open);
     if (open?.status === "INATIVO") setShowInactive(true);
   }, [userId]);
 

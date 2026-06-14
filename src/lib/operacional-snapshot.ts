@@ -43,6 +43,8 @@ export type Presenca = {
 
 export interface UserSnapshot {
   profile: Profile;
+  /** Usuário com papel admin — alocado na sala de Liderança quando online. */
+  isAdmin: boolean;
   isOnline: boolean;
   currentStatus: string;
   currentSince: string | null;
@@ -51,10 +53,11 @@ export interface UserSnapshot {
   lastSeen: string | null;
   navSegSource: { app: number; ext: number; desktop: number };
   idleSeconds: number;
-  lastUrl: { url: string; title: string; domain: string } | null;
+  /** `live` = segmento aberto e com heartbeat recente (em foco agora). */
+  lastUrl: { url: string; title: string; domain: string; live: boolean } | null;
   lastAppPage: { path: string; title: string } | null;
   /** Último app desktop em foco (process_name/app_label), p/ detecção de reunião. */
-  lastDesktopApp: { process: string; label: string } | null;
+  lastDesktopApp: { process: string; label: string; live: boolean } | null;
 }
 
 function durSec(n: NavRow, nowTs: number): number {
@@ -64,6 +67,21 @@ function durSec(n: NavRow, nowTs: number): number {
       ? (new Date(n.fim).getTime() - new Date(n.inicio).getTime()) / 1000
       : (nowTs - new Date(n.inicio).getTime()) / 1000);
   return Math.max(0, d);
+}
+
+/**
+ * Janela de "sinal vivo" para detecção de reunião: o segmento de app/URL precisa
+ * estar ABERTO e com heartbeat (inicio + duracao_segundos) nos últimos minutos.
+ * Mais curta que a janela de presença (15 min) para refletir o foco ATUAL —
+ * evita prender o avatar na reunião por uma aba/app esquecido em segundo plano.
+ */
+const MEETING_RECENCY_MS = 5 * 60_000;
+
+/** `true` se o segmento está aberto e com atividade recente (em foco agora). */
+function isLiveSegment(n: NavRow | undefined, nowTs: number): boolean {
+  if (!n || n.fim) return false;
+  const beat = new Date(n.inicio).getTime() + (n.duracao_segundos ?? 0) * 1000;
+  return nowTs - beat < MEETING_RECENCY_MS;
 }
 
 function latestOpenOrRecent(rows: NavRow[]): NavRow | undefined {
@@ -83,6 +101,7 @@ export function buildSnapshots(
   navDesk: NavRow[],
   nowTs: number,
   presenca: Presenca[] = [],
+  adminIds: Set<string> = new Set(),
 ): UserSnapshot[] {
   // Heartbeat desktop por usuário (último por `ultimo_ativo`).
   const presencaByUser = new Map<string, number>();
@@ -164,6 +183,7 @@ export function buildSnapshots(
             url: lastExt.url,
             title: lastExt.title || lastExt.domain || lastExt.url,
             domain: lastExt.domain || "",
+            live: isLiveSegment(lastExt, nowTs),
           }
         : null;
 
@@ -177,11 +197,13 @@ export function buildSnapshots(
         ? {
             process: lastDesk.process_name || "",
             label: lastDesk.app_label || lastDesk.process_name || "",
+            live: isLiveSegment(lastDesk, nowTs),
           }
         : null;
 
     return {
       profile: p,
+      isAdmin: adminIds.has(p.id),
       isOnline,
       currentStatus: open?.status ?? (isOnline ? "ATIVO" : "OFFLINE"),
       currentSince: open?.inicio ?? null,
