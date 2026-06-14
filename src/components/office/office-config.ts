@@ -52,7 +52,7 @@ export const ROOMS: Record<RoomId, Room> = {
     x: 1,
     y: 8,
     w: 9,
-    h: 6,
+    h: 8,
     tint: "var(--color-primary)",
   },
   espera: {
@@ -60,11 +60,12 @@ export const ROOMS: Record<RoomId, Room> = {
     label: "Espera",
     emoji: "🪑",
     x: 1,
-    y: 15,
+    y: 17,
     w: 9,
-    h: 6,
+    h: 4,
     tint: "var(--color-muted-foreground)",
   },
+
   trabalho: {
     id: "trabalho",
     label: "Área de Trabalho",
