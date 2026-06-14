@@ -19,6 +19,7 @@ interface OfficeData {
 const REALTIME_TABLES = [
   "registros_atividade",
   "presenca_desktop",
+  "presenca_web",
   "navegacao_externa",
   "uso_aplicativos",
 ] as const;
@@ -48,7 +49,7 @@ export function useOfficeData(enabled: boolean): OfficeData {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const since = startOfDay.toISOString();
-    const [r, na, ne, nd, pr] = await Promise.all([
+    const [r, na, ne, nd, pr, pw] = await Promise.all([
       supabase
         .from("registros_atividade")
         .select("id, usuario_id, status, inicio, fim, duracao_minutos")
@@ -70,12 +71,16 @@ export function useOfficeData(enabled: boolean): OfficeData {
       // Heartbeat de presença (uma linha por usuário, upsert). Não filtra por
       // `inicio` — o snapshot decide a janela de validade do último heartbeat.
       supabase.from("presenca_desktop").select("usuario_id, ultimo_ativo"),
+      // Heartbeat do app web (mesma forma). Unificado com o desktop abaixo — o
+      // snapshot já toma o MAX por usuário, então a presença online reflete
+      // qualquer fonte (evita marcar offline quem trabalha só no navegador).
+      supabase.from("presenca_web").select("usuario_id, ultimo_ativo"),
     ]);
     setRegistros((r.data ?? []) as Registro[]);
     setNavApp((na.data ?? []) as NavRow[]);
     setNavExt((ne.data ?? []) as NavRow[]);
     setNavDesk((nd.data ?? []) as NavRow[]);
-    setPresenca((pr.data ?? []) as Presenca[]);
+    setPresenca([...((pr.data ?? []) as Presenca[]), ...((pw.data ?? []) as Presenca[])]);
   }, []);
 
   const scheduleRefetch = useCallback(() => {

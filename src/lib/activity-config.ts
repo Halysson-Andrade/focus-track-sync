@@ -13,6 +13,16 @@ export const INACTIVITY_LIMIT_MS = 600_000; // 10 min
 // justamente quando os heartbeats param (almoço / máquina bloqueada).
 export const EXT_PRESENCE_WINDOW_MS = INACTIVITY_LIMIT_MS + 5 * 60 * 1000; // 15 min
 
+// Auto-encerramento server-side: minutos sem QUALQUER sinal no banco antes de
+// uma sessão aberta (ATIVO/INATIVO) ser fechada pelo job `encerrar-ociosas`.
+// Espelha o `p_timeout_min` da função SQL `encerrar_sessoes_ociosas`.
+export const AUTO_LOGOUT_TIMEOUT_MIN = 15;
+
+// Cadência do heartbeat do próprio app web (presenca_web) enquanto ATIVO. Serve
+// de rede de segurança para usuário só-web (sem extensão/desktop) não ser
+// auto-encerrado por engano. NÃO é lido de volta pela detecção de INATIVO.
+export const WEB_PRESENCE_HEARTBEAT_MS = 60_000; // 1 min
+
 /**
  * Verifica se `host` casa com algum domínio da whitelist (match por sufixo:
  * o próprio domínio ou um subdomínio dele). Ex.: "www.youtube.com" casa com
