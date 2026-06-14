@@ -50,6 +50,33 @@ export type Database = {
         }
         Relationships: []
       }
+      eventos_ociosidade: {
+        Row: {
+          created_at: string
+          fim: string
+          fonte: string
+          id: string
+          inicio: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          fim: string
+          fonte: string
+          id?: string
+          inicio: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          fim?: string
+          fonte?: string
+          id?: string
+          inicio?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       monitor_idle_whitelist: {
         Row: {
           ativo: boolean
@@ -148,33 +175,6 @@ export type Database = {
           title?: string | null
           url?: string
           user_agent?: string | null
-          usuario_id?: string
-        }
-        Relationships: []
-      }
-      eventos_ociosidade: {
-        Row: {
-          created_at: string
-          fim: string
-          fonte: string
-          id: string
-          inicio: string
-          usuario_id: string
-        }
-        Insert: {
-          created_at?: string
-          fim: string
-          fonte: string
-          id?: string
-          inicio: string
-          usuario_id: string
-        }
-        Update: {
-          created_at?: string
-          fim?: string
-          fonte?: string
-          id?: string
-          inicio?: string
           usuario_id?: string
         }
         Relationships: []
@@ -433,7 +433,10 @@ export type Database = {
     }
     Functions: {
       agregar_dia: { Args: { p_dia: string }; Returns: undefined }
-      encerrar_sessoes_ociosas: { Args: { p_timeout_min?: number }; Returns: number }
+      encerrar_sessoes_ociosas: {
+        Args: { p_timeout_min?: number }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
