@@ -50,8 +50,10 @@ export const Route = createFileRoute("/api/public/hooks/agregar-diario")({
 
         let purgeResult: unknown = null;
         if (body.purgar === true) {
+          // Mínimo de 30 dias — protege contra purge agressivo via parâmetro malicioso.
+          const retencao = Math.max(30, Math.floor(body.retencao_dias ?? 30));
           const { data, error: purgeErr } = await supabaseAdmin.rpc("purgar_brutos_antigos", {
-            p_dias_retencao: body.retencao_dias ?? 30,
+            p_dias_retencao: retencao,
           });
           if (purgeErr) {
             console.error("purgar_brutos_antigos error", purgeErr);
