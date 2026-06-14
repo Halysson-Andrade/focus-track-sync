@@ -135,6 +135,49 @@ $$;
 GRANT EXECUTE ON FUNCTION public.encerrar_sessoes_ociosas(INTEGER) TO service_role;
 
 -- ========================================================================
+-- Retenção: estende purgar_brutos_antigos para também limpar eventos_ociosidade
+-- (dado bruto que cresce). presenca_web NÃO entra: é 1 linha por usuário
+-- (upsert), não acumula. Mantém o contrato/assinatura da versão atual e só
+-- acrescenta a nova tabela ao resultado.
+-- ========================================================================
+CREATE OR REPLACE FUNCTION public.purgar_brutos_antigos(p_dias_retencao INTEGER DEFAULT 30)
+RETURNS TABLE(tabela TEXT, removidos BIGINT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_corte TIMESTAMPTZ := now() - (p_dias_retencao || ' days')::interval;
+  v_navext BIGINT;
+  v_uso BIGINT;
+  v_pag BIGINT;
+  v_ocio BIGINT;
+BEGIN
+  IF p_dias_retencao < 7 THEN
+    RAISE EXCEPTION 'Retenção mínima é 7 dias (recebido: %)', p_dias_retencao;
+  END IF;
+
+  WITH d AS (DELETE FROM public.navegacao_externa WHERE inicio < v_corte AND fim IS NOT NULL RETURNING 1)
+  SELECT count(*) INTO v_navext FROM d;
+
+  WITH d AS (DELETE FROM public.uso_aplicativos WHERE inicio < v_corte AND fim IS NOT NULL RETURNING 1)
+  SELECT count(*) INTO v_uso FROM d;
+
+  WITH d AS (DELETE FROM public.navegacao_paginas WHERE inicio < v_corte AND fim IS NOT NULL RETURNING 1)
+  SELECT count(*) INTO v_pag FROM d;
+
+  WITH d AS (DELETE FROM public.eventos_ociosidade WHERE inicio < v_corte RETURNING 1)
+  SELECT count(*) INTO v_ocio FROM d;
+
+  RETURN QUERY VALUES
+    ('navegacao_externa', v_navext),
+    ('uso_aplicativos', v_uso),
+    ('navegacao_paginas', v_pag),
+    ('eventos_ociosidade', v_ocio);
+END;
+$$;
+
+-- ========================================================================
 -- Realtime: reflete heartbeat web e ociosidade ao vivo no painel/timeline.
 -- ========================================================================
 DO $$
