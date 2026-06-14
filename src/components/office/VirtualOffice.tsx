@@ -3,7 +3,6 @@ import type { UserSnapshot } from "@/lib/operacional-snapshot";
 import { useAvatarMovement } from "@/hooks/use-avatar-movement";
 import { ManagerHud } from "./ManagerHud";
 import { OfficeAvatar } from "./OfficeAvatar";
-import { OfficeInsights } from "./OfficeInsights";
 import { buildWalkGrid, type WalkGrid } from "./pathfinding";
 import {
   ROOM_ORDER,
@@ -15,7 +14,6 @@ import {
   type Room,
   type RoomId,
 } from "./office-config";
-import type { Insight } from "./insights";
 import { Flame } from "lucide-react";
 import officeMap from "@/assets/office-map.jpg";
 
@@ -34,7 +32,6 @@ interface Props {
   snapshots: UserSnapshot[];
   stats: Stats;
   nowTs: number;
-  insights?: Insight[];
   onSelect?: (s: UserSnapshot) => void;
 }
 
@@ -61,7 +58,7 @@ const DUST = Array.from({ length: 14 }, (_, i) => ({
   size: 1.5 + ((i * 7) % 3),
 }));
 
-export function VirtualOffice({ snapshots, stats, nowTs, insights, onSelect }: Props) {
+export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
   const placed = useMemo(() => placeAvatars(snapshots), [snapshots]);
   const grid = useMemo(() => buildWalkGrid(), []);
   const density = useMemo(() => densityByRoom(snapshots), [snapshots]);
@@ -71,8 +68,6 @@ export function VirtualOffice({ snapshots, stats, nowTs, insights, onSelect }: P
   return (
     <div className="space-y-4">
       <ManagerHud snapshots={snapshots} stats={stats} />
-
-      {insights && <OfficeInsights insights={insights} />}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Legend />

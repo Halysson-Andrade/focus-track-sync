@@ -1,4 +1,4 @@
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import {
   Activity,
   BarChart3,
@@ -33,6 +33,7 @@ const nav = [
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, profile, isAdmin } = useAuth();
   const router = useRouter();
+  const location = useLocation();
   const [dark, setDark] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -100,7 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <ExtensionOnboarding userId={user?.id} />
+      {location.pathname !== "/change-password" && <ExtensionOnboarding userId={user?.id} />}
 
       {/* Sidebar */}
       <aside

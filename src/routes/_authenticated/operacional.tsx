@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { VirtualOffice } from "@/components/office/VirtualOffice";
 import { AvatarDetailSheet } from "@/components/office/AvatarDetailSheet";
-import { generateInsights } from "@/components/office/insights";
 import { formatDuration, formatHM } from "@/lib/format";
 import { buildSnapshots, buildStats, type UserSnapshot } from "@/lib/operacional-snapshot";
 import {
@@ -36,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/operacional")({
 
 function OperacionalPage() {
   const { isAdmin } = useAuth();
-  const { profiles, registros, navApp, navExt, navDesk, presenca, connected } =
+  const { profiles, registros, navApp, navExt, navDesk, presenca, adminIds, connected } =
     useOfficeData(isAdmin);
   const [now, setNow] = useState(Date.now());
   const [filter, setFilter] = useState("");
@@ -50,8 +49,8 @@ function OperacionalPage() {
   }, []);
 
   const snapshots: UserSnapshot[] = useMemo(
-    () => buildSnapshots(profiles, registros, navApp, navExt, navDesk, now, presenca),
-    [profiles, registros, navApp, navExt, navDesk, now, presenca],
+    () => buildSnapshots(profiles, registros, navApp, navExt, navDesk, now, presenca, adminIds),
+    [profiles, registros, navApp, navExt, navDesk, now, presenca, adminIds],
   );
 
   const filtered = useMemo(() => {
@@ -72,10 +71,6 @@ function OperacionalPage() {
   }, [snapshots, statusFilter, filter]);
 
   const stats = useMemo(() => buildStats(snapshots), [snapshots]);
-  const insights = useMemo(
-    () => generateInsights(snapshots, navExt, navDesk, now),
-    [snapshots, navExt, navDesk, now],
-  );
 
   // Mantém o snapshot do painel lateral sincronizado com os dados em tempo real.
   const selectedLive = useMemo(
@@ -129,13 +124,7 @@ function OperacionalPage() {
 
         {/* ESCRITÓRIO VIRTUAL */}
         <TabsContent value="escritorio" className="space-y-4">
-          <VirtualOffice
-            snapshots={snapshots}
-            stats={stats}
-            nowTs={now}
-            insights={insights}
-            onSelect={setSelected}
-          />
+          <VirtualOffice snapshots={snapshots} stats={stats} nowTs={now} onSelect={setSelected} />
         </TabsContent>
 
         {/* LISTA (visão detalhada clássica) */}

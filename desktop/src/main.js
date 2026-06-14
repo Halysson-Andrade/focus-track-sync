@@ -376,83 +376,22 @@ async function applyTrackingGate() {
   sendStatus();
 }
 
-// Cria uma sessão ATIVO quando não há nenhuma aberta (aba web fechada) e há
-// atividade local. O desktop assume a posse para gerenciar INATIVO/retomada.
-async function autoStartSession(userId) {
-  try {
-    const { data, error } = await supabase
-      .from("registros_atividade")
-      .insert({ usuario_id: userId, status: "ATIVO", inicio: new Date().toISOString() })
-      .select("id")
-      .single();
-    if (error) return; // corrida (índice único): web abriu primeiro — próximo poll reconcilia
-    macroStatus = "ATIVO";
-    macroSessionId = data.id;
-    desktopOwnsSession = true;
-  } catch (e) {
-    console.error("autoStart:", e.message);
-  }
-}
-
-// Fecha a linha aberta e abre outra com novo status (espelha o transition do web).
-// Usado só quando o desktop é dono da sessão (aba web fechada).
-async function macroTransition(userId, openId, next, observacao) {
-  const nowIso = new Date().toISOString();
-  try {
-    const { data: row } = await supabase
-      .from("registros_atividade")
-      .select("inicio")
-      .eq("id", openId)
-      .single();
-    const dur = row ? (Date.now() - new Date(row.inicio).getTime()) / 60000 : 0;
-    await supabase
-      .from("registros_atividade")
-      .update({ fim: nowIso, duracao_minutos: dur })
-      .eq("id", openId);
-    const { data, error } = await supabase
-      .from("registros_atividade")
-      .insert({ usuario_id: userId, status: next, inicio: nowIso, observacao: observacao ?? null })
-      .select("id")
-      .single();
-    if (error) return; // corrida — próximo poll reconcilia
-    macroStatus = next;
-    macroSessionId = data.id;
-    desktopOwnsSession = true;
-  } catch (e) {
-    console.error("macroTransition:", e.message);
-  }
-}
-
 // Reconcilia o estado local com a linha aberta de registros_atividade.
-async function reconcileMacro(userId, row) {
-  const idleSec = powerMonitor.getSystemIdleTime();
-  const localActive = idleSec < cfg.IDLE_THRESHOLD_S;
-  const longIdle = idleSec * 1000 >= cfg.INACTIVITY_LIMIT_MS;
-
-  // Se a linha aberta mudou e não foi o desktop que criou, o web é o dono.
-  if (row && row.id !== macroSessionId) desktopOwnsSession = false;
-
+//
+// O desktop é um SEGUIDOR puro: NUNCA cria nem transiciona sessão por conta
+// própria. O expediente só inicia/transiciona pelo clique do usuário (web) —
+// garantir isso evita que um F5/troca de aba "reabra" o expediente sozinho.
+// Aqui apenas espelhamos o status macro para abrir/fechar o rastreamento de
+// apps/navegação (applyTrackingGate só rastreia quando o status é ATIVO).
+async function reconcileMacro(row) {
   if (!row) {
     macroStatus = null;
     macroSessionId = null;
-    desktopOwnsSession = false;
-    if (localActive) await autoStartSession(userId);
     await applyTrackingGate();
     return;
   }
-
   macroStatus = row.status;
   macroSessionId = row.id;
-
-  // INATIVO/retomada automáticos só quando o desktop é dono (aba web fechada).
-  // Com a aba aberta, o web é o autor e o desktop apenas converge.
-  if (desktopOwnsSession) {
-    if (row.status === "ATIVO" && longIdle) {
-      await macroTransition(userId, row.id, "INATIVO", "Inatividade automática (desktop)");
-    } else if (row.status === "INATIVO" && localActive) {
-      await macroTransition(userId, row.id, "ATIVO");
-    }
-  }
   await applyTrackingGate();
 }
 
@@ -475,7 +414,7 @@ async function fetchMacroStatus() {
     console.error("macroStatus:", e.message);
     return; // mantém o estado anterior em caso de erro de rede
   }
-  await reconcileMacro(userId, row);
+  await reconcileMacro(row);
 }
 
 // Fecha a sessão macro só se o desktop for o dono (não derruba sessão do web).
