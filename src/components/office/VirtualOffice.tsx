@@ -205,7 +205,7 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
   const height = (room.h / WORLD.rows) * 100;
   return (
     <div
-      className="pointer-events-none absolute rounded-lg transition-colors duration-500"
+      className="pointer-events-none absolute rounded-md transition-colors duration-500"
       style={{
         left: `${left}%`,
         top: `${top}%`,
@@ -214,15 +214,16 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
         background:
           heat > 0
             ? `color-mix(in oklch, var(--color-destructive) ${Math.round(15 + heat * 45)}%, transparent)`
-            : "transparent",
+            : `color-mix(in oklch, ${room.tint} 8%, transparent)`,
+        // Divisórias sólidas entre as salas — paredes visíveis no mapa.
         border:
           heat > 0
-            ? `1px solid color-mix(in oklch, var(--color-destructive) 70%, transparent)`
-            : `1px dashed rgba(255,255,255,0.12)`,
+            ? `2px solid color-mix(in oklch, var(--color-destructive) 75%, transparent)`
+            : `2px solid color-mix(in oklch, ${room.tint} 65%, rgba(0,0,0,0.55))`,
         boxShadow:
           heat > 0
-            ? `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent)`
-            : undefined,
+            ? `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent), 0 0 0 1px rgba(0,0,0,0.4)`
+            : `inset 0 0 0 1px rgba(255,255,255,0.08), 0 1px 0 rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.55)`,
       }}
     >
       {/* placa flutuante da sala */}
