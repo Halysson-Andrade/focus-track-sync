@@ -1,6 +1,6 @@
 {
   "name": "monitor-desktop",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Monitor de Atividade - registra aplicativos usados na máquina",
   "main": "src/main.js",
   "author": "Focus Track",

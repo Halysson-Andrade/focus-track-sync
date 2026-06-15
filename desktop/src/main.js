@@ -558,6 +558,7 @@ function statusPayload() {
     macroStatus, // status da jornada (ATIVO/PAUSA/ALMOCO/INATIVO) ou null
     extOnline, // extensão do Chrome vista recentemente (gate do Iniciar)
     today: todayData, // { totals, records, idleEvents } do dia para totais/timeline
+    appVersion: app.getVersion(), // mostrado no rodapé; confirma o auto-update
   };
 }
 

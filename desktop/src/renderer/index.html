@@ -312,6 +312,7 @@
           <input id="auto-launch" type="checkbox" style="width: auto; margin: 0" />
         </div>
         <button class="ghost" id="btn-logout">Sair (logout)</button>
+        <div id="app-version" class="proc" style="margin-top: 10px; text-align: center"></div>
       </div>
     </div>
 
@@ -406,6 +407,7 @@
         $("current-app").textContent = s.current?.label || "—";
         $("current-proc").textContent = s.current?.process || "";
         $("sync-err").textContent = s.lastError || "";
+        if (s.appVersion) $("app-version").textContent = "Focus Track Monitor v" + s.appVersion;
 
         // Totais + timeline
         const totals = s.today?.totals || { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
