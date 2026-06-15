@@ -642,8 +642,12 @@ function Dashboard() {
     setStartChecking(true);
     try {
       // Verificação fresca no clique — nunca confia só no estado renderizado.
-      const { ext, desktop } = await presence.checkNow();
-      if (!ext || !desktop) {
+      // Gate bloqueia apenas pela EXTENSÃO (que reporta presença de forma
+      // sustentada quando logada). O app desktop é informativo: ele só envia
+      // presença quando o expediente está ATIVO, então entra online sozinho
+      // logo após o início — não dá para exigi-lo ANTES de iniciar.
+      const { ext } = await presence.checkNow();
+      if (!ext) {
         setStartGateOpen(true);
         return;
       }
@@ -797,21 +801,17 @@ function Dashboard() {
             <Button
               onClick={handleStartClick}
               disabled={!canStart || startChecking}
-              variant={
-                canStart && (!presence.extOnline || !presence.desktopOnline)
-                  ? "secondary"
-                  : "default"
-              }
+              variant={canStart && !presence.extOnline ? "secondary" : "default"}
               size="lg"
               title={
-                !presence.extOnline || !presence.desktopOnline
-                  ? "Extensão ou app desktop offline — clique para detalhes"
+                !presence.extOnline
+                  ? "Extensão do Chrome offline — clique para detalhes"
                   : undefined
               }
             >
               <Play className="mr-2 h-4 w-4" />
               {startChecking ? "Verificando serviços..." : "Iniciar Expediente"}
-              {!startChecking && canStart && (!presence.extOnline || !presence.desktopOnline) && (
+              {!startChecking && canStart && !presence.extOnline && (
                 <span className="ml-2 inline-flex items-center gap-1 text-xs text-destructive">
                   <AlertTriangle className="h-3 w-3" />
                   serviços offline
@@ -853,8 +853,9 @@ function Dashboard() {
               Não é possível iniciar o expediente
             </DialogTitle>
             <DialogDescription>
-              Para iniciar o expediente é necessário que as ferramentas de monitoramento estejam online.
-              Faça login nelas e tente novamente.
+              Para iniciar o expediente é necessário que a <b>extensão do Chrome</b> esteja online.
+              Faça login nela e tente novamente. O app desktop é opcional — ele entra online
+              automaticamente assim que você inicia.
             </DialogDescription>
           </DialogHeader>
           <ul className="space-y-2 text-sm">
@@ -879,9 +880,9 @@ function Dashboard() {
                 )}
               />
               <Monitor className="h-4 w-4" />
-              <span className="font-medium">App Desktop:</span>
-              <span className={presence.desktopOnline ? "text-success" : "text-destructive"}>
-                {presence.desktopOnline ? "online" : "offline — abra e faça login no app"}
+              <span className="font-medium">App Desktop (opcional):</span>
+              <span className={presence.desktopOnline ? "text-success" : "text-muted-foreground"}>
+                {presence.desktopOnline ? "online" : "offline — entra online ao iniciar"}
               </span>
             </li>
           </ul>
@@ -892,13 +893,14 @@ function Dashboard() {
             <Button
               onClick={async () => {
                 // Reverifica de forma autoritativa antes de liberar o início.
-                const { ext, desktop } = await presence.checkNow();
-                if (ext && desktop) {
+                // Só a extensão é obrigatória; o desktop é informativo.
+                const { ext } = await presence.checkNow();
+                if (ext) {
                   setStartGateOpen(false);
                   session.start();
                 }
               }}
-              disabled={!presence.extOnline || !presence.desktopOnline}
+              disabled={!presence.extOnline}
             >
               <Play className="mr-2 h-4 w-4" /> Iniciar
             </Button>
