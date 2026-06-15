@@ -437,6 +437,54 @@ async function upsertPresencaExtensao() {
   } catch {}
 }
 
+// Mensageria (mão única): o admin envia notificações pelo painel operacional.
+// A extensão, com o token do próprio usuário, busca as pendentes (entregue_em
+// nulo) e sobe cada uma como notificação NATIVA do Chrome. Ao marcar entregue,
+// a linha sai do filtro is.null — não há re-notificação (idempotente). O id da
+// linha vira o notificationId, para o clique (onClicked) marcar como lida.
+async function checkNotificacoes() {
+  const session = await getSession();
+  if (!session) return;
+  try {
+    const res = await api(
+      `notificacoes?destinatario_id=eq.${session.user.id}&entregue_em=is.null` +
+        `&select=id,conteudo,remetente_nome,criado_em&order=criado_em.asc`,
+      "GET",
+    );
+    if (!res || !res.ok) return;
+    const rows = await res.json();
+    for (const n of rows) {
+      try {
+        chrome.notifications.create(n.id, {
+          type: "basic",
+          iconUrl: "icons/icon128.png",
+          title: `Mensagem de ${n.remetente_nome || "Gestor"}`,
+          message: n.conteudo || "",
+          priority: 2,
+          requireInteraction: true,
+        });
+      } catch {}
+      try {
+        await api(`notificacoes?id=eq.${n.id}`, "PATCH", {
+          entregue_em: new Date().toISOString(),
+        });
+      } catch {}
+    }
+  } catch {}
+}
+
+// Clique na notificação = lida (notificationId é o id da linha).
+chrome.notifications.onClicked.addListener(async (notifId) => {
+  try {
+    await api(`notificacoes?id=eq.${notifId}`, "PATCH", {
+      lido_em: new Date().toISOString(),
+    });
+  } catch {}
+  try {
+    chrome.notifications.clear(notifId);
+  } catch {}
+});
+
 // Heartbeat frequente para o app (1 min). Combinado com qualquer troca de
 // aba abaixo, o app não marca inatividade enquanto a extensão estiver vendo
 // atividade em outras abas/janelas.
@@ -445,6 +493,7 @@ chrome.alarms.onAlarm.addListener(async (a) => {
   if (a.name === "appHeartbeat") {
     await broadcastHeartbeat();
     await upsertPresencaExtensao();
+    await checkNotificacoes();
   }
 });
 
@@ -469,6 +518,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     loadWhitelist();
     fetchMacroStatus();
     upsertPresencaExtensao(); // beat imediato p/ o gate do desktop ver a extensão
+    checkNotificacoes(); // entrega imediata de mensagens pendentes ao logar
     chrome.tabs.query({ active: true, lastFocusedWindow: true }, ([tab]) => {
       if (tab) handleActive(tab);
     });

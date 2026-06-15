@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageTracker } from "@/hooks/use-page-tracker";
+import { useNotificacoesRecebidas } from "@/hooks/use-mensagens";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -28,6 +29,8 @@ export const Route = createFileRoute("/_authenticated")({
 function AuthenticatedLayout() {
   const { user } = useAuth();
   usePageTracker(user?.id, null);
+  // Toast ao vivo de mensagens recebidas (mensageria mão única do painel).
+  useNotificacoesRecebidas(user?.id);
 
   return (
     <AppShell>
