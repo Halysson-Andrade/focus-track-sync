@@ -246,6 +246,21 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
           </span>
         )}
       </div>
+
+      {/* Mobília decorativa (sem interação, fica atrás dos avatares) */}
+      {room.furniture && room.furniture.length > 0 && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-1 bottom-1 flex flex-wrap items-end justify-center gap-0.5 opacity-60"
+          style={{ fontSize: "clamp(8px, 1.2vw, 16px)", lineHeight: 1 }}
+        >
+          {room.furniture.map((f, i) => (
+            <span key={i} className="drop-shadow-sm">
+              {f}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
