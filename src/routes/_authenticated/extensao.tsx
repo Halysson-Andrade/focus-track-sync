@@ -21,6 +21,11 @@ import {
 } from "@/components/ExtensionIllustrations";
 import { toast } from "sonner";
 
+// Mantém em sincronia com extension/manifest.json. Usado como cache-buster na URL
+// do download: ao subir a versão, a URL muda e navegador/CDN não servem o ZIP
+// antigo em cache.
+const EXT_VERSION = "1.5.0";
+
 export const Route = createFileRoute("/_authenticated/extensao")({
   head: () => ({ meta: [{ title: "Extensão de Monitoramento" }] }),
   component: ExtensaoPage,
@@ -30,7 +35,7 @@ function ExtensaoPage() {
   const { user } = useAuth();
 
   const download = () => {
-    fetch("/monitor-extension.zip")
+    fetch(`/monitor-extension.zip?v=${EXT_VERSION}`, { cache: "no-store" })
       .then((r) => {
         if (!r.ok) throw new Error("Falha no download");
         return r.blob();
@@ -83,9 +88,12 @@ function ExtensaoPage() {
             Faça o download de <code className="bg-muted px-1 rounded">monitor-extension.zip</code>.
             O arquivo ficará na sua pasta <b>Downloads</b>.
           </p>
-          <Button onClick={download} size="lg" className="md:justify-self-end">
-            <Download className="h-4 w-4 mr-2" /> Baixar extensão (.zip)
-          </Button>
+          <div className="md:justify-self-end md:text-right">
+            <Button onClick={download} size="lg">
+              <Download className="h-4 w-4 mr-2" /> Baixar extensão (.zip)
+            </Button>
+            <p className="mt-1.5 text-xs text-muted-foreground">Versão {EXT_VERSION}</p>
+          </div>
         </div>
       </Step>
 
