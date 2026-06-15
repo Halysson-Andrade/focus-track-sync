@@ -28,11 +28,6 @@ export type RoomId =
   | "copa"
   | "descanso"
   | "lideranca"
-  | "treinamento"
-  | "auditorio"
-  | "banheiro_m"
-  | "banheiro_f"
-  | "vestiario"
   | "estacionamento"
   | "externa";
 
@@ -47,80 +42,53 @@ export interface Room {
   h: number;
   /** Token de cor (CSS var) usado no fundo translúcido da sala. */
   tint: string;
-  /**
-   * "Mobília" decorativa renderizada no rodapé interno da sala — apenas para
-   * dar contexto visual (não interage com pathfinding nem com avatares).
-   */
-  furniture?: string[];
 }
 
-// Andar 1 (y=1..19) — entrada, setores, reunião/copa/descanso.
-// Corredor y=20..21 separa os andares.
-// Andar 2 (y=22..41) — treinamento, auditório, banheiros, vestiário, estacionamento.
-// Jardim externo (y=43..47) — pátio aberto onde ficam os offline.
-// Coordenadas calibradas (em células de 48×48) para baterem com o desenho
-// do mapa em src/assets/office-map.jpg.
+// Layout em um único andar (prédio em y=1..29), com estacionamento (y=30..36)
+// e jardim externo (y=37..47) logo abaixo. Coordenadas calibradas para
+// baterem com o mapa em src/assets/office-map.jpg.
 export const ROOMS: Record<RoomId, Room> = {
-  // ===== Andar 1 — coluna esquerda =====
-  recepcao: { id: "recepcao", label: "SAC / Recepção", emoji: "🛎️", x: 1, y: 1, w: 12, h: 8, tint: "var(--color-info)" },
-  lideranca: { id: "lideranca", label: "Liderança", emoji: "👔", x: 1, y: 9, w: 12, h: 7, tint: "var(--color-primary)" },
-  espera: { id: "espera", label: "Espera", emoji: "🪑", x: 1, y: 16, w: 12, h: 5, tint: "var(--color-muted-foreground)" },
+  // ===== Linha de cima (rows 1-8) =====
+  recepcao: { id: "recepcao", label: "SAC / Recepção", emoji: "🛎️", x: 1, y: 1, w: 9, h: 8, tint: "var(--color-info)" },
+  comercial: { id: "comercial", label: "Comercial", emoji: "💼", x: 10, y: 1, w: 8, h: 8, tint: "var(--color-success)" },
+  juridico: { id: "juridico", label: "Jurídico", emoji: "⚖️", x: 18, y: 1, w: 9, h: 8, tint: "var(--color-success)" },
+  financeiro: { id: "financeiro", label: "Financeiro", emoji: "💰", x: 27, y: 1, w: 8, h: 8, tint: "var(--color-success)" },
+  reuniao: { id: "reuniao", label: "Sala de Reunião", emoji: "📊", x: 35, y: 1, w: 12, h: 11, tint: "var(--color-accent)" },
 
-  // ===== Andar 1 — setores centrais, linha 1 =====
-  comercial: { id: "comercial", label: "Comercial", emoji: "💼", x: 14, y: 1, w: 5, h: 9, tint: "var(--color-success)" },
-  producao: { id: "producao", label: "Produção", emoji: "🛠️", x: 19, y: 1, w: 5, h: 9, tint: "var(--color-success)" },
-  juridico: { id: "juridico", label: "Jurídico", emoji: "⚖️", x: 24, y: 1, w: 6, h: 9, tint: "var(--color-success)" },
-  financeiro: { id: "financeiro", label: "Financeiro", emoji: "💰", x: 30, y: 1, w: 4, h: 9, tint: "var(--color-success)" },
+  // ===== Faixa do meio (rows 9-20) — Produção de Eventos é a maior =====
+  lideranca: { id: "lideranca", label: "Liderança", emoji: "👔", x: 1, y: 9, w: 9, h: 12, tint: "var(--color-primary)" },
+  producao: { id: "producao", label: "Produção de Eventos", emoji: "🎪", x: 10, y: 9, w: 25, h: 12, tint: "var(--color-success)" },
+  copa: { id: "copa", label: "Copa / Refeitório", emoji: "🍽️", x: 35, y: 12, w: 12, h: 9, tint: "var(--color-info)" },
 
-  // ===== Andar 1 — setores centrais, linha 2 =====
-  ti: { id: "ti", label: "TI", emoji: "🖥️", x: 14, y: 11, w: 5, h: 10, tint: "var(--color-success)" },
-  almoxarifado: { id: "almoxarifado", label: "Almoxarifado", emoji: "📦", x: 19, y: 11, w: 7, h: 10, tint: "var(--color-success)" },
-  marketing: { id: "marketing", label: "Marketing", emoji: "📣", x: 26, y: 11, w: 8, h: 10, tint: "var(--color-success)" },
+  // ===== Linha de baixo (rows 21-29) =====
+  espera: { id: "espera", label: "Espera", emoji: "🪑", x: 1, y: 21, w: 9, h: 8, tint: "var(--color-muted-foreground)" },
+  ti: { id: "ti", label: "TI", emoji: "🖥️", x: 10, y: 21, w: 8, h: 8, tint: "var(--color-success)" },
+  almoxarifado: { id: "almoxarifado", label: "Almoxarifado", emoji: "📦", x: 18, y: 21, w: 9, h: 8, tint: "var(--color-success)" },
+  marketing: { id: "marketing", label: "Marketing", emoji: "📣", x: 27, y: 21, w: 8, h: 8, tint: "var(--color-success)" },
+  descanso: { id: "descanso", label: "Descanso", emoji: "☕", x: 35, y: 21, w: 12, h: 8, tint: "var(--color-warning)" },
 
-  // ===== Andar 1 — coluna direita =====
-  reuniao: { id: "reuniao", label: "Sala de Reunião", emoji: "📊", x: 35, y: 1, w: 12, h: 8, tint: "var(--color-accent)" },
-  copa: { id: "copa", label: "Copa / Refeitório", emoji: "🍽️", x: 35, y: 9, w: 12, h: 7, tint: "var(--color-info)" },
-  descanso: { id: "descanso", label: "Descanso", emoji: "☕", x: 35, y: 16, w: 12, h: 5, tint: "var(--color-warning)" },
-
-  // ===== Andar 2 — utilidades =====
-  vestiario: { id: "vestiario", label: "Vestiário", emoji: "👕", x: 1, y: 22, w: 11, h: 10, tint: "var(--color-muted-foreground)" },
-  treinamento: { id: "treinamento", label: "Sala de Treinamento", emoji: "🎓", x: 13, y: 22, w: 13, h: 10, tint: "var(--color-primary)" },
-  auditorio: { id: "auditorio", label: "Auditório", emoji: "🎤", x: 27, y: 22, w: 10, h: 10, tint: "var(--color-accent)" },
-  banheiro_m: { id: "banheiro_m", label: "Banheiro M", emoji: "🚹", x: 38, y: 22, w: 9, h: 5, tint: "var(--color-info)" },
-  banheiro_f: { id: "banheiro_f", label: "Banheiro F", emoji: "🚺", x: 38, y: 27, w: 9, h: 5, tint: "var(--color-destructive)" },
-
-  // ===== Estacionamento (faixa horizontal) =====
-  estacionamento: { id: "estacionamento", label: "Estacionamento", emoji: "🅿️", x: 1, y: 33, w: 46, h: 8, tint: "var(--color-muted-foreground)" },
-
-  // ===== Jardim externo (pátio aberto) =====
-  externa: { id: "externa", label: "Jardim / Fora do prédio", emoji: "🌳", x: 1, y: 42, w: 46, h: 5, tint: "var(--color-success)" },
+  // ===== Áreas externas =====
+  estacionamento: { id: "estacionamento", label: "Estacionamento", emoji: "🅿️", x: 1, y: 30, w: 46, h: 7, tint: "var(--color-muted-foreground)" },
+  externa: { id: "externa", label: "Jardim / Fora do prédio", emoji: "🌳", x: 1, y: 37, w: 46, h: 10, tint: "var(--color-success)" },
 };
 
 // Portas: células do perímetro que permanecem caminháveis (ligam a sala ao
 // corredor). O resto do perímetro vira parede no grid de pathfinding.
 export const DOORS: Record<RoomId, Cell[]> = {
-  // Andar 1
-  recepcao: [{ cx: 12, cy: 5 }],
-  lideranca: [{ cx: 12, cy: 12 }],
-  espera: [{ cx: 12, cy: 18 }],
-  comercial: [{ cx: 16, cy: 9 }],
-  producao: [{ cx: 21, cy: 9 }],
-  juridico: [{ cx: 26, cy: 9 }],
+  recepcao: [{ cx: 10, cy: 4 }],
+  comercial: [{ cx: 14, cy: 9 }],
+  juridico: [{ cx: 22, cy: 9 }],
   financeiro: [{ cx: 31, cy: 9 }],
-  ti: [{ cx: 16, cy: 11 }],
-  almoxarifado: [{ cx: 22, cy: 11 }],
-  marketing: [{ cx: 29, cy: 11 }],
-  reuniao: [{ cx: 35, cy: 5 }],
-  copa: [{ cx: 35, cy: 12 }],
-  descanso: [{ cx: 35, cy: 18 }],
-  // Andar 2
-  vestiario: [{ cx: 11, cy: 27 }],
-  treinamento: [{ cx: 19, cy: 22 }],
-  auditorio: [{ cx: 31, cy: 22 }],
-  banheiro_m: [{ cx: 38, cy: 24 }],
-  banheiro_f: [{ cx: 38, cy: 29 }],
-  estacionamento: [{ cx: 24, cy: 33 }],
-  // Pátio aberto
+  reuniao: [{ cx: 35, cy: 6 }],
+  lideranca: [{ cx: 10, cy: 15 }],
+  producao: [{ cx: 22, cy: 20 }],
+  copa: [{ cx: 35, cy: 16 }],
+  espera: [{ cx: 10, cy: 25 }],
+  ti: [{ cx: 14, cy: 21 }],
+  almoxarifado: [{ cx: 22, cy: 21 }],
+  marketing: [{ cx: 31, cy: 21 }],
+  descanso: [{ cx: 35, cy: 25 }],
+  estacionamento: [{ cx: 24, cy: 30 }],
   externa: [],
 };
 
@@ -141,11 +109,6 @@ export const ROOM_ORDER: RoomId[] = [
   "reuniao",
   "copa",
   "descanso",
-  "vestiario",
-  "treinamento",
-  "auditorio",
-  "banheiro_m",
-  "banheiro_f",
   "estacionamento",
   "externa",
 ];
