@@ -15,7 +15,7 @@ import {
   type RoomId,
 } from "./office-config";
 import { Flame } from "lucide-react";
-import officeMap from "@/assets/office-map.jpg";
+
 
 
 interface Stats {
