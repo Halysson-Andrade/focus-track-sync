@@ -72,9 +72,14 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          # latest.yml e .blockmap são obrigatórios para o electron-updater
+          # detectar e baixar atualizações; sem eles o auto-update não funciona.
           files: |
             artifacts/**/*.exe
             artifacts/**/*.dmg
+            artifacts/**/*.blockmap
+            artifacts/**/latest.yml
+            artifacts/**/latest-mac.yml
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

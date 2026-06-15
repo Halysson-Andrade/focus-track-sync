@@ -20,6 +20,7 @@ const REALTIME_TABLES = [
   "registros_atividade",
   "presenca_desktop",
   "presenca_web",
+  "presenca_extensao",
   "navegacao_externa",
   "navegacao_paginas",
   "uso_aplicativos",
@@ -53,7 +54,7 @@ export function useOfficeData(enabled: boolean): OfficeData {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const since = startOfDay.toISOString();
-    const [r, na, ne, nd, pr, pw] = await Promise.all([
+    const [r, na, ne, nd, pr, pw, pe] = await Promise.all([
       supabase
         .from("registros_atividade")
         .select("id, usuario_id, status, inicio, fim, duracao_minutos")
@@ -74,17 +75,37 @@ export function useOfficeData(enabled: boolean): OfficeData {
         .gte("inicio", since),
       // Heartbeat de presença (uma linha por usuário, upsert). Não filtra por
       // `inicio` — o snapshot decide a janela de validade do último heartbeat.
-      supabase.from("presenca_desktop").select("usuario_id, ultimo_ativo"),
+      // `ultimo_ativo` = atividade real (ancora online); `ultimo_visto` = "app
+      // vivo" mesmo ocioso (ancora o selo de monitoração ativa do desktop).
+      supabase.from("presenca_desktop").select("usuario_id, ultimo_ativo, ultimo_visto"),
       // Heartbeat do app web (mesma forma). Unificado com o desktop abaixo — o
       // snapshot já toma o MAX por usuário, então a presença online reflete
       // qualquer fonte (evita marcar offline quem trabalha só no navegador).
       supabase.from("presenca_web").select("usuario_id, ultimo_ativo"),
+      // Heartbeat "extensão viva" (mesmo ociosa). Sinal dedicado p/ o selo de
+      // monitoração da extensão. Tolerante a falha: sem a tabela, cai no fallback
+      // (último beat de navegação) sem quebrar o resto da busca.
+      supabase.from("presenca_extensao").select("usuario_id, ultimo_visto"),
     ]);
     setRegistros((r.data ?? []) as Registro[]);
     setNavApp((na.data ?? []) as NavRow[]);
     setNavExt((ne.data ?? []) as NavRow[]);
     setNavDesk((nd.data ?? []) as NavRow[]);
-    setPresenca([...((pr.data ?? []) as Presenca[]), ...((pw.data ?? []) as Presenca[])]);
+    // Tagueia a origem p/ o snapshot isolar "desktop ativo", "web" e "extensão".
+    // `isOnline` continua ancorado em `ultimo_ativo` de desktop+web (a extensão
+    // só alimenta o selo de monitoração, não o online — semântica preservada).
+    setPresenca([
+      ...((pr.data ?? []) as Presenca[]).map((x) => ({ ...x, fonte: "desktop" as const })),
+      ...((pw.data ?? []) as Presenca[]).map((x) => ({ ...x, fonte: "web" as const })),
+      ...((pe.data ?? []) as { usuario_id: string; ultimo_visto: string | null }[])
+        .filter((x) => x.ultimo_visto)
+        .map((x) => ({
+          usuario_id: x.usuario_id,
+          ultimo_ativo: x.ultimo_visto as string,
+          ultimo_visto: x.ultimo_visto,
+          fonte: "ext" as const,
+        })),
+    ]);
   }, []);
 
   const scheduleRefetch = useCallback(() => {

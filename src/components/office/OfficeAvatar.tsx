@@ -1,3 +1,4 @@
+import { Chrome, Monitor } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
@@ -11,7 +12,6 @@ function hueFor(id: string): number {
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return h % 360;
 }
-
 
 /** Emoji do "humor" do avatar conforme estado. */
 function statusEmoji(s: UserSnapshot): string {
@@ -48,17 +48,86 @@ function produtividade(s: UserSnapshot): number {
   return Math.round((s.totals.ATIVO / s.totalOnline) * 100);
 }
 
-/** Texto curto do "balão" de atividade atual. */
-function activityLine(s: UserSnapshot): string | null {
+/**
+ * Rótulo de status para o topo do monitor — apenas para estados que NÃO são
+ * navegação ativa (pausa/almoço/inatividade/reunião). Em ATIVO normal retorna
+ * null e o monitor mostra só as duas fontes (Extensão + Desktop).
+ */
+function statusHeader(s: UserSnapshot): string | null {
   if (!s.isOnline) return null;
   if (s.currentStatus === "ALMOCO") return `Almoço · ${formatHM(s.currentSince)}`;
   if (s.currentStatus === "PAUSA") return "Em pausa";
   if (s.currentStatus === "INATIVO") return "Inatividade detectada";
   if (isMeeting(s)) return "Em reunião";
-  if (s.lastUrl) return s.lastUrl.title;
-  if (s.lastDesktopApp) return s.lastDesktopApp.label;
-  if (s.lastAppPage) return s.lastAppPage.title;
-  return "Trabalhando";
+  return null;
+}
+
+const ACTIVE_COLOR = "var(--color-success)";
+const IDLE_COLOR = "rgba(255,255,255,0.4)";
+
+/** Selo de "monitoração ativa" de um cliente (extensão / desktop). */
+function MonitorBadge({
+  active,
+  icon,
+  label,
+}: {
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <span
+      title={`${label}: ${active ? "monitorando" : "sem sinal"}`}
+      className="flex items-center gap-0.5 rounded-full border px-1 py-[1px] leading-none shadow"
+      style={{
+        background: active
+          ? "color-mix(in oklch, var(--color-success) 22%, rgba(8,10,16,0.92))"
+          : "rgba(8,10,16,0.88)",
+        borderColor: active
+          ? "color-mix(in oklch, var(--color-success) 60%, transparent)"
+          : "rgba(255,255,255,0.18)",
+        color: active ? ACTIVE_COLOR : IDLE_COLOR,
+      }}
+    >
+      {icon}
+    </span>
+  );
+}
+
+/** Linha de fonte dentro do monitor (Extensão ou Desktop) com ponto de liveness. */
+function MonitorRow({
+  icon,
+  active,
+  title,
+  sub,
+  muted,
+}: {
+  icon: React.ReactNode;
+  active: boolean;
+  title: string;
+  sub?: string | null;
+  muted?: boolean;
+}) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className="shrink-0" style={{ color: active ? ACTIVE_COLOR : IDLE_COLOR }}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={`block truncate ${muted ? "italic opacity-50" : "font-semibold"}`}>
+          {title}
+        </span>
+        {sub && <span className="block truncate text-[7px] font-normal opacity-60">{sub}</span>}
+      </span>
+      <span
+        className="h-1.5 w-1.5 shrink-0 rounded-full"
+        style={{
+          background: active ? ACTIVE_COLOR : "rgba(255,255,255,0.25)",
+          boxShadow: active ? `0 0 5px ${ACTIVE_COLOR}` : "none",
+        }}
+      />
+    </span>
+  );
 }
 
 interface Props {
@@ -76,7 +145,7 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
   const lastSeenMin = s.lastSeen ? (nowTs - new Date(s.lastSeen).getTime()) / 60000 : 0;
   const inactive = s.currentStatus === "INATIVO";
   const meeting = s.isOnline && isMeeting(s);
-  const line = activityLine(s);
+  const statusLine = statusHeader(s);
 
   // Cor do "ponto de alerta" no canto do avatar — segue o spec:
   // 🔴 inatividade · 🟡 almoço longo · 🔵 reunião · 🟣 ócio alto · 🟢 voltou.
@@ -100,31 +169,55 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
             onClick={() => onClick?.(s)}
             className="group flex w-20 cursor-pointer flex-col items-center gap-0.5 focus:outline-none"
           >
-            {/* Mini "monitor" mostrando a tela atual da pessoa em tempo real */}
-            {s.isOnline && line && (
-              <span
-                className="pointer-events-none relative mb-0.5 flex w-[110px] flex-col items-center"
-                title={line}
-              >
+            {/* Monitor expandido: selos de monitoração ativa (desktop/extensão)
+                acima + uma linha por fonte com o último registro e liveness. */}
+            {s.isOnline && (
+              <span className="pointer-events-none relative mb-0.5 flex w-[124px] flex-col items-center">
+                {/* selos de "monitoração ativa" por cliente */}
+                <span className="mb-0.5 flex items-center gap-1 text-[7px] font-semibold">
+                  <MonitorBadge
+                    active={s.extActive}
+                    label="Extensão"
+                    icon={<Chrome className="h-2.5 w-2.5" />}
+                  />
+                  <MonitorBadge
+                    active={s.desktopActive}
+                    label="App desktop"
+                    icon={<Monitor className="h-2.5 w-2.5" />}
+                  />
+                </span>
+                {/* tela do monitor */}
                 <span
-                  className="w-full rounded-t-md border border-b-0 px-1 py-0.5 text-[8px] font-semibold leading-tight text-white shadow-lg"
+                  className="w-full rounded-t-md border border-b-0 px-1 py-0.5 text-[8px] leading-tight text-white shadow-lg"
                   style={{
                     background: `linear-gradient(180deg, rgba(8,10,16,0.95), rgba(20,24,36,0.95))`,
                     borderColor: `color-mix(in oklch, ${color} 55%, transparent)`,
                   }}
                 >
-                  <span className="flex items-center gap-1">
-                    <span
-                      className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{ background: color, boxShadow: `0 0 6px ${color}` }}
-                    />
-                    <span className="truncate">{line}</span>
-                  </span>
-                  {s.lastUrl?.domain && (
-                    <span className="block truncate text-[7px] font-normal opacity-70">
-                      {s.lastUrl.domain}
+                  {statusLine && (
+                    <span className="mb-0.5 flex items-center gap-1 border-b border-white/10 pb-0.5">
+                      <span
+                        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{ background: color, boxShadow: `0 0 6px ${color}` }}
+                      />
+                      <span className="truncate font-semibold">{statusLine}</span>
                     </span>
                   )}
+                  <span className="flex flex-col gap-0.5">
+                    <MonitorRow
+                      icon={<Chrome className="h-2.5 w-2.5" />}
+                      active={s.extActive}
+                      title={s.lastUrl?.title ?? "sem navegação"}
+                      sub={s.lastUrl?.domain}
+                      muted={!s.lastUrl}
+                    />
+                    <MonitorRow
+                      icon={<Monitor className="h-2.5 w-2.5" />}
+                      active={s.desktopActive}
+                      title={s.lastDesktopApp?.label ?? "sem app"}
+                      muted={!s.lastDesktopApp}
+                    />
+                  </span>
                 </span>
                 {/* base do monitor */}
                 <span
@@ -196,9 +289,6 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
           </button>
         </HoverCardTrigger>
 
-
-
-
         <HoverCardContent className="w-72" align="center">
           <div className="flex items-start gap-3">
             <span
@@ -241,19 +331,25 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
             <Info label="Ócio detectado" value={formatDuration(s.idleSeconds / 60)} />
           </div>
 
-          {(s.lastUrl || s.lastDesktopApp || s.lastAppPage) && (
-            <div className="mt-3 border-t pt-2 text-xs">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Tela atual
-              </div>
-              <div className="truncate font-medium" title={s.lastUrl?.url}>
-                {s.lastUrl?.title || s.lastDesktopApp?.label || s.lastAppPage?.title}
-              </div>
-              {s.lastUrl?.domain && (
-                <div className="truncate text-[10px] text-muted-foreground">{s.lastUrl.domain}</div>
-              )}
+          <div className="mt-3 border-t pt-2 text-xs">
+            <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+              Monitoração
             </div>
-          )}
+            <SourceLine
+              icon={<Chrome className="h-3 w-3" />}
+              name="Extensão"
+              active={s.extActive}
+              title={s.lastUrl?.title}
+              sub={s.lastUrl?.domain}
+              hint={s.lastUrl?.url}
+            />
+            <SourceLine
+              icon={<Monitor className="h-3 w-3" />}
+              name="App desktop"
+              active={s.desktopActive}
+              title={s.lastDesktopApp?.label}
+            />
+          </div>
         </HoverCardContent>
       </HoverCard>
     </div>
@@ -265,6 +361,48 @@ function Info({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-2">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-mono font-medium">{value}</span>
+    </div>
+  );
+}
+
+/** Linha de fonte (Extensão/Desktop) no hover-card: estado + último registro. */
+function SourceLine({
+  icon,
+  name,
+  active,
+  title,
+  sub,
+  hint,
+}: {
+  icon: React.ReactNode;
+  name: string;
+  active: boolean;
+  title?: string | null;
+  sub?: string | null;
+  hint?: string | null;
+}) {
+  return (
+    <div className="mb-1.5 flex items-start gap-2 last:mb-0">
+      <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium">{name}</span>
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{
+              background: active ? "var(--color-success)" : "var(--color-muted-foreground)",
+              boxShadow: active ? "0 0 5px var(--color-success)" : "none",
+            }}
+          />
+          <span className="text-[10px] text-muted-foreground">
+            {active ? "monitorando" : "sem sinal"}
+          </span>
+        </div>
+        <div className="truncate text-muted-foreground" title={hint ?? undefined}>
+          {title || "—"}
+        </div>
+        {sub && <div className="truncate text-[10px] text-muted-foreground/80">{sub}</div>}
+      </div>
     </div>
   );
 }

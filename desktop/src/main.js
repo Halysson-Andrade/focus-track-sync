@@ -7,11 +7,13 @@ const {
   ipcMain,
   powerMonitor,
   shell,
+  Notification,
 } = require("electron");
 const path = require("path");
 const Store = require("electron-store");
 const AutoLaunch = require("auto-launch");
 const { createClient } = require("@supabase/supabase-js");
+const { autoUpdater } = require("electron-updater");
 const WebSocket = require("ws");
 const cfg = require("./config");
 const { labelFor } = require("./app-labels");
@@ -23,6 +25,12 @@ const { labelFor } = require("./app-labels");
 // navegador viraria falso "ocioso no desktop / ativo no web".
 const BROWSER_PROCESS_RE = /chrome|chromium|google chrome/i;
 const isBrowserProc = (p) => BROWSER_PROCESS_RE.test(p || "");
+
+const PORTAL_URL = "https://focus-track-sync.lovable.app";
+// Janela em que a extensão é considerada "viva" para liberar o Iniciar. A
+// extensão pulsa presenca_extensao a cada ~1 min; 3 min tolera uma falha/atraso
+// do alarme do service worker (que pode hibernar).
+const EXT_ONLINE_WINDOW_MS = 180000;
 
 // active-win é ESM-only — carregar dinamicamente
 let activeWinFn = null;
@@ -76,6 +84,7 @@ try {
 
 let win = null;
 let tray = null;
+let pendingUpdateVersion = null; // versão baixada e pronta para instalar (auto-update)
 let monitoring = false;
 let pollTimer = null;
 let flushTimer = null;
@@ -92,6 +101,9 @@ let macroSessionId = null; // id da linha aberta conhecida
 let trackingPaused = false; // true quando não devemos rastrear apps
 let desktopOwnsSession = false; // true se a sessão aberta foi criada pelo desktop
 let macroPollTimer = null;
+let presenceHeartbeatTimer = null; // heartbeat "app vivo" (ultimo_visto), independente do tracking
+let extOnline = false; // extensão do Chrome vista recentemente em presenca_extensao
+let todayData = { totals: { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 }, records: [], idleEvents: [] };
 
 // Carrega a lista de apps passivos (reunião, player de vídeo, leitor de PDF):
 // nesses apps a ausência de mouse/teclado NÃO conta como ociosidade.
@@ -112,9 +124,11 @@ const autoLauncher = new AutoLaunch({ name: "Focus Track Monitor", isHidden: tru
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 460,
-    height: 620,
-    resizable: false,
+    width: 480,
+    height: 760,
+    minWidth: 420,
+    minHeight: 600,
+    resizable: true,
     show: false,
     autoHideMenuBar: true,
     icon: path.join(
@@ -138,6 +152,42 @@ function createWindow() {
   });
 }
 
+function buildTrayMenu() {
+  const items = [
+    {
+      label: "Abrir painel",
+      click: () => {
+        win.show();
+      },
+    },
+    {
+      label: "Abrir app web",
+      click: () => shell.openExternal(PORTAL_URL),
+    },
+  ];
+  // Aparece só quando há atualização baixada e pronta (usuário decide aplicar).
+  if (pendingUpdateVersion) {
+    items.push({ type: "separator" });
+    items.push({
+      label: `Atualizar e reiniciar agora (v${pendingUpdateVersion})`,
+      click: () => installUpdateNow(),
+    });
+  }
+  items.push({ type: "separator" });
+  items.push({
+    label: "Sair",
+    click: () => {
+      app.isQuiting = true;
+      app.quit();
+    },
+  });
+  return Menu.buildFromTemplate(items);
+}
+
+function refreshTrayMenu() {
+  if (tray) tray.setContextMenu(buildTrayMenu());
+}
+
 function createTray() {
   const iconPath = path.join(__dirname, "..", "assets", "tray.png");
   let img = nativeImage.createFromPath(iconPath);
@@ -149,27 +199,7 @@ function createTray() {
   }
   tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
   tray.setToolTip("Focus Track Monitor");
-  const menu = Menu.buildFromTemplate([
-    {
-      label: "Abrir painel",
-      click: () => {
-        win.show();
-      },
-    },
-    {
-      label: "Abrir app web",
-      click: () => shell.openExternal("https://focus-track-sync.lovable.app"),
-    },
-    { type: "separator" },
-    {
-      label: "Sair",
-      click: () => {
-        app.isQuiting = true;
-        app.quit();
-      },
-    },
-  ]);
-  tray.setContextMenu(menu);
+  refreshTrayMenu();
   tray.on("click", () => {
     win.isVisible() ? win.hide() : win.show();
   });
@@ -198,6 +228,30 @@ async function sendPresence() {
     );
   } catch (e) {
     console.error("presence:", e.message);
+  }
+}
+
+// Heartbeat "app vivo": sinaliza ao painel/gate que o desktop está LOGADO e
+// rodando, mesmo ocioso e fora de expediente. Vai em `ultimo_visto` — coluna
+// SEPARADA de `ultimo_ativo` de propósito: `ultimo_ativo` (sendPresence acima)
+// só pulsa com input real e é lido pela detecção de INATIVO da web; escrever
+// `ultimo_visto` aqui NUNCA pode tocar `ultimo_ativo`, senão o usuário ausente
+// nunca seria marcado INATIVO. Roda enquanto monitorando (= logado).
+async function sendHeartbeat() {
+  try {
+    const userId = await getUserId();
+    if (!userId) return;
+    await supabase.from("presenca_desktop").upsert(
+      {
+        usuario_id: userId,
+        ultimo_visto: new Date().toISOString(),
+        app_version: app.getVersion(),
+        platform: process.platform,
+      },
+      { onConflict: "usuario_id" },
+    );
+  } catch (e) {
+    console.error("heartbeat:", e.message);
   }
 }
 
@@ -440,6 +494,8 @@ async function fetchMacroStatus() {
     return; // mantém o estado anterior em caso de erro de rede
   }
   await reconcileMacro(row);
+  await refreshPanel(userId); // atualiza extOnline + totais/timeline para a UI
+  sendStatus();
 }
 
 // Fecha a sessão macro só se o desktop for o dono (não derruba sessão do web).
@@ -472,6 +528,9 @@ function startMonitoring() {
   flushTimer = setInterval(flush, cfg.FLUSH_INTERVAL_MS);
   macroPollTimer = setInterval(fetchMacroStatus, cfg.MACRO_POLL_MS);
   whitelistTimer = setInterval(loadWhitelist, cfg.WHITELIST_REFRESH_MS);
+  // Heartbeat "app vivo": independente do tracking-gate, pulsa enquanto logado.
+  presenceHeartbeatTimer = setInterval(sendHeartbeat, 60000);
+  sendHeartbeat();
   loadWhitelist();
   fetchMacroStatus();
   tick();
@@ -484,19 +543,150 @@ async function stopMonitoring() {
   if (flushTimer) clearInterval(flushTimer);
   if (macroPollTimer) clearInterval(macroPollTimer);
   if (whitelistTimer) clearInterval(whitelistTimer);
-  pollTimer = flushTimer = macroPollTimer = whitelistTimer = null;
+  if (presenceHeartbeatTimer) clearInterval(presenceHeartbeatTimer);
+  pollTimer = flushTimer = macroPollTimer = whitelistTimer = presenceHeartbeatTimer = null;
   await closeCurrent();
   sendStatus();
 }
 
-function sendStatus() {
-  if (!win) return;
-  win.webContents.send("status", {
+function statusPayload() {
+  return {
     monitoring,
     current: current ? { label: current.app_label, process: current.process_name } : null,
     synced: syncedCount,
     lastError,
-  });
+    macroStatus, // status da jornada (ATIVO/PAUSA/ALMOCO/INATIVO) ou null
+    extOnline, // extensão do Chrome vista recentemente (gate do Iniciar)
+    today: todayData, // { totals, records, idleEvents } do dia para totais/timeline
+  };
+}
+
+function sendStatus() {
+  if (!win) return;
+  win.webContents.send("status", statusPayload());
+}
+
+// --- Painel: dados do dia (totais + timeline) e presença da extensão ---
+
+// Totais por status em minutos — espelha o cálculo da web (index.tsx).
+function computeTotals(records) {
+  const t = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
+  const nowTs = Date.now();
+  for (const r of records) {
+    const dur =
+      r.duracao_minutos ??
+      (r.fim
+        ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000
+        : (nowTs - new Date(r.inicio).getTime()) / 60000);
+    if (r.status in t) t[r.status] += dur;
+  }
+  return t;
+}
+
+async function fetchToday(userId) {
+  if (!userId) return;
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  try {
+    const [{ data: records }, { data: idle }] = await Promise.all([
+      supabase
+        .from("registros_atividade")
+        .select("id,status,inicio,fim,duracao_minutos")
+        .eq("usuario_id", userId)
+        .gte("inicio", startOfDay.toISOString())
+        .order("inicio", { ascending: true }),
+      supabase
+        .from("eventos_ociosidade")
+        .select("inicio,fim,fonte")
+        .eq("usuario_id", userId)
+        .gte("inicio", startOfDay.toISOString()),
+    ]);
+    const list = records ?? [];
+    todayData = { records: list, idleEvents: idle ?? [], totals: computeTotals(list) };
+  } catch (e) {
+    console.error("fetchToday:", e.message);
+  }
+}
+
+// Lê o último heartbeat "vivo" da extensão (presenca_extensao) do próprio
+// usuário. Usado para liberar/bloquear o Iniciar expediente no app.
+async function isExtensaoOnline(userId) {
+  if (!userId) return false;
+  try {
+    const { data } = await supabase
+      .from("presenca_extensao")
+      .select("ultimo_visto")
+      .eq("usuario_id", userId)
+      .maybeSingle();
+    if (!data?.ultimo_visto) return false;
+    return Date.now() - new Date(data.ultimo_visto).getTime() < EXT_ONLINE_WINDOW_MS;
+  } catch (e) {
+    console.error("extensaoOnline:", e.message);
+    return false;
+  }
+}
+
+async function refreshPanel(userId) {
+  if (!userId) return;
+  extOnline = await isExtensaoOnline(userId);
+  await fetchToday(userId);
+}
+
+// --- Controles de jornada (mesma RPC da web; só por clique explícito) ---
+
+// Abre/transiciona o registro via RPC abrir_registro (SECURITY DEFINER). A RLS
+// recusa INSERT direto de linha aberta — abrir é exclusivo da RPC.
+async function abrirRegistro(status, observacao) {
+  try {
+    const { error } = await supabase.rpc("abrir_registro", {
+      p_status: status,
+      p_observacao: observacao || undefined,
+    });
+    if (error) return { error: error.message };
+    await fetchMacroStatus(); // reconcilia tracking + painel imediatamente
+    return { ok: true };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Encerra a jornada — espelha use-current-session.stop(): de PAUSA/ALMOCO fecha
+// a linha e insere um marcador ENCERRADO de duração zero; de ATIVO/INATIVO só
+// fecha a linha aberta. Encerrar NÃO usa a RPC (não abre nada).
+async function encerrarJornada() {
+  const userId = await getUserId();
+  if (!userId) return { error: "Sessão expirada — faça login novamente." };
+  try {
+    const { data: openRow } = await supabase
+      .from("registros_atividade")
+      .select("id,status,inicio")
+      .eq("usuario_id", userId)
+      .is("fim", null)
+      .order("inicio", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (openRow) {
+      const now = new Date().toISOString();
+      const dur = (Date.now() - new Date(openRow.inicio).getTime()) / 60000;
+      await supabase
+        .from("registros_atividade")
+        .update({ fim: now, duracao_minutos: dur })
+        .eq("id", openRow.id);
+      if (openRow.status === "PAUSA" || openRow.status === "ALMOCO") {
+        await supabase.from("registros_atividade").insert({
+          usuario_id: userId,
+          status: "ENCERRADO",
+          inicio: now,
+          fim: now,
+          duracao_minutos: 0,
+        });
+      }
+    }
+    await fetchMacroStatus();
+    return { ok: true };
+  } catch (e) {
+    return { error: e.message };
+  }
 }
 
 // IPC
@@ -523,20 +713,39 @@ ipcMain.handle("auth:logout", async () => {
   return { ok: true };
 });
 
-ipcMain.handle("monitor:start", () => {
-  startMonitoring();
+ipcMain.handle("monitor:status", () => statusPayload());
+
+// Controles de jornada acionados pelo app (clique explícito do usuário).
+// Iniciar a jornada (sair de ENCERRADO/sem-sessão para ATIVO) exige a extensão
+// do Chrome ativa — mesmo gate da web. Retomar de pausa/almoço/inativo NÃO passa
+// pelo gate. As demais transições (pausa/almoço/retomar) seguem direto.
+ipcMain.handle("session:transition", async (_e, { status, observacao }) => {
+  const isStart = status === "ATIVO" && (macroStatus == null || macroStatus === "ENCERRADO");
+  if (isStart) {
+    const userId = await getUserId();
+    const online = await isExtensaoOnline(userId);
+    extOnline = online;
+    if (!online) {
+      sendStatus();
+      return { error: "extension_offline" };
+    }
+  }
+  return abrirRegistro(status, observacao);
+});
+
+ipcMain.handle("session:stop", async () => encerrarJornada());
+
+ipcMain.handle("session:today", async () => {
+  const userId = await getUserId();
+  await refreshPanel(userId);
+  sendStatus();
+  return todayData;
+});
+
+ipcMain.handle("open:portal", () => {
+  shell.openExternal(PORTAL_URL);
   return { ok: true };
 });
-ipcMain.handle("monitor:stop", async () => {
-  await stopMonitoring();
-  return { ok: true };
-});
-ipcMain.handle("monitor:status", () => ({
-  monitoring,
-  current: current ? { label: current.app_label, process: current.process_name } : null,
-  synced: syncedCount,
-  lastError,
-}));
 
 ipcMain.handle("autolaunch:get", async () => {
   try {
@@ -554,9 +763,52 @@ ipcMain.handle("autolaunch:set", async (_e, enabled) => {
   }
 });
 
+// --- Auto-update (electron-updater + GitHub público) ---
+// Baixa em background; NÃO instala sozinho durante o uso. O usuário decide pela
+// notificação / item de bandeja. `autoInstallOnAppQuit` é rede de segurança:
+// aplica no próximo Sair/desligamento, sem interromper o trabalho.
+async function installUpdateNow() {
+  try {
+    // Fecha a sessão de app/jornada do desktop antes de reiniciar para instalar,
+    // evitando linha órfã (o before-quit já cobre, mas isQuiting o curto-circuita).
+    await closeCurrent();
+    await closeMacroSessionIfOwned();
+  } catch {
+    /* noop */
+  }
+  app.isQuiting = true; // impede o before-quit de cancelar o quit
+  autoUpdater.quitAndInstall();
+}
+
+function setupAutoUpdate() {
+  if (!app.isPackaged) return; // em dev (npm start) o updater lança "no published versions"
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("update-downloaded", (info) => {
+    pendingUpdateVersion = info?.version || "nova";
+    refreshTrayMenu();
+    try {
+      if (Notification.isSupported()) {
+        const n = new Notification({
+          title: "Atualização disponível",
+          body: `A versão ${pendingUpdateVersion} foi baixada. Clique para atualizar e reiniciar.`,
+        });
+        n.on("click", () => installUpdateNow());
+        n.show();
+      }
+    } catch {
+      /* noop */
+    }
+  });
+  autoUpdater.on("error", (e) => console.error("autoUpdater:", e?.message || e));
+  autoUpdater.checkForUpdates().catch(() => {});
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 6 * 60 * 60 * 1000);
+}
+
 app.whenReady().then(async () => {
   createWindow();
   createTray();
+  setupAutoUpdate();
   // Se já tem sessão salva, começa a monitorar automaticamente
   const uid = await getUserId();
   if (uid) startMonitoring();
