@@ -147,7 +147,7 @@ export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
             />
           ))}
 
-          {/* Salas (overlay leve: placa + contagem + heatmap opcional) */}
+          {/* Salas (overlay: placa com nome + contagem + heatmap opcional) */}
           {ROOM_ORDER.map((id) => (
             <RoomBox
               key={id}
@@ -202,8 +202,7 @@ function AnimatedAvatar({
   );
 }
 
-function RoomBox({ room, heat }: { room: Room; count: number; heat: number }) {
-  if (heat <= 0) return null;
+function RoomBox({ room, count, heat }: { room: Room; count: number; heat: number }) {
   const left = (room.x / WORLD.cols) * 100;
   const top = (room.y / WORLD.rows) * 100;
   const width = (room.w / WORLD.cols) * 100;
@@ -216,10 +215,31 @@ function RoomBox({ room, heat }: { room: Room; count: number; heat: number }) {
         top: `${top}%`,
         width: `${width}%`,
         height: `${height}%`,
-        background: `color-mix(in oklch, var(--color-destructive) ${Math.round(15 + heat * 45)}%, transparent)`,
-        boxShadow: `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent)`,
+        background:
+          heat > 0
+            ? `color-mix(in oklch, var(--color-destructive) ${Math.round(15 + heat * 45)}%, transparent)`
+            : "transparent",
+        boxShadow:
+          heat > 0
+            ? `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent)`
+            : undefined,
       }}
-    />
+    >
+      {/* Placa com nome da sala + total de pessoas logadas */}
+      <div className="absolute left-1/2 top-1 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-foreground/20 bg-background/85 px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm backdrop-blur-sm whitespace-nowrap">
+        <span aria-hidden>{room.emoji}</span>
+        <span>{room.label}</span>
+        <span
+          className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-px text-[9px] font-bold leading-none ${
+            count > 0
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground"
+          }`}
+        >
+          {count}
+        </span>
+      </div>
+    </div>
   );
 }
 
