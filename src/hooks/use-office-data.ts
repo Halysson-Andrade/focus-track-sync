@@ -21,11 +21,15 @@ const REALTIME_TABLES = [
   "presenca_desktop",
   "presenca_web",
   "navegacao_externa",
+  "navegacao_paginas",
   "uso_aplicativos",
 ] as const;
 
-// Poll de segurança: garante atualização mesmo se o realtime cair.
-const SAFETY_POLL_MS = 30_000;
+// Poll de segurança (fallback do realtime), adaptativo: enquanto o canal está
+// conectado é só um backstop folgado; se o realtime cair, encurtamos o intervalo
+// para limitar o atraso até a reconexão.
+const SAFETY_POLL_CONNECTED_MS = 30_000;
+const SAFETY_POLL_DISCONNECTED_MS = 10_000;
 const REFETCH_DEBOUNCE_MS = 300;
 
 /**
@@ -112,7 +116,7 @@ export function useOfficeData(enabled: boolean): OfficeData {
     };
   }, [enabled]);
 
-  // Fetch inicial + realtime + poll de segurança.
+  // Fetch inicial + realtime.
   useEffect(() => {
     if (!enabled) return;
     void fetchData();
@@ -125,15 +129,21 @@ export function useOfficeData(enabled: boolean): OfficeData {
       setConnected(status === "SUBSCRIBED");
     });
 
-    const poll = window.setInterval(fetchData, SAFETY_POLL_MS);
-
     return () => {
-      window.clearInterval(poll);
       if (debounceRef.current != null) window.clearTimeout(debounceRef.current);
       supabase.removeChannel(channel);
       setConnected(false);
     };
   }, [enabled, fetchData, scheduleRefetch]);
+
+  // Poll de segurança adaptativo: reage ao estado de conexão do realtime.
+  // Conectado → intervalo folgado (só backstop). Desconectado → intervalo curto.
+  useEffect(() => {
+    if (!enabled) return;
+    const intervalMs = connected ? SAFETY_POLL_CONNECTED_MS : SAFETY_POLL_DISCONNECTED_MS;
+    const poll = window.setInterval(fetchData, intervalMs);
+    return () => window.clearInterval(poll);
+  }, [enabled, connected, fetchData]);
 
   return {
     profiles,
