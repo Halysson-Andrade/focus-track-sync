@@ -38,6 +38,22 @@ export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [dark, setDark] = useState(false);
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("sidebar_collapsed") === "1";
+  });
+
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem("sidebar_collapsed", next ? "1" : "0");
+      } catch {
+        /* noop */
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
