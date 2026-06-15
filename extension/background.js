@@ -445,9 +445,14 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   }
   if (msg.type === "PAGE_READY" && sender.tab?.id) {
     // Empurra um heartbeat imediato para a aba que acabou de carregar o app.
-    try {
-      chrome.tabs.sendMessage(sender.tab.id, { type: "EXT_HEARTBEAT" });
-    } catch {}
+    // Só conta como "extensão online" se houver sessão (usuário logado) —
+    // mesmo gate da broadcastHeartbeat, senão o painel marcaria online deslogado.
+    getSession().then((session) => {
+      if (!session) return;
+      try {
+        chrome.tabs.sendMessage(sender.tab.id, { type: "EXT_HEARTBEAT" });
+      } catch {}
+    });
   }
 });
 
