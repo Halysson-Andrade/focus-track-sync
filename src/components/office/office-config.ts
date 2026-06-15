@@ -109,11 +109,6 @@ export const ROOM_ORDER: RoomId[] = [
   "reuniao",
   "copa",
   "descanso",
-  "vestiario",
-  "treinamento",
-  "auditorio",
-  "banheiro_m",
-  "banheiro_f",
   "estacionamento",
   "externa",
 ];
