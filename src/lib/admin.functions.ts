@@ -51,3 +51,55 @@ export const adminDeleteUser = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+const updateUserSchema = z.object({
+  userId: z.string().uuid(),
+  nome: z.string().min(1).max(120),
+  cargo: z.string().max(120).nullable().optional(),
+  departamento: z.string().max(60).nullable().optional(),
+  isAdmin: z.boolean(),
+});
+
+export const adminUpdateUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => updateUserSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: ok } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!ok) throw new Error("Acesso negado.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { error: upErr } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        nome: data.nome,
+        cargo: data.cargo ?? null,
+        departamento: data.departamento ?? null,
+      })
+      .eq("id", data.userId);
+    if (upErr) throw new Error(upErr.message);
+
+    // Sincroniza role admin
+    if (data.isAdmin) {
+      await supabaseAdmin
+        .from("user_roles")
+        .upsert(
+          { user_id: data.userId, role: "admin" },
+          { onConflict: "user_id,role" },
+        );
+    } else {
+      // Não permite remover a própria role admin (evita lock-out)
+      if (data.userId === context.userId) {
+        throw new Error("Você não pode remover seu próprio acesso de administrador.");
+      }
+      await supabaseAdmin
+        .from("user_roles")
+        .delete()
+        .eq("user_id", data.userId)
+        .eq("role", "admin");
+    }
+    return { ok: true };
+  });

@@ -141,6 +141,18 @@ const DEPT_TO_ROOM: Record<string, RoomId> = {
   atendimento: "recepcao",
 };
 
+/** Opções canônicas de departamento (valor salvo em profiles.departamento). */
+export const DEPARTAMENTOS: Array<{ value: string; label: string }> = [
+  { value: "comercial", label: "Comercial" },
+  { value: "producao", label: "Produção de Eventos" },
+  { value: "juridico", label: "Jurídico" },
+  { value: "financeiro", label: "Financeiro" },
+  { value: "ti", label: "TI" },
+  { value: "almoxarifado", label: "Almoxarifado" },
+  { value: "marketing", label: "Marketing" },
+  { value: "sac", label: "SAC / Recepção" },
+];
+
 function deptRoom(dep: string | null | undefined): RoomId | null {
   if (!dep) return null;
   const k = dep.trim().toLowerCase();
