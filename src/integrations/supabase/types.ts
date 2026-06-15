@@ -228,42 +228,18 @@ export type Database = {
       }
       presenca_desktop: {
         Row: {
-          app_version: string | null
           platform: string | null
           ultimo_ativo: string
-          ultimo_visto: string | null
           usuario_id: string
         }
         Insert: {
-          app_version?: string | null
           platform?: string | null
           ultimo_ativo?: string
-          ultimo_visto?: string | null
           usuario_id: string
         }
         Update: {
-          app_version?: string | null
           platform?: string | null
           ultimo_ativo?: string
-          ultimo_visto?: string | null
-          usuario_id?: string
-        }
-        Relationships: []
-      }
-      presenca_extensao: {
-        Row: {
-          ext_version: string | null
-          ultimo_visto: string
-          usuario_id: string
-        }
-        Insert: {
-          ext_version?: string | null
-          ultimo_visto?: string
-          usuario_id: string
-        }
-        Update: {
-          ext_version?: string | null
-          ultimo_visto?: string
           usuario_id?: string
         }
         Relationships: []
