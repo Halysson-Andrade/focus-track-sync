@@ -60,12 +60,12 @@ export const ROOMS: Record<RoomId, Room> = {
   producao: { id: "producao", label: "Produção de Eventos", emoji: "🎪", x: 10, y: 9, w: 25, h: 12, tint: "var(--color-success)" },
   copa: { id: "copa", label: "Copa / Refeitório", emoji: "🍽️", x: 35, y: 12, w: 12, h: 9, tint: "var(--color-info)" },
 
-  // ===== Linha de baixo (rows 21-29) =====
-  espera: { id: "espera", label: "Espera", emoji: "🪑", x: 1, y: 21, w: 9, h: 8, tint: "var(--color-muted-foreground)" },
-  ti: { id: "ti", label: "TI", emoji: "🖥️", x: 10, y: 21, w: 8, h: 8, tint: "var(--color-success)" },
-  almoxarifado: { id: "almoxarifado", label: "Almoxarifado", emoji: "📦", x: 18, y: 21, w: 9, h: 8, tint: "var(--color-success)" },
-  marketing: { id: "marketing", label: "Marketing", emoji: "📣", x: 27, y: 21, w: 8, h: 8, tint: "var(--color-success)" },
-  descanso: { id: "descanso", label: "Descanso", emoji: "☕", x: 35, y: 21, w: 12, h: 8, tint: "var(--color-warning)" },
+  // ===== Linha de baixo (rows 21-29) — TI expandida =====
+  espera: { id: "espera", label: "Espera", emoji: "🪑", x: 1, y: 21, w: 5, h: 8, tint: "var(--color-muted-foreground)" },
+  ti: { id: "ti", label: "TI", emoji: "🖥️", x: 6, y: 21, w: 18, h: 8, tint: "var(--color-success)" },
+  almoxarifado: { id: "almoxarifado", label: "Almoxarifado", emoji: "📦", x: 24, y: 21, w: 6, h: 8, tint: "var(--color-success)" },
+  marketing: { id: "marketing", label: "Marketing", emoji: "📣", x: 30, y: 21, w: 6, h: 8, tint: "var(--color-success)" },
+  descanso: { id: "descanso", label: "Descanso", emoji: "☕", x: 36, y: 21, w: 11, h: 8, tint: "var(--color-warning)" },
 
   // ===== Áreas externas =====
   estacionamento: { id: "estacionamento", label: "Estacionamento", emoji: "🅿️", x: 1, y: 30, w: 46, h: 7, tint: "var(--color-muted-foreground)" },
