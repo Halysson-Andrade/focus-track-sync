@@ -124,20 +124,28 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 transform bg-sidebar text-sidebar-foreground transition-transform md:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 transform bg-sidebar text-sidebar-foreground transition-all duration-200 md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
+          collapsed ? "w-16" : "w-64",
         )}
       >
-        <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+        <div
+          className={cn(
+            "flex h-16 items-center gap-3 border-b border-sidebar-border",
+            collapsed ? "justify-center px-2" : "px-6",
+          )}
+        >
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
             <Activity className="h-5 w-5" />
           </div>
-          <div>
-            <div className="text-sm font-semibold leading-tight">Tempo</div>
-            <div className="text-xs opacity-70">Controle de Atividade</div>
-          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <div className="text-sm font-semibold leading-tight">Tempo</div>
+              <div className="text-xs opacity-70">Controle de Atividade</div>
+            </div>
+          )}
         </div>
-        <nav className="space-y-1 p-3">
+        <nav className={cn("space-y-1", collapsed ? "p-2" : "p-3")}>
           {nav
             .filter((n) => !n.admin || isAdmin)
             .map((item) => (
@@ -145,32 +153,48 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.to}
                 to={item.to}
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-md py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  collapsed ? "justify-center px-2" : "px-3",
+                )}
                 activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground" }}
                 activeOptions={{ exact: item.to === "/" }}
               >
-                <item.icon className="h-4 w-4" />
-                {item.label}
+                <item.icon className="h-4 w-4 shrink-0" />
+                {!collapsed && <span className="truncate">{item.label}</span>}
               </Link>
             ))}
         </nav>
-        <div className="absolute inset-x-0 bottom-0 border-t border-sidebar-border p-4">
-          <div className="mb-3 text-xs">
-            <div className="font-semibold">{profile?.nome ?? "..."}</div>
-            <div className="opacity-70 truncate">{profile?.email}</div>
-            {isAdmin && (
-              <div className="mt-1 inline-block rounded bg-sidebar-primary px-2 py-0.5 text-[10px] text-sidebar-primary-foreground">
-                ADMIN
-              </div>
-            )}
-          </div>
+        <div
+          className={cn(
+            "absolute inset-x-0 bottom-0 border-t border-sidebar-border",
+            collapsed ? "p-2" : "p-4",
+          )}
+        >
+          {!collapsed && (
+            <div className="mb-3 text-xs">
+              <div className="font-semibold">{profile?.nome ?? "..."}</div>
+              <div className="opacity-70 truncate">{profile?.email}</div>
+              {isAdmin && (
+                <div className="mt-1 inline-block rounded bg-sidebar-primary px-2 py-0.5 text-[10px] text-sidebar-primary-foreground">
+                  ADMIN
+                </div>
+              )}
+            </div>
+          )}
           <Button
             variant="ghost"
-            size="sm"
-            className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            size={collapsed ? "icon" : "sm"}
+            className={cn(
+              "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              collapsed ? "w-full" : "w-full justify-start",
+            )}
             onClick={logout}
+            title={collapsed ? "Sair" : undefined}
           >
-            <LogOut className="mr-2 h-4 w-4" /> Sair
+            <LogOut className={cn("h-4 w-4", !collapsed && "mr-2")} />
+            {!collapsed && "Sair"}
           </Button>
         </div>
       </aside>
@@ -180,10 +204,20 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       {/* Main */}
-      <div className="flex-1 md:ml-64">
+      <div className={cn("flex-1 transition-all duration-200", collapsed ? "md:ml-16" : "md:ml-64")}>
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-card/80 px-4 backdrop-blur md:px-8">
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setOpen(true)}>
             <Menu className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden md:inline-flex"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+            title={collapsed ? "Expandir menu" : "Recolher menu"}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
           </Button>
           <div className="flex-1" />
           <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Alternar tema">
