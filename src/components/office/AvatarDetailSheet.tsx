@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -7,10 +7,35 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useMensagensEnviadas, statusMensagem } from "@/hooks/use-mensagens";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
 import type { NavRow, Registro, UserSnapshot } from "@/lib/operacional-snapshot";
-import { Chrome, Monitor, Globe, Clock, MonitorPlay, Layers } from "lucide-react";
+import {
+  Chrome,
+  Monitor,
+  Globe,
+  Clock,
+  MonitorPlay,
+  Layers,
+  Send,
+  MessageSquare,
+} from "lucide-react";
+
+const STATUS_MSG_LABEL: Record<string, string> = {
+  pendente: "Pendente",
+  entregue: "Entregue",
+  lida: "Lida",
+};
+const STATUS_MSG_CLASS: Record<string, string> = {
+  pendente: "text-muted-foreground",
+  entregue: "text-amber-600 dark:text-amber-400",
+  lida: "text-emerald-600 dark:text-emerald-400",
+};
 
 interface Props {
   selected: UserSnapshot | null;
@@ -41,6 +66,26 @@ export function AvatarDetailSheet({
   onClose,
 }: Props) {
   const uid = selected?.profile.id;
+  const { mensagens, refetch: refetchMensagens } = useMensagensEnviadas(uid);
+  const [texto, setTexto] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  async function enviarMensagem() {
+    if (!uid || !texto.trim() || enviando) return;
+    setEnviando(true);
+    const { error } = await supabase.rpc("enviar_notificacao", {
+      p_destinatario: uid,
+      p_conteudo: texto.trim(),
+    });
+    setEnviando(false);
+    if (error) {
+      toast.error(error.message ?? "Falha ao enviar a mensagem");
+      return;
+    }
+    setTexto("");
+    toast.success("Mensagem enviada");
+    void refetchMensagens();
+  }
 
   const data = useMemo(() => {
     if (!uid) return null;
@@ -156,6 +201,69 @@ export function AvatarDetailSheet({
 
             <ScrollArea className="flex-1">
               <div className="space-y-5 p-5">
+                {/* Enviar mensagem (sobe como notificação no Chrome da pessoa) */}
+                <section>
+                  <SectionTitle icon={<Send className="h-4 w-4" />}>Enviar mensagem</SectionTitle>
+                  <Textarea
+                    value={texto}
+                    onChange={(e) => setTexto(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                        e.preventDefault();
+                        void enviarMensagem();
+                      }
+                    }}
+                    placeholder={`Mensagem para ${s.profile.nome.split(" ")[0]}…`}
+                    rows={3}
+                    className="resize-none text-sm"
+                  />
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-muted-foreground">
+                      Sobe como notificação no Chrome (⌘/Ctrl+Enter)
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => void enviarMensagem()}
+                      disabled={!texto.trim() || enviando}
+                    >
+                      <Send className="mr-1.5 h-3.5 w-3.5" />
+                      {enviando ? "Enviando…" : "Enviar"}
+                    </Button>
+                  </div>
+                </section>
+
+                {/* Histórico de mensagens enviadas */}
+                <section>
+                  <SectionTitle icon={<MessageSquare className="h-4 w-4" />}>
+                    Mensagens enviadas
+                  </SectionTitle>
+                  <div className="space-y-1.5">
+                    {mensagens.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Nenhuma mensagem enviada.</p>
+                    ) : (
+                      mensagens.map((m) => {
+                        const st = statusMensagem(m);
+                        return (
+                          <div
+                            key={m.id}
+                            className="rounded-md border bg-card px-2.5 py-1.5 text-sm"
+                          >
+                            <div className="whitespace-pre-wrap break-words">{m.conteudo}</div>
+                            <div className="mt-1 flex items-center justify-between gap-2">
+                              <span className="font-mono text-[11px] text-muted-foreground">
+                                {formatHM(m.criado_em)}
+                              </span>
+                              <span className={`text-[11px] font-medium ${STATUS_MSG_CLASS[st]}`}>
+                                {STATUS_MSG_LABEL[st]}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+
                 {/* Tela atual */}
                 <section>
                   <SectionTitle icon={<MonitorPlay className="h-4 w-4" />}>Tela atual</SectionTitle>

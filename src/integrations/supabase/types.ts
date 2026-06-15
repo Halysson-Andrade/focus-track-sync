@@ -226,6 +226,39 @@ export type Database = {
           },
         ]
       }
+      notificacoes: {
+        Row: {
+          conteudo: string
+          criado_em: string
+          destinatario_id: string
+          entregue_em: string | null
+          id: string
+          lido_em: string | null
+          remetente_id: string
+          remetente_nome: string
+        }
+        Insert: {
+          conteudo: string
+          criado_em?: string
+          destinatario_id: string
+          entregue_em?: string | null
+          id?: string
+          lido_em?: string | null
+          remetente_id: string
+          remetente_nome: string
+        }
+        Update: {
+          conteudo?: string
+          criado_em?: string
+          destinatario_id?: string
+          entregue_em?: string | null
+          id?: string
+          lido_em?: string | null
+          remetente_id?: string
+          remetente_nome?: string
+        }
+        Relationships: []
+      }
       presenca_desktop: {
         Row: {
           app_version: string | null
@@ -479,6 +512,25 @@ export type Database = {
       encerrar_sessoes_ociosas: {
         Args: { p_timeout_min?: number }
         Returns: number
+      }
+      enviar_notificacao: {
+        Args: { p_conteudo: string; p_destinatario: string }
+        Returns: {
+          conteudo: string
+          criado_em: string
+          destinatario_id: string
+          entregue_em: string | null
+          id: string
+          lido_em: string | null
+          remetente_id: string
+          remetente_nome: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "notificacoes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       has_role: {
         Args: {
