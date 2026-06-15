@@ -5,10 +5,14 @@
 // O mundo é um grid de WORLD.cols x WORLD.rows células. Posições são convertidas
 // em percentuais (left/top) na renderização, então o ambiente é responsivo:
 // o container mantém o aspect-ratio e os avatares acompanham a escala.
+//
+// Layout em DOIS andares (rola para baixo): andar de cima com setores +
+// utilidades; andar de baixo com treinamento, auditório, banheiros, vestiário,
+// estacionamento e jardim externo.
 
 import type { UserSnapshot } from "@/lib/operacional-snapshot";
 
-export const WORLD = { cols: 48, rows: 28 };
+export const WORLD = { cols: 48, rows: 48 };
 
 export type RoomId =
   | "recepcao"
@@ -24,6 +28,12 @@ export type RoomId =
   | "copa"
   | "descanso"
   | "lideranca"
+  | "treinamento"
+  | "auditorio"
+  | "banheiro_m"
+  | "banheiro_f"
+  | "vestiario"
+  | "estacionamento"
   | "externa";
 
 export interface Room {
@@ -37,13 +47,19 @@ export interface Room {
   h: number;
   /** Token de cor (CSS var) usado no fundo translúcido da sala. */
   tint: string;
+  /**
+   * "Mobília" decorativa renderizada no rodapé interno da sala — apenas para
+   * dar contexto visual (não interage com pathfinding nem com avatares).
+   */
+  furniture?: string[];
 }
 
-// Layout (48 x 28). Corredores = espaço não ocupado entre as salas.
-// Faixa esquerda: SAC/Recepção, Liderança, Espera. Centro: setores (2 linhas).
-// Faixa direita: Reunião, Copa, Descanso. Base: Externa (pátio).
+// Andar 1 (y=1..19) — entrada, setores, reunião/copa/descanso.
+// Corredor y=20..21 separa os andares.
+// Andar 2 (y=22..41) — treinamento, auditório, banheiros, vestiário, estacionamento.
+// Jardim externo (y=43..47) — pátio aberto onde ficam os offline.
 export const ROOMS: Record<RoomId, Room> = {
-  // ----- Faixa esquerda -----
+  // ===== Andar 1 — esquerda =====
   recepcao: {
     id: "recepcao",
     label: "SAC / Recepção",
@@ -53,6 +69,7 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 9,
     h: 5,
     tint: "var(--color-info)",
+    furniture: ["🛎️", "🛋️", "🪴"],
   },
   lideranca: {
     id: "lideranca",
@@ -63,6 +80,7 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 9,
     h: 6,
     tint: "var(--color-primary)",
+    furniture: ["🪑", "🗄️", "📈"],
   },
   espera: {
     id: "espera",
@@ -73,9 +91,10 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 9,
     h: 5,
     tint: "var(--color-muted-foreground)",
+    furniture: ["🪑", "🪑", "🪑", "📰"],
   },
 
-  // ----- Setores (centro): linha 1 -----
+  // ===== Andar 1 — setores (centro), linha 1 =====
   comercial: {
     id: "comercial",
     label: "Comercial",
@@ -85,6 +104,7 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 5,
     h: 8,
     tint: "var(--color-success)",
+    furniture: ["🖥️", "🖥️", "📞", "💼"],
   },
   producao: {
     id: "producao",
@@ -95,6 +115,7 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 5,
     h: 8,
     tint: "var(--color-success)",
+    furniture: ["🛠️", "⚙️", "🔧", "📦"],
   },
   juridico: {
     id: "juridico",
@@ -105,6 +126,7 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 5,
     h: 8,
     tint: "var(--color-success)",
+    furniture: ["⚖️", "📚", "📜"],
   },
   financeiro: {
     id: "financeiro",
@@ -115,9 +137,10 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 5,
     h: 8,
     tint: "var(--color-success)",
+    furniture: ["💰", "🧮", "📊", "🗂️"],
   },
 
-  // ----- Setores (centro): linha 2 -----
+  // ===== Andar 1 — setores, linha 2 =====
   ti: {
     id: "ti",
     label: "TI",
@@ -127,6 +150,7 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 5,
     h: 8,
     tint: "var(--color-success)",
+    furniture: ["🖥️", "🖲️", "🔌", "🛜"],
   },
   almoxarifado: {
     id: "almoxarifado",
@@ -137,6 +161,7 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 5,
     h: 8,
     tint: "var(--color-success)",
+    furniture: ["📦", "📦", "📦", "🗃️"],
   },
   marketing: {
     id: "marketing",
@@ -147,9 +172,10 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 5,
     h: 8,
     tint: "var(--color-success)",
+    furniture: ["📣", "🎨", "📷", "🖼️"],
   },
 
-  // ----- Faixa direita -----
+  // ===== Andar 1 — direita =====
   reuniao: {
     id: "reuniao",
     label: "Sala de Reunião",
@@ -159,6 +185,7 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 12,
     h: 7,
     tint: "var(--color-accent)",
+    furniture: ["📊", "🪑", "🪑", "🪑", "🪑", "📽️"],
   },
   copa: {
     id: "copa",
@@ -169,6 +196,7 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 12,
     h: 5,
     tint: "var(--color-info)",
+    furniture: ["🍽️", "🍽️", "☕", "🧊"],
   },
   descanso: {
     id: "descanso",
@@ -179,44 +207,120 @@ export const ROOMS: Record<RoomId, Room> = {
     w: 12,
     h: 5,
     tint: "var(--color-warning)",
+    furniture: ["🛋️", "☕", "🎮", "🪴"],
   },
 
-  // ----- Externa -----
-  externa: {
-    id: "externa",
-    label: "Fora do prédio",
-    emoji: "🌳",
+  // ===== Andar 2 — utilidades =====
+  vestiario: {
+    id: "vestiario",
+    label: "Vestiário",
+    emoji: "👕",
     x: 1,
-    y: 21,
-    w: 46,
+    y: 22,
+    w: 9,
     h: 6,
     tint: "var(--color-muted-foreground)",
+    furniture: ["👕", "🧥", "🚿"],
+  },
+  treinamento: {
+    id: "treinamento",
+    label: "Sala de Treinamento",
+    emoji: "🎓",
+    x: 11,
+    y: 22,
+    w: 14,
+    h: 10,
+    tint: "var(--color-primary)",
+    furniture: ["🎓", "📝", "📝", "📝", "📝", "📺"],
+  },
+  auditorio: {
+    id: "auditorio",
+    label: "Auditório",
+    emoji: "🎤",
+    x: 26,
+    y: 22,
+    w: 10,
+    h: 10,
+    tint: "var(--color-accent)",
+    furniture: ["🎤", "🪑", "🪑", "🪑", "🪑", "🪑"],
+  },
+  banheiro_m: {
+    id: "banheiro_m",
+    label: "Banheiro M",
+    emoji: "🚹",
+    x: 37,
+    y: 22,
+    w: 10,
+    h: 5,
+    tint: "var(--color-info)",
+    furniture: ["🚹", "🚽", "🧼"],
+  },
+  banheiro_f: {
+    id: "banheiro_f",
+    label: "Banheiro F",
+    emoji: "🚺",
+    x: 37,
+    y: 28,
+    w: 10,
+    h: 4,
+    tint: "var(--color-destructive)",
+    furniture: ["🚺", "🚽", "🧼"],
+  },
+  estacionamento: {
+    id: "estacionamento",
+    label: "Estacionamento",
+    emoji: "🅿️",
+    x: 1,
+    y: 34,
+    w: 46,
+    h: 8,
+    tint: "var(--color-muted-foreground)",
+    furniture: ["🚗", "🚙", "🚐", "🚓", "🏍️", "🚗", "🚙", "🚲"],
+  },
+
+  // ===== Jardim externo (pátio aberto) =====
+  externa: {
+    id: "externa",
+    label: "Jardim / Fora do prédio",
+    emoji: "🌳",
+    x: 1,
+    y: 43,
+    w: 46,
+    h: 4,
+    tint: "var(--color-success)",
+    furniture: ["🌳", "🌲", "🌷", "🪴", "🌳"],
   },
 };
 
 // Portas: células do perímetro que permanecem caminháveis (ligam a sala ao
 // corredor). O resto do perímetro vira parede no grid de pathfinding.
 export const DOORS: Record<RoomId, Cell[]> = {
+  // Andar 1
   recepcao: [{ cx: 9, cy: 3 }],
   lideranca: [{ cx: 9, cy: 9 }],
   espera: [{ cx: 9, cy: 16 }],
-  // Linha 1 dos setores: porta no rodapé, abrindo p/ corredor y=9-10.
   comercial: [{ cx: 13, cy: 8 }],
   producao: [{ cx: 19, cy: 8 }],
   juridico: [{ cx: 25, cy: 8 }],
   financeiro: [{ cx: 31, cy: 8 }],
-  // Linha 2 dos setores: porta no topo, abrindo p/ corredor y=9-10.
   ti: [{ cx: 13, cy: 11 }],
   almoxarifado: [{ cx: 19, cy: 11 }],
   marketing: [{ cx: 25, cy: 11 }],
-  // Faixa direita: portas voltadas p/ corredor x=34.
   reuniao: [{ cx: 35, cy: 4 }],
   copa: [{ cx: 35, cy: 11 }],
   descanso: [{ cx: 35, cy: 17 }],
-  externa: [], // sala aberta (sem paredes)
+  // Andar 2
+  vestiario: [{ cx: 9, cy: 25 }],
+  treinamento: [{ cx: 18, cy: 22 }],
+  auditorio: [{ cx: 31, cy: 22 }],
+  banheiro_m: [{ cx: 37, cy: 24 }],
+  banheiro_f: [{ cx: 37, cy: 30 }],
+  estacionamento: [{ cx: 24, cy: 34 }],
+  // Pátio aberto
+  externa: [],
 };
 
-// Salas "abertas" não recebem paredes no grid (área externa = pátio).
+// Salas "abertas" não recebem paredes no grid (pátio externo).
 export const OPEN_ROOMS: Set<RoomId> = new Set<RoomId>(["externa"]);
 
 export const ROOM_ORDER: RoomId[] = [
@@ -233,6 +337,12 @@ export const ROOM_ORDER: RoomId[] = [
   "reuniao",
   "copa",
   "descanso",
+  "vestiario",
+  "treinamento",
+  "auditorio",
+  "banheiro_m",
+  "banheiro_f",
+  "estacionamento",
   "externa",
 ];
 

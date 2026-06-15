@@ -18,6 +18,8 @@ import { Flame } from "lucide-react";
 import officeMap from "@/assets/office-map.jpg";
 
 
+
+
 interface Stats {
   total: number;
   online: number;
@@ -84,7 +86,7 @@ export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
         </button>
       </div>
 
-      {/* Palco do escritório — mapa pixel-art top-down */}
+      {/* Palco do escritório — mapa pixel-art top-down (planta atualizada) */}
       <div className="relative overflow-hidden rounded-2xl border-2 border-foreground/15 bg-black shadow-2xl">
         <div
           className="relative w-full"
@@ -99,6 +101,8 @@ export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
             style={{ imageRendering: "pixelated" }}
             loading="lazy"
           />
+
+
 
           {/* Vinheta sutil nas bordas para dar profundidade */}
           <div
@@ -211,28 +215,28 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
         top: `${top}%`,
         width: `${width}%`,
         height: `${height}%`,
+        // O mapa já desenha o ambiente — overlay só ressalta a sala (heatmap/borda).
         background:
           heat > 0
             ? `color-mix(in oklch, var(--color-destructive) ${Math.round(15 + heat * 45)}%, transparent)`
-            : `color-mix(in oklch, ${room.tint} 8%, transparent)`,
-        // Divisórias sólidas entre as salas — paredes visíveis no mapa.
+            : "transparent",
         border:
           heat > 0
             ? `2px solid color-mix(in oklch, var(--color-destructive) 75%, transparent)`
-            : `2px solid color-mix(in oklch, ${room.tint} 65%, rgba(0,0,0,0.55))`,
+            : `1px dashed color-mix(in oklch, ${room.tint} 35%, transparent)`,
         boxShadow:
           heat > 0
-            ? `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent), 0 0 0 1px rgba(0,0,0,0.4)`
-            : `inset 0 0 0 1px rgba(255,255,255,0.08), 0 1px 0 rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.55)`,
+            ? `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent)`
+            : undefined,
       }}
     >
-      {/* placa flutuante da sala */}
+      {/* Placa da sala */}
       <div
         className="pointer-events-auto m-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold shadow-lg backdrop-blur-md sm:text-xs"
         style={{
-          background: "rgba(15,15,20,0.72)",
+          background: "rgba(15,15,20,0.78)",
           color: "white",
-          border: `1px solid color-mix(in oklch, ${room.tint} 60%, transparent)`,
+          border: `1px solid color-mix(in oklch, ${room.tint} 65%, transparent)`,
         }}
       >
         <span>{room.emoji}</span>
