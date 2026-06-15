@@ -86,28 +86,22 @@ export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
         </button>
       </div>
 
-      {/* Palco do escritório — planta top-down desenhada pelas próprias salas */}
-      <div className="relative overflow-hidden rounded-2xl border-2 border-foreground/15 shadow-2xl"
-        style={{
-          // Piso corporativo (corredores): tom neutro com textura sutil de "carpete".
-          background:
-            "repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0 6px, rgba(0,0,0,0.04) 6px 12px), radial-gradient(ellipse at center, #1f2233 0%, #14161f 70%, #0c0d13 100%)",
-        }}
-      >
+      {/* Palco do escritório — mapa pixel-art top-down (planta atualizada) */}
+      <div className="relative overflow-hidden rounded-2xl border-2 border-foreground/15 bg-black shadow-2xl">
         <div
           className="relative w-full"
           style={{ aspectRatio: `${WORLD.cols} / ${WORLD.rows}` }}
         >
-          {/* Grade fina do piso — referência visual de planta arquitetônica */}
-          <div
+          {/* Mapa do escritório (background pixel-art) */}
+          <img
+            src={officeMap}
+            alt=""
             aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-30"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)",
-              backgroundSize: `${100 / WORLD.cols}% ${100 / WORLD.rows}%`,
-            }}
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ imageRendering: "pixelated" }}
+            loading="lazy"
           />
+
 
 
           {/* Vinheta sutil nas bordas para dar profundidade */}
