@@ -432,6 +432,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      abrir_registro: {
+        Args: { p_observacao?: string; p_status: string }
+        Returns: {
+          created_at: string
+          duracao_minutos: number | null
+          fim: string | null
+          id: string
+          inicio: string
+          observacao: string | null
+          status: Database["public"]["Enums"]["activity_status"]
+          usuario_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "registros_atividade"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       agregar_dia: { Args: { p_dia: string }; Returns: undefined }
       encerrar_sessoes_ociosas: {
         Args: { p_timeout_min?: number }
