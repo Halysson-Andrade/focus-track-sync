@@ -172,8 +172,8 @@ export function useCurrentSession(userId: string | undefined) {
 
   // Close current registro and open new one
   const transition = useCallback(
-    async (next: Status, observacao?: string) => {
-      if (!userId) return;
+    async (next: Status, observacao?: string): Promise<boolean> => {
+      if (!userId) return false;
       const now = new Date().toISOString();
       if (current) {
         const dur = (new Date(now).getTime() - new Date(current.inicio).getTime()) / 60000;
@@ -196,7 +196,7 @@ export function useCurrentSession(userId: string | undefined) {
         });
         if (error) {
           toast.error(error.message);
-          return;
+          return false;
         }
         setCurrent(data as Registro);
       } else {
@@ -204,6 +204,7 @@ export function useCurrentSession(userId: string | undefined) {
       }
       lastActivityRef.current = Date.now();
       await refresh();
+      return true;
     },
     [current, userId, refresh],
   );
@@ -237,14 +238,14 @@ export function useCurrentSession(userId: string | undefined) {
   }, [current, transition]);
 
   const start = useCallback(async () => {
-    await transition("ATIVO");
+    if (!(await transition("ATIVO"))) return;
     notify("Expediente iniciado", "Bom trabalho!");
     toast.success("Expediente iniciado");
   }, [transition]);
 
   const pause = useCallback(
     async (observacao: string) => {
-      await transition("PAUSA", observacao);
+      if (!(await transition("PAUSA", observacao))) return;
       notify("Pausa iniciada", "Aproveite seu intervalo.");
       toast("Pausa iniciada");
     },
@@ -253,7 +254,7 @@ export function useCurrentSession(userId: string | undefined) {
 
   const lunch = useCallback(
     async (observacao: string) => {
-      await transition("ALMOCO", observacao);
+      if (!(await transition("ALMOCO", observacao))) return;
       notify("Almoço iniciado", "Bom apetite!");
       toast("Almoço iniciado");
     },
@@ -261,7 +262,7 @@ export function useCurrentSession(userId: string | undefined) {
   );
 
   const resume = useCallback(async () => {
-    await transition("ATIVO");
+    if (!(await transition("ATIVO"))) return;
     setShowInactive(false);
     notify("Bem-vindo de volta", "Você voltou ao trabalho.");
     toast.success("De volta ao trabalho");
@@ -281,17 +282,21 @@ export function useCurrentSession(userId: string | undefined) {
         })
         .eq("id", current.id);
       // Mark journey end as a zero-length ENCERRADO row.
-      await supabase.from("registros_atividade").insert({
+      const { error } = await supabase.from("registros_atividade").insert({
         usuario_id: userId,
         status: "ENCERRADO",
         inicio: now,
         fim: now,
         duracao_minutos: 0,
       });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       setCurrent(null);
       await refresh();
     } else {
-      await transition("ENCERRADO");
+      if (!(await transition("ENCERRADO"))) return;
     }
     notify("Expediente encerrado", "Até logo!");
     toast.success("Expediente encerrado");
