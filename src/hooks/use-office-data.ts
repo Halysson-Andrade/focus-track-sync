@@ -103,7 +103,11 @@ export function useOfficeData(enabled: boolean): OfficeData {
     let cancelled = false;
     (async () => {
       const [profRes, rolesRes] = await Promise.all([
-        supabase.from("profiles").select("id, nome, email").eq("ativo", true).order("nome"),
+        supabase
+          .from("profiles")
+          .select("id, nome, email, cargo, departamento")
+          .eq("ativo", true)
+          .order("nome"),
         // Admin pode ler todos os papéis (RLS). Falha → set vazio (degrada sem crash).
         supabase.from("user_roles").select("user_id").eq("role", "admin"),
       ]);
