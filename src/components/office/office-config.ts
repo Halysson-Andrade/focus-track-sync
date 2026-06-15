@@ -48,47 +48,47 @@ export interface Room {
 // e jardim externo (y=37..47) logo abaixo. Coordenadas calibradas para
 // baterem com o mapa em src/assets/office-map.jpg.
 export const ROOMS: Record<RoomId, Room> = {
-  // ===== Linha de cima (rows 1-8) =====
-  recepcao: { id: "recepcao", label: "SAC / Recepção", emoji: "🛎️", x: 1, y: 1, w: 9, h: 8, tint: "var(--color-info)" },
-  comercial: { id: "comercial", label: "Comercial", emoji: "💼", x: 10, y: 1, w: 8, h: 8, tint: "var(--color-success)" },
-  juridico: { id: "juridico", label: "Jurídico", emoji: "⚖️", x: 18, y: 1, w: 9, h: 8, tint: "var(--color-success)" },
-  financeiro: { id: "financeiro", label: "Financeiro", emoji: "💰", x: 27, y: 1, w: 8, h: 8, tint: "var(--color-success)" },
-  reuniao: { id: "reuniao", label: "Sala de Reunião", emoji: "📊", x: 35, y: 1, w: 12, h: 11, tint: "var(--color-accent)" },
+  // ===== Linha de cima (rows 0-12) — calibrado ao mapa pixel-art =====
+  recepcao: { id: "recepcao", label: "SAC / Recepção", emoji: "🛎️", x: 0, y: 0, w: 9, h: 12, tint: "var(--color-info)" },
+  comercial: { id: "comercial", label: "Comercial", emoji: "💼", x: 9, y: 0, w: 10, h: 12, tint: "var(--color-success)" },
+  juridico: { id: "juridico", label: "Jurídico", emoji: "⚖️", x: 19, y: 0, w: 9, h: 12, tint: "var(--color-success)" },
+  financeiro: { id: "financeiro", label: "Financeiro", emoji: "💰", x: 28, y: 0, w: 8, h: 12, tint: "var(--color-success)" },
+  reuniao: { id: "reuniao", label: "Sala de Reunião", emoji: "📊", x: 36, y: 0, w: 12, h: 12, tint: "var(--color-accent)" },
 
-  // ===== Faixa do meio (rows 9-20) — Produção de Eventos é a maior =====
-  lideranca: { id: "lideranca", label: "Liderança", emoji: "👔", x: 1, y: 9, w: 9, h: 12, tint: "var(--color-primary)" },
-  producao: { id: "producao", label: "Produção de Eventos", emoji: "🎪", x: 10, y: 9, w: 25, h: 12, tint: "var(--color-success)" },
-  copa: { id: "copa", label: "Copa / Refeitório", emoji: "🍽️", x: 35, y: 12, w: 12, h: 9, tint: "var(--color-info)" },
+  // ===== Faixa do meio (rows 12-25) — Produção é a maior =====
+  lideranca: { id: "lideranca", label: "Liderança", emoji: "👔", x: 0, y: 12, w: 10, h: 13, tint: "var(--color-primary)" },
+  producao: { id: "producao", label: "Produção de Eventos", emoji: "🎪", x: 10, y: 12, w: 24, h: 13, tint: "var(--color-success)" },
+  copa: { id: "copa", label: "Copa / Refeitório", emoji: "🍽️", x: 34, y: 12, w: 14, h: 13, tint: "var(--color-info)" },
 
-  // ===== Linha de baixo (rows 21-29) — TI expandida =====
-  espera: { id: "espera", label: "Espera", emoji: "🪑", x: 1, y: 21, w: 5, h: 8, tint: "var(--color-muted-foreground)" },
-  ti: { id: "ti", label: "TI", emoji: "🖥️", x: 6, y: 21, w: 18, h: 8, tint: "var(--color-success)" },
-  almoxarifado: { id: "almoxarifado", label: "Almoxarifado", emoji: "📦", x: 24, y: 21, w: 6, h: 8, tint: "var(--color-success)" },
-  marketing: { id: "marketing", label: "Marketing", emoji: "📣", x: 30, y: 21, w: 6, h: 8, tint: "var(--color-success)" },
-  descanso: { id: "descanso", label: "Descanso", emoji: "☕", x: 36, y: 21, w: 11, h: 8, tint: "var(--color-warning)" },
+  // ===== Linha de baixo (rows 25-35) — TI expandida =====
+  espera: { id: "espera", label: "Espera", emoji: "🪑", x: 0, y: 25, w: 5, h: 10, tint: "var(--color-muted-foreground)" },
+  ti: { id: "ti", label: "TI", emoji: "🖥️", x: 5, y: 25, w: 18, h: 10, tint: "var(--color-success)" },
+  almoxarifado: { id: "almoxarifado", label: "Almoxarifado", emoji: "📦", x: 23, y: 25, w: 6, h: 10, tint: "var(--color-success)" },
+  marketing: { id: "marketing", label: "Marketing", emoji: "📣", x: 29, y: 25, w: 8, h: 10, tint: "var(--color-success)" },
+  descanso: { id: "descanso", label: "Descanso", emoji: "☕", x: 37, y: 25, w: 11, h: 10, tint: "var(--color-warning)" },
 
   // ===== Áreas externas =====
-  estacionamento: { id: "estacionamento", label: "Estacionamento", emoji: "🅿️", x: 1, y: 30, w: 46, h: 7, tint: "var(--color-muted-foreground)" },
-  externa: { id: "externa", label: "Jardim / Fora do prédio", emoji: "🌳", x: 1, y: 37, w: 46, h: 10, tint: "var(--color-success)" },
+  estacionamento: { id: "estacionamento", label: "Estacionamento", emoji: "🅿️", x: 0, y: 35, w: 48, h: 5, tint: "var(--color-muted-foreground)" },
+  externa: { id: "externa", label: "Jardim / Fora do prédio", emoji: "🌳", x: 0, y: 40, w: 48, h: 8, tint: "var(--color-success)" },
 };
 
 // Portas: células do perímetro que permanecem caminháveis (ligam a sala ao
 // corredor). O resto do perímetro vira parede no grid de pathfinding.
 export const DOORS: Record<RoomId, Cell[]> = {
-  recepcao: [{ cx: 10, cy: 4 }],
-  comercial: [{ cx: 14, cy: 9 }],
-  juridico: [{ cx: 22, cy: 9 }],
-  financeiro: [{ cx: 31, cy: 9 }],
-  reuniao: [{ cx: 35, cy: 6 }],
-  lideranca: [{ cx: 10, cy: 15 }],
-  producao: [{ cx: 22, cy: 20 }],
-  copa: [{ cx: 35, cy: 16 }],
-  espera: [{ cx: 6, cy: 25 }],
-  ti: [{ cx: 15, cy: 21 }],
-  almoxarifado: [{ cx: 24, cy: 21 }],
-  marketing: [{ cx: 33, cy: 21 }],
-  descanso: [{ cx: 36, cy: 25 }],
-  estacionamento: [{ cx: 24, cy: 30 }],
+  recepcao: [{ cx: 5, cy: 12 }],
+  comercial: [{ cx: 14, cy: 12 }],
+  juridico: [{ cx: 23, cy: 12 }],
+  financeiro: [{ cx: 31, cy: 12 }],
+  reuniao: [{ cx: 42, cy: 12 }],
+  lideranca: [{ cx: 10, cy: 18 }],
+  producao: [{ cx: 22, cy: 25 }],
+  copa: [{ cx: 34, cy: 18 }],
+  espera: [{ cx: 5, cy: 28 }],
+  ti: [{ cx: 14, cy: 25 }],
+  almoxarifado: [{ cx: 26, cy: 25 }],
+  marketing: [{ cx: 33, cy: 25 }],
+  descanso: [{ cx: 42, cy: 25 }],
+  estacionamento: [{ cx: 24, cy: 35 }],
   externa: [],
 };
 
