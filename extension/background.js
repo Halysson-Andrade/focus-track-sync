@@ -411,12 +411,41 @@ async function broadcastHeartbeat() {
   } catch {}
 }
 
+// Presença "extensão viva" mediada por banco: enquanto LOGADO (mesmo ocioso),
+// grava um heartbeat em presenca_extensao. Diferente do broadcastHeartbeat
+// (postMessage, só quando ativo): este é um sinal de "instalada e rodando" que
+// o app DESKTOP (processo separado, sem acesso ao postMessage) lê para liberar
+// o "Iniciar expediente". Upsert por usuario_id (merge-duplicates).
+async function upsertPresencaExtensao() {
+  const session = await getSession();
+  if (!session) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/presenca_extensao`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify({
+        usuario_id: session.user.id,
+        ultimo_visto: new Date().toISOString(),
+        ext_version: chrome.runtime.getManifest().version,
+      }),
+    });
+  } catch {}
+}
+
 // Heartbeat frequente para o app (1 min). Combinado com qualquer troca de
 // aba abaixo, o app não marca inatividade enquanto a extensão estiver vendo
 // atividade em outras abas/janelas.
 chrome.alarms.create("appHeartbeat", { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener(async (a) => {
-  if (a.name === "appHeartbeat") await broadcastHeartbeat();
+  if (a.name === "appHeartbeat") {
+    await broadcastHeartbeat();
+    await upsertPresencaExtensao();
+  }
 });
 
 // Troca de aba / mudança de URL / foco de janela = sinal de atividade.
@@ -439,6 +468,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     macroStatus = null;
     loadWhitelist();
     fetchMacroStatus();
+    upsertPresencaExtensao(); // beat imediato p/ o gate do desktop ver a extensão
     chrome.tabs.query({ active: true, lastFocusedWindow: true }, ([tab]) => {
       if (tab) handleActive(tab);
     });
@@ -480,4 +510,5 @@ chrome.runtime.onInstalled.addListener(async () => {
 restored.then(() => {
   loadWhitelist();
   fetchMacroStatus();
+  upsertPresencaExtensao(); // beat ao acordar o service worker
 });

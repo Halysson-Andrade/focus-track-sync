@@ -38,7 +38,13 @@ export type NavRow = {
 /** Heartbeat de presença do app desktop (cadência ~30s enquanto não-ocioso). */
 export type Presenca = {
   usuario_id: string;
+  /** Atividade REAL (input). Ancora a presença `isOnline`. */
   ultimo_ativo: string;
+  /** "Cliente vivo" — pulsa mesmo ocioso (presenca_desktop/extensao.ultimo_visto).
+   *  Ancora o selo de "monitoração ativa", NÃO o `isOnline`. */
+  ultimo_visto?: string | null;
+  /** Origem do heartbeat. `web`/`desktop` ancoram online; `ext` só monitoração. */
+  fonte?: "desktop" | "web" | "ext";
 };
 
 export interface UserSnapshot {
@@ -46,6 +52,10 @@ export interface UserSnapshot {
   /** Usuário com papel admin — alocado na sala de Liderança quando online. */
   isAdmin: boolean;
   isOnline: boolean;
+  /** Extensão do navegador enviando dados recentemente (monitoração ativa). */
+  extActive: boolean;
+  /** App desktop enviando heartbeat/uso recentemente (monitoração ativa). */
+  desktopActive: boolean;
   currentStatus: string;
   currentSince: string | null;
   totals: { ATIVO: number; PAUSA: number; ALMOCO: number; INATIVO: number };
@@ -77,6 +87,29 @@ function durSec(n: NavRow, nowTs: number): number {
  */
 const MEETING_RECENCY_MS = 5 * 60_000;
 
+/**
+ * Janelas de "monitoração ativa" por cliente (selos no avatar). Distintas da
+ * presença online (15 min): aqui queremos saber se o CLIENTE está vivo AGORA.
+ * Os clientes gravam um heartbeat dedicado de "app vivo" (~60s, mesmo ocioso):
+ *   - desktop: `presenca_desktop.ultimo_visto`.
+ *   - extensão: `presenca_extensao.ultimo_visto`.
+ * Fallback (cliente antigo sem esse heartbeat): último beat de navegação.
+ */
+const DESKTOP_ACTIVE_MS = 2 * 60_000;
+const EXT_ACTIVE_MS = 6 * 60_000;
+
+/** Instante do último "beat" conhecido de uma fonte de navegação (aberto ou não). */
+function lastBeatOf(rows: NavRow[]): number {
+  let max = 0;
+  for (const n of rows) {
+    const beat = n.fim
+      ? new Date(n.fim).getTime()
+      : new Date(n.inicio).getTime() + (n.duracao_segundos ?? 0) * 1000;
+    if (beat > max) max = beat;
+  }
+  return max;
+}
+
 /** `true` se o segmento está aberto e com atividade recente (em foco agora). */
 function isLiveSegment(n: NavRow | undefined, nowTs: number): boolean {
   if (!n || n.fim) return false;
@@ -103,12 +136,24 @@ export function buildSnapshots(
   presenca: Presenca[] = [],
   adminIds: Set<string> = new Set(),
 ): UserSnapshot[] {
-  // Heartbeat desktop por usuário (último por `ultimo_ativo`).
+  // Mapas de heartbeat por usuário:
+  //   - `presencaByUser`: ATIVIDADE real (ultimo_ativo) de desktop+web. Ancora o
+  //     `isOnline` — semântica preservada (extensão NÃO entra aqui).
+  //   - `desktopAliveByUser`/`extAliveByUser`: "cliente vivo" (ultimo_visto, pulsa
+  //     mesmo ocioso) p/ os selos de monitoração ativa.
   const presencaByUser = new Map<string, number>();
+  const desktopAliveByUser = new Map<string, number>();
+  const extAliveByUser = new Map<string, number>();
   for (const pr of presenca) {
-    const ts = new Date(pr.ultimo_ativo).getTime();
-    const prev = presencaByUser.get(pr.usuario_id) ?? 0;
-    if (ts > prev) presencaByUser.set(pr.usuario_id, ts);
+    const activeTs = pr.ultimo_ativo ? new Date(pr.ultimo_ativo).getTime() : 0;
+    const aliveTs = pr.ultimo_visto ? new Date(pr.ultimo_visto).getTime() : 0;
+    if (pr.fonte !== "ext" && activeTs > (presencaByUser.get(pr.usuario_id) ?? 0))
+      presencaByUser.set(pr.usuario_id, activeTs);
+    const aliveBeat = Math.max(activeTs, aliveTs);
+    if (pr.fonte === "desktop" && aliveBeat > (desktopAliveByUser.get(pr.usuario_id) ?? 0))
+      desktopAliveByUser.set(pr.usuario_id, aliveBeat);
+    if (pr.fonte === "ext" && aliveBeat > (extAliveByUser.get(pr.usuario_id) ?? 0))
+      extAliveByUser.set(pr.usuario_id, aliveBeat);
   }
   return profiles.map((p) => {
     const myReg = registros.filter((r) => r.usuario_id === p.id);
@@ -176,6 +221,13 @@ export function buildSnapshots(
     const isOnline = !!open || hasRecentSignal;
     const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
 
+    // Monitoração ativa por cliente (selos no avatar): heartbeat "cliente vivo"
+    // (ultimo_visto) com fallback no último beat de navegação do cliente antigo.
+    const desktopBeat = Math.max(desktopAliveByUser.get(p.id) ?? 0, lastBeatOf(myDesk));
+    const extBeat = Math.max(extAliveByUser.get(p.id) ?? 0, lastBeatOf(myExt));
+    const desktopActive = desktopBeat > 0 && nowTs - desktopBeat < DESKTOP_ACTIVE_MS;
+    const extActive = extBeat > 0 && nowTs - extBeat < EXT_ACTIVE_MS;
+
     const lastExt = latestOpenOrRecent(myExt);
     const lastUrl =
       lastExt && lastExt.url
@@ -205,6 +257,8 @@ export function buildSnapshots(
       profile: p,
       isAdmin: adminIds.has(p.id),
       isOnline,
+      extActive,
+      desktopActive,
       currentStatus: open?.status ?? (isOnline ? "ATIVO" : "OFFLINE"),
       currentSince: open?.inicio ?? null,
       totals,

@@ -11,9 +11,17 @@ const ONLINE_WINDOW_MS = 120_000; // 2 minutos
  *
  * - `extOnline`: a extensão envia HEARTBEAT via postMessage enquanto está
  *   ativa em alguma aba. Recebemos um nos últimos 2min => online.
- * - `desktopOnline`: o app desktop escreve em `presenca_desktop.ultimo_ativo`
- *   periodicamente. Linha recente (<2min) => online.
+ * - `desktopOnline`: o app desktop novo escreve `presenca_desktop.ultimo_visto`
+ *   continuamente enquanto logado (mesmo ocioso). Usamos o mais recente entre
+ *   `ultimo_visto` e `ultimo_ativo` (fallback p/ desktop antigo, que só grava
+ *   `ultimo_ativo`). Linha recente (<2min) => online.
  */
+function desktopTs(data: { ultimo_visto?: string | null; ultimo_ativo?: string | null } | null) {
+  if (!data) return 0;
+  const v = data.ultimo_visto ? new Date(data.ultimo_visto).getTime() : 0;
+  const a = data.ultimo_ativo ? new Date(data.ultimo_ativo).getTime() : 0;
+  return Math.max(v, a);
+}
 export function usePresenceStatus(userId: string | undefined) {
   const [extOnline, setExtOnline] = useState(false);
   const [desktopOnline, setDesktopOnline] = useState(false);
@@ -42,13 +50,12 @@ export function usePresenceStatus(userId: string | undefined) {
     const check = async () => {
       const { data } = await supabase
         .from("presenca_desktop")
-        .select("ultimo_ativo")
+        .select("ultimo_visto, ultimo_ativo")
         .eq("usuario_id", userId)
         .maybeSingle();
       if (cancelled) return;
-      if (data?.ultimo_ativo) {
-        setLastDesktop(new Date(data.ultimo_ativo).getTime());
-      }
+      const ts = desktopTs(data);
+      if (ts) setLastDesktop(ts);
     };
     check();
     const i = window.setInterval(check, 15_000);
@@ -82,11 +89,11 @@ export function usePresenceStatus(userId: string | undefined) {
     if (userId) {
       const { data } = await supabase
         .from("presenca_desktop")
-        .select("ultimo_ativo")
+        .select("ultimo_visto, ultimo_ativo")
         .eq("usuario_id", userId)
         .maybeSingle();
-      if (data?.ultimo_ativo) {
-        const ts = new Date(data.ultimo_ativo).getTime();
+      const ts = desktopTs(data);
+      if (ts) {
         desktop = now - ts < ONLINE_WINDOW_MS;
         setLastDesktop(ts);
       }

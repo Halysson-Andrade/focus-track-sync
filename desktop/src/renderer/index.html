@@ -6,6 +6,10 @@
     <style>
       :root {
         color-scheme: light dark;
+        --ativo: #22c55e;
+        --pausa: #f59e0b;
+        --almoco: #3b82f6;
+        --inativo: #64748b;
       }
       * {
         box-sizing: border-box;
@@ -15,14 +19,14 @@
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: #0f172a;
         color: #e2e8f0;
-        padding: 24px;
+        padding: 20px;
       }
       h1 {
         font-size: 18px;
         margin: 0 0 4px;
       }
       p.sub {
-        margin: 0 0 20px;
+        margin: 0 0 16px;
         color: #94a3b8;
         font-size: 13px;
       }
@@ -39,7 +43,8 @@
         color: #94a3b8;
         margin-bottom: 4px;
       }
-      input {
+      input,
+      textarea {
         width: 100%;
         padding: 9px 11px;
         border-radius: 8px;
@@ -48,6 +53,7 @@
         color: #e2e8f0;
         font-size: 14px;
         margin-bottom: 10px;
+        font-family: inherit;
       }
       button {
         width: 100%;
@@ -60,8 +66,12 @@
         cursor: pointer;
         font-size: 14px;
       }
-      button:hover {
+      button:hover:not(:disabled) {
         background: #2563eb;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
       }
       button.ghost {
         background: transparent;
@@ -70,6 +80,13 @@
       }
       button.danger {
         background: #dc2626;
+      }
+      button.danger:hover:not(:disabled) {
+        background: #b91c1c;
+      }
+      button.warn {
+        background: var(--pausa);
+        color: #1e293b;
       }
       .row {
         display: flex;
@@ -80,24 +97,18 @@
       }
       .badge {
         display: inline-block;
-        padding: 3px 8px;
+        padding: 4px 10px;
         border-radius: 999px;
-        font-size: 11px;
-        font-weight: 600;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
       }
-      .on {
-        background: #166534;
-        color: #bbf7d0;
-      }
-      .off {
-        background: #7f1d1d;
-        color: #fecaca;
-      }
-      .current {
-        font-size: 16px;
-        font-weight: 600;
-        color: #e2e8f0;
-      }
+      .badge.ATIVO { background: #166534; color: #bbf7d0; }
+      .badge.PAUSA { background: #78350f; color: #fde68a; }
+      .badge.ALMOCO { background: #1e3a8a; color: #bfdbfe; }
+      .badge.INATIVO { background: #334155; color: #cbd5e1; }
+      .badge.ENCERRADO { background: #7f1d1d; color: #fecaca; }
       .proc {
         font-size: 11px;
         color: #64748b;
@@ -109,7 +120,7 @@
         margin-top: 6px;
       }
       .hide {
-        display: none;
+        display: none !important;
       }
       .switch {
         display: flex;
@@ -118,11 +129,123 @@
         padding: 8px 0;
         font-size: 13px;
       }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .cta {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .cta .full {
+        grid-column: 1 / -1;
+      }
+      .sectiontitle {
+        font-size: 12px;
+        color: #94a3b8;
+        margin: 4px 0 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .stat {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        padding: 10px;
+      }
+      .stat .k {
+        font-size: 11px;
+        color: #94a3b8;
+      }
+      .stat .v {
+        font-size: 16px;
+        font-weight: 700;
+        margin-top: 2px;
+      }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+      .ext {
+        font-size: 12px;
+        margin: 2px 0 10px;
+      }
+      .ext .on { color: #86efac; }
+      .ext .off { color: #fca5a5; }
+      #timeline {
+        position: relative;
+        width: 100%;
+        height: 40px;
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      #timeline .seg {
+        position: absolute;
+        top: 8px;
+        height: 24px;
+        border-radius: 3px;
+      }
+      #timeline .idle {
+        position: absolute;
+        top: 14px;
+        height: 12px;
+        background-image: repeating-linear-gradient(
+          45deg,
+          rgba(255, 255, 255, 0.25),
+          rgba(255, 255, 255, 0.25) 2px,
+          transparent 2px,
+          transparent 5px
+        );
+        pointer-events: none;
+      }
+      .tl-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        color: #64748b;
+        margin-top: 4px;
+      }
+      /* Overlay (modais) */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 50;
+      }
+      .modal {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 18px;
+        width: 100%;
+        max-width: 360px;
+      }
+      .modal h3 {
+        margin: 0 0 6px;
+        font-size: 16px;
+      }
+      .modal p {
+        margin: 0 0 12px;
+        font-size: 13px;
+        color: #94a3b8;
+      }
     </style>
   </head>
   <body>
     <h1>Focus Track Monitor</h1>
-    <p class="sub">Registra os aplicativos usados na sua máquina.</p>
+    <p class="sub">Controle de jornada e monitoramento de atividade.</p>
 
     <!-- LOGIN -->
     <div id="login" class="card">
@@ -135,38 +258,108 @@
     </div>
 
     <!-- DASHBOARD -->
-    <div id="dash" class="card hide">
-      <div class="row">
-        <div>
-          <div style="font-size: 12px; color: #94a3b8">Logado como</div>
-          <div id="who" style="font-size: 14px; font-weight: 600"></div>
+    <div id="dash" class="hide">
+      <!-- Status + jornada -->
+      <div class="card">
+        <div class="row">
+          <div>
+            <div style="font-size: 12px; color: #94a3b8">Logado como</div>
+            <div id="who" style="font-size: 14px; font-weight: 600"></div>
+          </div>
+          <span id="status-badge" class="badge ENCERRADO">—</span>
         </div>
-        <span id="status-badge" class="badge off">parado</span>
+
+        <div class="ext" id="ext-status"></div>
+
+        <div class="sectiontitle">Controles da jornada</div>
+        <div class="cta">
+          <button id="btn-start" class="full">Iniciar expediente</button>
+          <button id="btn-pause" class="warn">Pausa</button>
+          <button id="btn-lunch" class="warn">Almoço</button>
+          <button id="btn-resume" class="full">Retornar</button>
+          <button id="btn-stop" class="danger full">Encerrar expediente</button>
+        </div>
+        <div id="action-err" class="err"></div>
       </div>
 
-      <div style="margin: 14px 0 6px; font-size: 12px; color: #94a3b8">Aplicativo ativo</div>
-      <div id="current-app" class="current">—</div>
-      <div id="current-proc" class="proc"></div>
-      <div id="sync-info" class="proc" style="margin-top: 8px"></div>
-      <div id="sync-err" class="err"></div>
-
-      <div style="height: 14px"></div>
-      <div class="row">
-        <button id="btn-toggle">Iniciar monitoramento</button>
+      <!-- Totais -->
+      <div class="card">
+        <div class="sectiontitle">Hoje</div>
+        <div class="grid2">
+          <div class="stat"><div class="k"><span class="dot" style="background: var(--ativo)"></span>Ativo</div><div class="v" id="t-ativo">0min</div></div>
+          <div class="stat"><div class="k"><span class="dot" style="background: var(--pausa)"></span>Pausa</div><div class="v" id="t-pausa">0min</div></div>
+          <div class="stat"><div class="k"><span class="dot" style="background: var(--almoco)"></span>Almoço</div><div class="v" id="t-almoco">0min</div></div>
+          <div class="stat"><div class="k"><span class="dot" style="background: var(--inativo)"></span>Inativo</div><div class="v" id="t-inativo">0min</div></div>
+        </div>
+        <div style="height: 14px"></div>
+        <div class="sectiontitle">Linha do tempo</div>
+        <div id="timeline"></div>
+        <div class="tl-label"><span id="tl-start"></span><span id="tl-end"></span></div>
       </div>
 
-      <div class="switch">
-        <span>Iniciar com o Windows/macOS</span>
-        <input id="auto-launch" type="checkbox" />
-      </div>
+      <!-- App atual + opções -->
+      <div class="card">
+        <div style="font-size: 12px; color: #94a3b8">Aplicativo ativo</div>
+        <div id="current-app" style="font-size: 15px; font-weight: 600">—</div>
+        <div id="current-proc" class="proc"></div>
+        <div id="sync-err" class="err"></div>
 
-      <div style="height: 6px"></div>
-      <button class="ghost" id="btn-logout">Sair</button>
+        <div style="height: 10px"></div>
+        <button class="ghost" id="btn-portal">Abrir portal web</button>
+
+        <div class="switch">
+          <span>Iniciar com o Windows/macOS</span>
+          <input id="auto-launch" type="checkbox" style="width: auto; margin: 0" />
+        </div>
+        <button class="ghost" id="btn-logout">Sair (logout)</button>
+      </div>
+    </div>
+
+    <!-- Modal: justificativa de pausa/almoço -->
+    <div id="reason-overlay" class="overlay hide">
+      <div class="modal">
+        <h3 id="reason-title">Iniciar pausa</h3>
+        <p>Informe uma justificativa antes de continuar.</p>
+        <textarea id="reason-text" rows="3" placeholder="Ex: pausa para café"></textarea>
+        <div class="grid2">
+          <button class="ghost" id="reason-cancel">Cancelar</button>
+          <button id="reason-confirm" disabled>Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: gate da extensão -->
+    <div id="gate-overlay" class="overlay hide">
+      <div class="modal">
+        <h3>Extensão do Chrome necessária</h3>
+        <p>
+          Para iniciar o expediente, a extensão do Chrome precisa estar ativa e logada.
+          Abra o portal, ative/instale a extensão e tente novamente.
+        </p>
+        <div class="grid2">
+          <button class="ghost" id="gate-close">Fechar</button>
+          <button id="gate-portal">Abrir portal</button>
+        </div>
+      </div>
     </div>
 
     <script>
       const $ = (id) => document.getElementById(id);
-      let monitoring = false;
+      const STATUS_COLOR = {
+        ATIVO: "var(--ativo)",
+        PAUSA: "var(--pausa)",
+        ALMOCO: "var(--almoco)",
+        INATIVO: "var(--inativo)",
+        ENCERRADO: "transparent",
+      };
+
+      function formatDuration(minutes) {
+        if (!minutes || minutes < 0) return "0min";
+        const h = Math.floor(minutes / 60);
+        const m = Math.floor(minutes % 60);
+        if (h === 0) return `${m}min`;
+        return `${h}h ${String(m).padStart(2, "0")}min`;
+      }
 
       async function refresh() {
         const user = await window.api.getUser();
@@ -174,8 +367,7 @@
           $("login").classList.add("hide");
           $("dash").classList.remove("hide");
           $("who").textContent = user.email;
-          const s = await window.api.status();
-          applyStatus(s);
+          applyStatus(await window.api.status());
           $("auto-launch").checked = await window.api.getAutoLaunch();
         } else {
           $("login").classList.remove("hide");
@@ -184,19 +376,163 @@
       }
 
       function applyStatus(s) {
-        monitoring = s.monitoring;
-        $("status-badge").textContent = s.monitoring ? "monitorando" : "parado";
-        $("status-badge").className = "badge " + (s.monitoring ? "on" : "off");
-        $("btn-toggle").textContent = s.monitoring
-          ? "Parar monitoramento"
-          : "Iniciar monitoramento";
-        $("btn-toggle").className = s.monitoring ? "danger" : "";
+        if (!s) return;
+        const macro = s.macroStatus || "ENCERRADO";
+        const canStart = !s.macroStatus || s.macroStatus === "ENCERRADO";
+        const isActive = s.macroStatus === "ATIVO";
+        const isPaused = ["PAUSA", "ALMOCO", "INATIVO"].includes(s.macroStatus);
+
+        $("status-badge").textContent = macro.toLowerCase();
+        $("status-badge").className = "badge " + macro;
+
+        // Extensão (gate do iniciar)
+        const ext = !!s.extOnline;
+        $("ext-status").innerHTML = ext
+          ? '<span class="on">● Extensão do Chrome online</span>'
+          : '<span class="off">● Extensão do Chrome offline — necessária para iniciar</span>';
+
+        // Botões por estado
+        $("btn-start").disabled = !canStart;
+        $("btn-start").classList.toggle("hide", !canStart);
+        $("btn-pause").disabled = !isActive;
+        $("btn-lunch").disabled = !isActive;
+        $("btn-resume").disabled = !isPaused;
+        $("btn-resume").classList.toggle("hide", !isPaused);
+        $("btn-stop").disabled = canStart;
+        $("btn-pause").classList.toggle("hide", !isActive);
+        $("btn-lunch").classList.toggle("hide", !isActive);
+
+        // App atual
         $("current-app").textContent = s.current?.label || "—";
         $("current-proc").textContent = s.current?.process || "";
-        $("sync-info").textContent = s.synced != null ? "Registros enviados: " + s.synced : "";
         $("sync-err").textContent = s.lastError || "";
+
+        // Totais + timeline
+        const totals = s.today?.totals || { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
+        $("t-ativo").textContent = formatDuration(totals.ATIVO);
+        $("t-pausa").textContent = formatDuration(totals.PAUSA);
+        $("t-almoco").textContent = formatDuration(totals.ALMOCO);
+        $("t-inativo").textContent = formatDuration(totals.INATIVO);
+        renderTimeline(s.today?.records || [], s.today?.idleEvents || []);
       }
 
+      // Barra linear simplificada: segmentos do dia coloridos por status +
+      // faixas tracejadas de ociosidade. Escala linear da janela de trabalho.
+      function renderTimeline(records, idleEvents) {
+        const tl = $("timeline");
+        tl.innerHTML = "";
+        const segs = records.filter((r) => r.status !== "ENCERRADO" && r.inicio);
+        if (!segs.length) {
+          $("tl-start").textContent = "";
+          $("tl-end").textContent = "";
+          return;
+        }
+        const nowMs = Date.now();
+        let minT = Infinity;
+        let maxT = -Infinity;
+        for (const r of segs) {
+          const a = new Date(r.inicio).getTime();
+          const b = r.fim ? new Date(r.fim).getTime() : nowMs;
+          minT = Math.min(minT, a);
+          maxT = Math.max(maxT, b);
+        }
+        const span = Math.max(1, maxT - minT);
+        const pct = (t) => ((t - minT) / span) * 100;
+
+        for (const r of segs) {
+          const a = new Date(r.inicio).getTime();
+          const b = r.fim ? new Date(r.fim).getTime() : nowMs;
+          const el = document.createElement("div");
+          el.className = "seg";
+          el.style.left = pct(a) + "%";
+          el.style.width = Math.max(0.5, pct(b) - pct(a)) + "%";
+          el.style.background = STATUS_COLOR[r.status] || "var(--inativo)";
+          el.title = `${r.status} — ${formatHM(a)}–${r.fim ? formatHM(b) : "agora"}`;
+          tl.appendChild(el);
+        }
+        for (const ev of idleEvents) {
+          if (!ev.inicio || !ev.fim) continue;
+          const a = new Date(ev.inicio).getTime();
+          const b = new Date(ev.fim).getTime();
+          if (b < minT || a > maxT) continue;
+          const el = document.createElement("div");
+          el.className = "idle";
+          const l = Math.max(0, pct(a));
+          el.style.left = l + "%";
+          el.style.width = Math.max(0.4, Math.min(100, pct(b)) - l) + "%";
+          el.title = `Ocioso (${ev.fonte || "—"})`;
+          tl.appendChild(el);
+        }
+        $("tl-start").textContent = formatHM(minT);
+        $("tl-end").textContent = formatHM(maxT);
+      }
+
+      function formatHM(ms) {
+        const d = new Date(ms);
+        return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      }
+
+      // --- Ações ---
+      async function doTransition(status, observacao) {
+        $("action-err").textContent = "";
+        const r = await window.api.transition(status, observacao);
+        if (r?.error === "extension_offline") {
+          $("gate-overlay").classList.remove("hide");
+          return;
+        }
+        if (r?.error) {
+          $("action-err").textContent = r.error;
+          return;
+        }
+        applyStatus(await window.api.status());
+      }
+
+      $("btn-start").onclick = () => doTransition("ATIVO");
+      $("btn-resume").onclick = () => doTransition("ATIVO");
+      $("btn-pause").onclick = () => openReason("PAUSA");
+      $("btn-lunch").onclick = () => openReason("ALMOCO");
+      $("btn-stop").onclick = async () => {
+        $("action-err").textContent = "";
+        const r = await window.api.stopJourney();
+        if (r?.error) {
+          $("action-err").textContent = r.error;
+          return;
+        }
+        applyStatus(await window.api.status());
+      };
+
+      // Modal de justificativa
+      let reasonKind = null;
+      function openReason(kind) {
+        reasonKind = kind;
+        $("reason-title").textContent = kind === "ALMOCO" ? "Iniciar almoço" : "Iniciar pausa";
+        $("reason-text").value = "";
+        $("reason-text").placeholder = kind === "ALMOCO" ? "Ex: horário de almoço" : "Ex: pausa para café";
+        $("reason-confirm").disabled = true;
+        $("reason-overlay").classList.remove("hide");
+        $("reason-text").focus();
+      }
+      $("reason-text").oninput = (e) => {
+        $("reason-confirm").disabled = e.target.value.trim().length < 3;
+      };
+      $("reason-cancel").onclick = () => $("reason-overlay").classList.add("hide");
+      $("reason-confirm").onclick = async () => {
+        const reason = $("reason-text").value.trim();
+        if (reason.length < 3) return;
+        $("reason-overlay").classList.add("hide");
+        await doTransition(reasonKind, reason);
+      };
+
+      // Gate da extensão
+      $("gate-close").onclick = () => $("gate-overlay").classList.add("hide");
+      $("gate-portal").onclick = () => {
+        window.api.openPortal();
+        $("gate-overlay").classList.add("hide");
+      };
+
+      $("btn-portal").onclick = () => window.api.openPortal();
+
+      // Login / logout
       $("btn-login").onclick = async () => {
         $("login-err").textContent = "";
         $("btn-login").disabled = true;
@@ -208,13 +544,9 @@
         }
         refresh();
       };
-
       $("btn-logout").onclick = async () => {
         await window.api.logout();
         refresh();
-      };
-      $("btn-toggle").onclick = async () => {
-        monitoring ? await window.api.stop() : await window.api.start();
       };
       $("auto-launch").onchange = async (e) => {
         await window.api.setAutoLaunch(e.target.checked);
