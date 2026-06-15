@@ -202,7 +202,8 @@ function AnimatedAvatar({
   );
 }
 
-function RoomBox({ room, count, heat }: { room: Room; count: number; heat: number }) {
+function RoomBox({ room, heat }: { room: Room; count: number; heat: number }) {
+  if (heat <= 0) return null;
   const left = (room.x / WORLD.cols) * 100;
   const top = (room.y / WORLD.rows) * 100;
   const width = (room.w / WORLD.cols) * 100;
@@ -215,42 +216,10 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
         top: `${top}%`,
         width: `${width}%`,
         height: `${height}%`,
-        // O mapa já desenha o ambiente — overlay só ressalta a sala (heatmap/borda).
-        background:
-          heat > 0
-            ? `color-mix(in oklch, var(--color-destructive) ${Math.round(15 + heat * 45)}%, transparent)`
-            : "transparent",
-        border:
-          heat > 0
-            ? `2px solid color-mix(in oklch, var(--color-destructive) 75%, transparent)`
-            : `1px dashed color-mix(in oklch, ${room.tint} 35%, transparent)`,
-        boxShadow:
-          heat > 0
-            ? `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent)`
-            : undefined,
+        background: `color-mix(in oklch, var(--color-destructive) ${Math.round(15 + heat * 45)}%, transparent)`,
+        boxShadow: `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent)`,
       }}
-    >
-      {/* Placa da sala */}
-      <div
-        className="pointer-events-auto m-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold shadow-lg backdrop-blur-md sm:text-xs"
-        style={{
-          background: "rgba(15,15,20,0.78)",
-          color: "white",
-          border: `1px solid color-mix(in oklch, ${room.tint} 65%, transparent)`,
-        }}
-      >
-        <span>{room.emoji}</span>
-        <span className="truncate">{room.label}</span>
-        {count > 0 && (
-          <span
-            className="ml-1 rounded-full px-1.5 text-[9px] font-bold"
-            style={{ background: room.tint, color: "white" }}
-          >
-            {count}
-          </span>
-        )}
-      </div>
-    </div>
+    />
   );
 }
 
