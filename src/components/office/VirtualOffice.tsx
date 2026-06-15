@@ -209,49 +209,34 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
   const height = (room.h / WORLD.rows) * 100;
   return (
     <div
-      className="pointer-events-none absolute overflow-hidden rounded-md transition-colors duration-500"
+      className="pointer-events-none absolute rounded-md transition-colors duration-500"
       style={{
         left: `${left}%`,
         top: `${top}%`,
         width: `${width}%`,
         height: `${height}%`,
-        // Piso da sala — tom do setor + textura cruzada (parquet/carpete).
+        // O mapa já desenha o ambiente — overlay só ressalta a sala (heatmap/borda).
         background:
           heat > 0
-            ? `color-mix(in oklch, var(--color-destructive) ${Math.round(20 + heat * 50)}%, #1a1c26)`
-            : `linear-gradient(135deg,
-                 color-mix(in oklch, ${room.tint} 28%, #1a1c26) 0%,
-                 color-mix(in oklch, ${room.tint} 16%, #14161f) 100%)`,
-        // Paredes grossas e bem visíveis — divisórias entre ambientes.
+            ? `color-mix(in oklch, var(--color-destructive) ${Math.round(15 + heat * 45)}%, transparent)`
+            : "transparent",
         border:
           heat > 0
-            ? `3px solid color-mix(in oklch, var(--color-destructive) 80%, #000)`
-            : `3px solid color-mix(in oklch, ${room.tint} 70%, #000)`,
-        boxShadow: `
-          inset 0 0 0 1px rgba(255,255,255,0.08),
-          inset 0 8px 24px rgba(0,0,0,0.35),
-          0 2px 0 rgba(0,0,0,0.55),
-          0 0 0 1px rgba(0,0,0,0.6)
-        `,
+            ? `2px solid color-mix(in oklch, var(--color-destructive) 75%, transparent)`
+            : `1px dashed color-mix(in oklch, ${room.tint} 35%, transparent)`,
+        boxShadow:
+          heat > 0
+            ? `inset 0 0 30px color-mix(in oklch, var(--color-destructive) 40%, transparent)`
+            : undefined,
       }}
     >
-      {/* Textura sutil de piso (linhas finas) */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-30"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 2px, transparent 2px 14px)",
-        }}
-      />
-
       {/* Placa da sala */}
       <div
-        className="pointer-events-auto absolute left-1 top-1 z-10 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold shadow-lg backdrop-blur-md sm:text-xs"
+        className="pointer-events-auto m-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold shadow-lg backdrop-blur-md sm:text-xs"
         style={{
-          background: "rgba(15,15,20,0.82)",
+          background: "rgba(15,15,20,0.78)",
           color: "white",
-          border: `1px solid color-mix(in oklch, ${room.tint} 70%, transparent)`,
+          border: `1px solid color-mix(in oklch, ${room.tint} 65%, transparent)`,
         }}
       >
         <span>{room.emoji}</span>
@@ -265,21 +250,6 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
           </span>
         )}
       </div>
-
-      {/* Mobília decorativa (atrás dos avatares) */}
-      {room.furniture && room.furniture.length > 0 && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-1 bottom-1 flex flex-wrap items-end justify-center gap-1 opacity-80"
-          style={{ fontSize: "clamp(10px, 1.6vw, 22px)", lineHeight: 1 }}
-        >
-          {room.furniture.map((f, i) => (
-            <span key={i} className="drop-shadow-md">
-              {f}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
