@@ -432,6 +432,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      abrir_registro: {
+        Args: { p_status: string; p_observacao?: string | null }
+        Returns: Database["public"]["Tables"]["registros_atividade"]["Row"]
+      }
       agregar_dia: { Args: { p_dia: string }; Returns: undefined }
       encerrar_sessoes_ociosas: {
         Args: { p_timeout_min?: number }

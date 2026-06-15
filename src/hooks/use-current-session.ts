@@ -186,16 +186,14 @@ export function useCurrentSession(userId: string | undefined) {
           .eq("id", current.id);
       }
       if (next !== "ENCERRADO") {
-        const { data, error } = await supabase
-          .from("registros_atividade")
-          .insert({
-            usuario_id: userId,
-            status: next,
-            inicio: now,
-            observacao: observacao ?? null,
-          })
-          .select()
-          .single();
+        // Abrir sessão é EXCLUSIVO do front, via RPC (SECURITY DEFINER). A RLS
+        // recusa INSERT direto de linha aberta — isso bloqueia o auto-início de
+        // desktops antigos sem precisar atualizá-los. Ver migration
+        // 20260614210000_inicio_expediente_via_rpc.
+        const { data, error } = await supabase.rpc("abrir_registro", {
+          p_status: next,
+          p_observacao: observacao ?? null,
+        });
         if (error) {
           toast.error(error.message);
           return;
