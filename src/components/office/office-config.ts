@@ -13,7 +13,13 @@ export const WORLD = { cols: 48, rows: 28 };
 export type RoomId =
   | "recepcao"
   | "espera"
-  | "trabalho"
+  | "comercial"
+  | "producao"
+  | "juridico"
+  | "financeiro"
+  | "ti"
+  | "almoxarifado"
+  | "marketing"
   | "reuniao"
   | "copa"
   | "descanso"
@@ -34,15 +40,18 @@ export interface Room {
 }
 
 // Layout (48 x 28). Corredores = espaço não ocupado entre as salas.
+// Faixa esquerda: SAC/Recepção, Liderança, Espera. Centro: setores (2 linhas).
+// Faixa direita: Reunião, Copa, Descanso. Base: Externa (pátio).
 export const ROOMS: Record<RoomId, Room> = {
+  // ----- Faixa esquerda -----
   recepcao: {
     id: "recepcao",
-    label: "Recepção",
+    label: "SAC / Recepção",
     emoji: "🛎️",
     x: 1,
     y: 1,
     w: 9,
-    h: 6,
+    h: 5,
     tint: "var(--color-info)",
   },
   lideranca: {
@@ -50,9 +59,9 @@ export const ROOMS: Record<RoomId, Room> = {
     label: "Liderança",
     emoji: "👔",
     x: 1,
-    y: 8,
+    y: 7,
     w: 9,
-    h: 8,
+    h: 6,
     tint: "var(--color-primary)",
   },
   espera: {
@@ -60,39 +69,104 @@ export const ROOMS: Record<RoomId, Room> = {
     label: "Espera",
     emoji: "🪑",
     x: 1,
-    y: 17,
+    y: 14,
     w: 9,
-    h: 4,
+    h: 5,
     tint: "var(--color-muted-foreground)",
   },
 
-  trabalho: {
-    id: "trabalho",
-    label: "Área de Trabalho",
-    emoji: "💻",
+  // ----- Setores (centro): linha 1 -----
+  comercial: {
+    id: "comercial",
+    label: "Comercial",
+    emoji: "💼",
     x: 11,
     y: 1,
-    w: 22,
-    h: 20,
+    w: 5,
+    h: 8,
     tint: "var(--color-success)",
   },
+  producao: {
+    id: "producao",
+    label: "Produção",
+    emoji: "🛠️",
+    x: 17,
+    y: 1,
+    w: 5,
+    h: 8,
+    tint: "var(--color-success)",
+  },
+  juridico: {
+    id: "juridico",
+    label: "Jurídico",
+    emoji: "⚖️",
+    x: 23,
+    y: 1,
+    w: 5,
+    h: 8,
+    tint: "var(--color-success)",
+  },
+  financeiro: {
+    id: "financeiro",
+    label: "Financeiro",
+    emoji: "💰",
+    x: 29,
+    y: 1,
+    w: 5,
+    h: 8,
+    tint: "var(--color-success)",
+  },
+
+  // ----- Setores (centro): linha 2 -----
+  ti: {
+    id: "ti",
+    label: "TI",
+    emoji: "🖥️",
+    x: 11,
+    y: 11,
+    w: 5,
+    h: 8,
+    tint: "var(--color-success)",
+  },
+  almoxarifado: {
+    id: "almoxarifado",
+    label: "Almoxarifado",
+    emoji: "📦",
+    x: 17,
+    y: 11,
+    w: 5,
+    h: 8,
+    tint: "var(--color-success)",
+  },
+  marketing: {
+    id: "marketing",
+    label: "Marketing",
+    emoji: "📣",
+    x: 23,
+    y: 11,
+    w: 5,
+    h: 8,
+    tint: "var(--color-success)",
+  },
+
+  // ----- Faixa direita -----
   reuniao: {
     id: "reuniao",
     label: "Sala de Reunião",
     emoji: "📊",
-    x: 34,
+    x: 35,
     y: 1,
-    w: 13,
-    h: 8,
+    w: 12,
+    h: 7,
     tint: "var(--color-accent)",
   },
   copa: {
     id: "copa",
     label: "Copa / Refeitório",
     emoji: "🍽️",
-    x: 34,
-    y: 10,
-    w: 13,
+    x: 35,
+    y: 9,
+    w: 12,
     h: 5,
     tint: "var(--color-info)",
   },
@@ -100,20 +174,22 @@ export const ROOMS: Record<RoomId, Room> = {
     id: "descanso",
     label: "Descanso",
     emoji: "☕",
-    x: 34,
-    y: 16,
-    w: 13,
+    x: 35,
+    y: 15,
+    w: 12,
     h: 5,
     tint: "var(--color-warning)",
   },
+
+  // ----- Externa -----
   externa: {
     id: "externa",
     label: "Fora do prédio",
     emoji: "🌳",
     x: 1,
-    y: 22,
+    y: 21,
     w: 46,
-    h: 5,
+    h: 6,
     tint: "var(--color-muted-foreground)",
   },
 };
@@ -122,17 +198,21 @@ export const ROOMS: Record<RoomId, Room> = {
 // corredor). O resto do perímetro vira parede no grid de pathfinding.
 export const DOORS: Record<RoomId, Cell[]> = {
   recepcao: [{ cx: 9, cy: 3 }],
-  lideranca: [{ cx: 9, cy: 10 }],
-  espera: [{ cx: 9, cy: 19 }],
-  trabalho: [
-    { cx: 11, cy: 5 },
-    { cx: 11, cy: 15 },
-    { cx: 32, cy: 5 },
-    { cx: 22, cy: 20 },
-  ],
-  reuniao: [{ cx: 34, cy: 4 }],
-  copa: [{ cx: 34, cy: 12 }],
-  descanso: [{ cx: 34, cy: 18 }],
+  lideranca: [{ cx: 9, cy: 9 }],
+  espera: [{ cx: 9, cy: 16 }],
+  // Linha 1 dos setores: porta no rodapé, abrindo p/ corredor y=9-10.
+  comercial: [{ cx: 13, cy: 8 }],
+  producao: [{ cx: 19, cy: 8 }],
+  juridico: [{ cx: 25, cy: 8 }],
+  financeiro: [{ cx: 31, cy: 8 }],
+  // Linha 2 dos setores: porta no topo, abrindo p/ corredor y=9-10.
+  ti: [{ cx: 13, cy: 11 }],
+  almoxarifado: [{ cx: 19, cy: 11 }],
+  marketing: [{ cx: 25, cy: 11 }],
+  // Faixa direita: portas voltadas p/ corredor x=34.
+  reuniao: [{ cx: 35, cy: 4 }],
+  copa: [{ cx: 35, cy: 11 }],
+  descanso: [{ cx: 35, cy: 17 }],
   externa: [], // sala aberta (sem paredes)
 };
 
@@ -143,12 +223,52 @@ export const ROOM_ORDER: RoomId[] = [
   "recepcao",
   "lideranca",
   "espera",
-  "trabalho",
+  "comercial",
+  "producao",
+  "juridico",
+  "financeiro",
+  "ti",
+  "almoxarifado",
+  "marketing",
   "reuniao",
   "copa",
   "descanso",
   "externa",
 ];
+
+// Normaliza valor textual de `departamento` → id da sala de setor.
+// Aceita variações comuns (acentos, caixa, "SAC" → recepção, sinônimos).
+const DEPT_TO_ROOM: Record<string, RoomId> = {
+  comercial: "comercial",
+  vendas: "comercial",
+  producao: "producao",
+  produção: "producao",
+  juridico: "juridico",
+  jurídico: "juridico",
+  legal: "juridico",
+  financeiro: "financeiro",
+  financas: "financeiro",
+  finanças: "financeiro",
+  ti: "ti",
+  tecnologia: "ti",
+  "tecnologia da informacao": "ti",
+  "tecnologia da informação": "ti",
+  it: "ti",
+  almoxarifado: "almoxarifado",
+  estoque: "almoxarifado",
+  marketing: "marketing",
+  mkt: "marketing",
+  sac: "recepcao",
+  recepcao: "recepcao",
+  recepção: "recepcao",
+  atendimento: "recepcao",
+};
+
+function deptRoom(dep: string | null | undefined): RoomId | null {
+  if (!dep) return null;
+  const k = dep.trim().toLowerCase();
+  return DEPT_TO_ROOM[k] ?? null;
+}
 
 // --- Detecção de reunião (heurística sobre app/URL já capturados) ---
 // Só processos EXCLUSIVOS de chamada. Teams/Discord ficam sempre abertos em
@@ -182,7 +302,7 @@ export function isMeeting(s: UserSnapshot): boolean {
   return false;
 }
 
-/** Sala-destino de um colaborador conforme status atual (+ reunião derivada). */
+/** Sala-destino de um colaborador conforme status atual (+ setor). */
 export function roomForSnapshot(s: UserSnapshot): RoomId {
   // Offline = fora do prédio, independente de perfil.
   if (!s.isOnline) return "externa";
@@ -190,21 +310,23 @@ export function roomForSnapshot(s: UserSnapshot): RoomId {
   // Admin online vai para a sala de liderança.
   if (s.isAdmin) return "lideranca";
 
-  // Online mas sem registro de expediente aberto (currentSince null) —
-  // logou no sistema/desktop mas ainda não iniciou a jornada. Vai pra espera.
+  // Online mas sem registro de expediente aberto — logou mas não iniciou jornada.
   if (!s.currentSince) return "espera";
+
+  // Sala-base = setor do colaborador (fallback espera quando não cadastrado).
+  const sectorRoom = deptRoom(s.profile.departamento) ?? "espera";
+
   switch (s.currentStatus) {
     case "ATIVO":
-      return isMeeting(s) ? "reuniao" : "trabalho";
+      return isMeeting(s) ? "reuniao" : sectorRoom;
     case "INATIVO":
-      return "trabalho"; // dormindo na própria mesa
+      return sectorRoom; // dormindo na própria mesa do setor
     case "PAUSA":
       return "descanso";
     case "ALMOCO":
       return "copa";
     case "ENCERRADO":
-      // Encerrou o expediente mas continua navegando — fica na recepção
-      // (saindo do prédio) em vez de pular pra área externa.
+      // Encerrou o expediente mas continua navegando — fica na recepção.
       return "recepcao";
     default:
       return "espera";

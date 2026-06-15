@@ -192,7 +192,7 @@ export function useCurrentSession(userId: string | undefined) {
         // 20260614210000_inicio_expediente_via_rpc.
         const { data, error } = await supabase.rpc("abrir_registro", {
           p_status: next,
-          p_observacao: observacao ?? null,
+          p_observacao: observacao ?? undefined,
         });
         if (error) {
           toast.error(error.message);
