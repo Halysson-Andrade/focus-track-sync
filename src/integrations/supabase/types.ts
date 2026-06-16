@@ -45,6 +45,57 @@ export type Database = {
           registro_id?: string | null
           usuario_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "atividade_apontamentos_atividade_id_fkey"
+            columns: ["atividade_id"]
+            isOneToOne: false
+            referencedRelation: "atividades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atividade_apontamentos_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "registros_atividade"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atividade_diaria: {
+        Row: {
+          dia: string
+          fim_jornada: string | null
+          inicio_jornada: string | null
+          minutos_almoco: number
+          minutos_ativo: number
+          minutos_inativo: number
+          minutos_pausa: number
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          dia: string
+          fim_jornada?: string | null
+          inicio_jornada?: string | null
+          minutos_almoco?: number
+          minutos_ativo?: number
+          minutos_inativo?: number
+          minutos_pausa?: number
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          dia?: string
+          fim_jornada?: string | null
+          inicio_jornada?: string | null
+          minutos_almoco?: number
+          minutos_ativo?: number
+          minutos_inativo?: number
+          minutos_pausa?: number
+          updated_at?: string
+          usuario_id?: string
+        }
         Relationships: []
       }
       atividades: {
@@ -82,42 +133,6 @@ export type Database = {
           id?: string
           titulo?: string
           total_segundos?: number
-          usuario_id?: string
-        }
-        Relationships: []
-      }
-      atividade_diaria: {
-        Row: {
-          dia: string
-          fim_jornada: string | null
-          inicio_jornada: string | null
-          minutos_almoco: number
-          minutos_ativo: number
-          minutos_inativo: number
-          minutos_pausa: number
-          updated_at: string
-          usuario_id: string
-        }
-        Insert: {
-          dia: string
-          fim_jornada?: string | null
-          inicio_jornada?: string | null
-          minutos_almoco?: number
-          minutos_ativo?: number
-          minutos_inativo?: number
-          minutos_pausa?: number
-          updated_at?: string
-          usuario_id: string
-        }
-        Update: {
-          dia?: string
-          fim_jornada?: string | null
-          inicio_jornada?: string | null
-          minutos_almoco?: number
-          minutos_ativo?: number
-          minutos_inativo?: number
-          minutos_pausa?: number
-          updated_at?: string
           usuario_id?: string
         }
         Relationships: []
@@ -604,6 +619,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      fechar_apontamento_aberto: {
+        Args: { p_fim: string; p_uid: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -636,8 +655,9 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      is_active: { Args: { _user_id: string }; Returns: boolean }
       parar_atividade: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           atividade_id: string
           criado_em: string
@@ -655,7 +675,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      is_active: { Args: { _user_id: string }; Returns: boolean }
       purgar_brutos_antigos: {
         Args: { p_dias_retencao?: number }
         Returns: {
