@@ -112,6 +112,14 @@ type CategoriaRow = {
   categoria: string;
   produtiva: boolean;
 };
+type TeamReg = {
+  usuario_id: string;
+  status: string;
+  inicio: string;
+  fim: string | null;
+  duracao_minutos: number | null;
+  profiles?: { nome: string | null } | null;
+};
 
 
 
@@ -190,12 +198,22 @@ function Dashboard() {
   const [idleEvents, setIdleEvents] = useState<IdleEvent[]>([]);
   // Classificação de domínios/processos por categoria (admin gerencia no Supabase).
   const [categorias, setCategorias] = useState<CategoriaRow[]>([]);
+  // Visão Geral (admin): registros + ócio de TODOS os usuários no dia.
+  const [teamRegistros, setTeamRegistros] = useState<TeamReg[]>([]);
+  const [teamEventos, setTeamEventos] = useState<
+    { usuario_id: string; inicio: string; fim: string | null }[]
+  >([]);
 
-  // Admin: filter by target user
+  // Admin: filter by target user. Default "ALL" = visão Geral (todos os recursos).
   const [users, setUsers] = useState<{ id: string; nome: string }[]>([]);
-  const [targetUserId, setTargetUserId] = useState<string>("");
-  const effectiveUserId = isAdmin && targetUserId ? targetUserId : user?.id;
-  const viewingOther = isAdmin && targetUserId && targetUserId !== user?.id;
+  const [targetUserId, setTargetUserId] = useState<string>("ALL");
+  const geral = isAdmin && targetUserId === "ALL";
+  const effectiveUserId = geral
+    ? undefined
+    : isAdmin && targetUserId
+      ? targetUserId
+      : user?.id;
+  const viewingOther = isAdmin && !geral && !!targetUserId && targetUserId !== user?.id;
 
   // Data for the effective user (own session OR another user when admin)
   const [otherRecords, setOtherRecords] = useState<Registro[]>([]);
@@ -243,6 +261,37 @@ function Dashboard() {
       .eq("ativo", true)
       .then(({ data }) => setCategorias((data ?? []) as CategoriaRow[]));
   }, []);
+
+  // Visão Geral (admin): busca registros + ócio de TODOS no dia selecionado.
+  // order desc + limit como guarda contra o teto de 1000 do PostgREST.
+  useEffect(() => {
+    if (!geral) return;
+    let cancelled = false;
+    (async () => {
+      const [{ data: regs }, { data: evs }] = await Promise.all([
+        supabase
+          .from("registros_atividade")
+          .select("usuario_id, status, inicio, fim, duracao_minutos, profiles(nome)")
+          .gte("inicio", dayRange.start)
+          .lt("inicio", dayRange.end)
+          .order("inicio", { ascending: false })
+          .limit(5000),
+        supabase
+          .from("eventos_ociosidade")
+          .select("usuario_id, inicio, fim")
+          .gte("inicio", dayRange.start)
+          .lt("inicio", dayRange.end)
+          .order("inicio", { ascending: false })
+          .limit(5000),
+      ]);
+      if (cancelled) return;
+      setTeamRegistros((regs ?? []) as unknown as TeamReg[]);
+      setTeamEventos((evs ?? []) as { usuario_id: string; inicio: string; fim: string | null }[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [geral, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
 
   // Load registros for the selected day (used when viewing another user OR another day)
   useEffect(() => {
@@ -536,6 +585,78 @@ function Dashboard() {
     return { arr, total, produtivoSeg, pctProdutivo: total > 0 ? (produtivoSeg / total) * 100 : 0 };
   }, [categorias, siteStats, appStats]);
 
+  // Agregação da equipe (visão Geral) — por usuário + totais do dia.
+  const teamData = useMemo(() => {
+    const nowTs = now.getTime();
+    const eventosByUser = new Map<string, { inicio: string; fim: string | null }[]>();
+    teamEventos.forEach((e) => {
+      const list = eventosByUser.get(e.usuario_id) ?? [];
+      list.push({ inicio: e.inicio, fim: e.fim });
+      eventosByUser.set(e.usuario_id, list);
+    });
+    type Acc = {
+      nome: string;
+      ATIVO: number;
+      PAUSA: number;
+      ALMOCO: number;
+      INATIVO: number;
+      online: boolean;
+      ativos: { inicio: string; fim: string | null }[];
+    };
+    const map = new Map<string, Acc>();
+    teamRegistros.forEach((r) => {
+      if (r.status === "ENCERRADO") return;
+      const dur =
+        r.duracao_minutos ??
+        (r.fim
+          ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000
+          : (nowTs - new Date(r.inicio).getTime()) / 60000);
+      const a =
+        map.get(r.usuario_id) ??
+        ({
+          nome: r.profiles?.nome ?? "—",
+          ATIVO: 0,
+          PAUSA: 0,
+          ALMOCO: 0,
+          INATIVO: 0,
+          online: false,
+          ativos: [],
+        } as Acc);
+      if (r.status in a) a[r.status as "ATIVO" | "PAUSA" | "ALMOCO" | "INATIVO"] += dur;
+      if (!r.fim) a.online = true;
+      if (r.status === "ATIVO") a.ativos.push({ inicio: r.inicio, fim: r.fim });
+      map.set(r.usuario_id, a);
+    });
+    const linhas = Array.from(map.entries())
+      .map(([id, a]) => {
+        const ocio = ocioReconciliadoSeg(eventosByUser.get(id) ?? [], a.ativos, nowTs) / 60;
+        const efetivo = Math.max(0, a.ATIVO - ocio);
+        return {
+          id,
+          nome: a.nome,
+          ativo: a.ATIVO,
+          ocio,
+          efetivo,
+          pausa: a.PAUSA,
+          almoco: a.ALMOCO,
+          online: a.online,
+          pct: a.ATIVO > 0 ? (efetivo / a.ATIVO) * 100 : 0,
+        };
+      })
+      .sort((x, y) => y.efetivo - x.efetivo);
+    const tot = linhas.reduce(
+      (s, l) => ({
+        ativo: s.ativo + l.ativo,
+        ocio: s.ocio + l.ocio,
+        efetivo: s.efetivo + l.efetivo,
+        pausa: s.pausa + l.pausa,
+        almoco: s.almoco + l.almoco,
+      }),
+      { ativo: 0, ocio: 0, efetivo: 0, pausa: 0, almoco: 0 },
+    );
+    return { linhas, tot, pessoas: linhas.length, online: linhas.filter((l) => l.online).length };
+  }, [teamRegistros, teamEventos, now]);
+
   // Tempo CONSOLIDADO monitorado — desduplica intervalos sobrepostos da
   // extensão (Chrome) e dos apps desktop (excluindo Chrome), e clampa ao
   // tempo efetivamente trabalhado (ATIVO) da jornada do dia. Garante que a
@@ -745,6 +866,116 @@ function Dashboard() {
   const selectedUser = users.find((u) => u.id === targetUserId);
   const displayName = viewingOther ? (selectedUser?.nome ?? "Usuário") : (profile?.nome ?? "...");
 
+  // VISÃO GERAL (admin, todos os recursos) — resumo da equipe do dia.
+  if (geral) {
+    const efMediaPct =
+      teamData.tot.ativo > 0 ? Math.round((teamData.tot.efetivo / teamData.tot.ativo) * 100) : 0;
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">Visão Geral da Equipe</h1>
+            <p className="text-sm text-muted-foreground">
+              Resumo de hoje · {teamData.pessoas} pessoa(s) · {teamData.online} online agora
+            </p>
+          </div>
+          <Select value="ALL" onValueChange={(v) => setTargetUserId(v === "self" ? "" : v)}>
+            <SelectTrigger className="w-60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Geral · todos</SelectItem>
+              <SelectItem value="self">Eu mesmo ({profile?.nome ?? "..."})</SelectItem>
+              {users
+                .filter((u) => u.id !== user?.id)
+                .map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.nome}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+          <StatCard
+            icon={<ActivityIcon className="h-4 w-4" />}
+            label="Trabalhadas (equipe)"
+            value={formatDuration(teamData.tot.ativo)}
+            accent="success"
+          />
+          <StatCard
+            icon={<Clock className="h-4 w-4" />}
+            label="Tempo efetivo"
+            value={formatDuration(teamData.tot.efetivo)}
+            accent="success"
+            hint="ATIVO − ócio somado da equipe"
+          />
+          <StatCard
+            icon={<Hourglass className="h-4 w-4" />}
+            label="Ociosidade"
+            value={formatDuration(teamData.tot.ocio)}
+            accent="idle"
+          />
+          <StatCard
+            icon={<Pause className="h-4 w-4" />}
+            label="Pausa"
+            value={formatDuration(teamData.tot.pausa)}
+            accent="warning"
+          />
+          <StatCard
+            icon={<Utensils className="h-4 w-4" />}
+            label="Almoço"
+            value={formatDuration(teamData.tot.almoco)}
+            accent="info"
+          />
+          <StatCard
+            icon={<TrendingUp className="h-4 w-4" />}
+            label="Eficiência média"
+            value={`${efMediaPct}%`}
+            accent="primary"
+          />
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Por colaborador (hoje)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {teamData.linhas.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                Sem expediente registrado hoje.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {teamData.linhas.map((u) => (
+                  <li key={u.id} className="flex items-center gap-3 py-3">
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${u.online ? "bg-success" : "bg-muted-foreground"}`}
+                    />
+                    <button
+                      className="flex-1 text-left hover:underline"
+                      onClick={() => setTargetUserId(u.id)}
+                    >
+                      <div className="font-medium">{u.nome}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDuration(u.efetivo)} efetivo · {formatDuration(u.ocio)} ócio ·{" "}
+                        {formatDuration(u.ativo)} ativo
+                      </div>
+                    </button>
+                    <div className="text-right text-lg font-bold text-primary">
+                      {u.pct.toFixed(0)}%
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {!viewingOther && <InactivityModal open={session.showInactive} onResume={session.resume} />}
@@ -861,6 +1092,7 @@ function Dashboard() {
                   <SelectValue placeholder="Selecionar usuário" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="ALL">Geral · todos</SelectItem>
                   <SelectItem value="self">Eu mesmo ({profile?.nome ?? "..."})</SelectItem>
                   {users
                     .filter((u) => u.id !== user?.id)
