@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      atividade_apontamentos: {
+        Row: {
+          atividade_id: string
+          criado_em: string
+          duracao_segundos: number | null
+          fim: string | null
+          id: string
+          inicio: string
+          registro_id: string | null
+          usuario_id: string
+        }
+        Insert: {
+          atividade_id: string
+          criado_em?: string
+          duracao_segundos?: number | null
+          fim?: string | null
+          id?: string
+          inicio?: string
+          registro_id?: string | null
+          usuario_id: string
+        }
+        Update: {
+          atividade_id?: string
+          criado_em?: string
+          duracao_segundos?: number | null
+          fim?: string | null
+          id?: string
+          inicio?: string
+          registro_id?: string | null
+          usuario_id?: string
+        }
+        Relationships: []
+      }
+      atividades: {
+        Row: {
+          atualizado_em: string
+          contexto: string | null
+          criado_em: string
+          external_id: string
+          external_url: string | null
+          fonte: string
+          id: string
+          titulo: string
+          total_segundos: number
+          usuario_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          contexto?: string | null
+          criado_em?: string
+          external_id: string
+          external_url?: string | null
+          fonte: string
+          id?: string
+          titulo: string
+          total_segundos?: number
+          usuario_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          contexto?: string | null
+          criado_em?: string
+          external_id?: string
+          external_url?: string | null
+          fonte?: string
+          id?: string
+          titulo?: string
+          total_segundos?: number
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       atividade_diaria: {
         Row: {
           dia: string
@@ -538,6 +610,50 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      iniciar_atividade: {
+        Args: {
+          p_contexto?: string
+          p_external_id: string
+          p_external_url: string
+          p_fonte: string
+          p_titulo: string
+        }
+        Returns: {
+          atividade_id: string
+          criado_em: string
+          duracao_segundos: number | null
+          fim: string | null
+          id: string
+          inicio: string
+          registro_id: string | null
+          usuario_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "atividade_apontamentos"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      parar_atividade: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          atividade_id: string
+          criado_em: string
+          duracao_segundos: number | null
+          fim: string | null
+          id: string
+          inicio: string
+          registro_id: string | null
+          usuario_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "atividade_apontamentos"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       is_active: { Args: { _user_id: string }; Returns: boolean }
       purgar_brutos_antigos: {

@@ -12,6 +12,7 @@ import {
   Menu,
   Eye,
   Monitor,
+  Timer,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -24,6 +25,7 @@ import { ExtensionOnboarding } from "@/components/ExtensionOnboarding";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: Activity },
+  { to: "/atividades", label: "Atividades", icon: Timer },
   { to: "/operacional", label: "Operacional", icon: Eye, admin: true },
   { to: "/extensao", label: "Extensão", icon: Chrome },
   { to: "/desktop", label: "App Desktop", icon: Monitor },

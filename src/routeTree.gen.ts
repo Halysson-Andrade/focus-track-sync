@@ -18,6 +18,7 @@ import { Route as AuthenticatedOperacionalRouteImport } from './routes/_authenti
 import { Route as AuthenticatedExtensaoRouteImport } from './routes/_authenticated/extensao'
 import { Route as AuthenticatedDesktopRouteImport } from './routes/_authenticated/desktop'
 import { Route as AuthenticatedChangePasswordRouteImport } from './routes/_authenticated/change-password'
+import { Route as AuthenticatedAtividadesRouteImport } from './routes/_authenticated/atividades'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as ApiPublicHooksEncerrarOciosasRouteImport } from './routes/api/public/hooks/encerrar-ociosas'
 import { Route as ApiPublicHooksAgregarDiarioRouteImport } from './routes/api/public/hooks/agregar-diario'
@@ -68,6 +69,11 @@ const AuthenticatedChangePasswordRoute =
     path: '/change-password',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAtividadesRoute = AuthenticatedAtividadesRouteImport.update({
+  id: '/atividades',
+  path: '/atividades',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -90,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/atividades': typeof AuthenticatedAtividadesRoute
   '/change-password': typeof AuthenticatedChangePasswordRoute
   '/desktop': typeof AuthenticatedDesktopRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/atividades': typeof AuthenticatedAtividadesRoute
   '/change-password': typeof AuthenticatedChangePasswordRoute
   '/desktop': typeof AuthenticatedDesktopRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
@@ -117,6 +125,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/_authenticated/atividades': typeof AuthenticatedAtividadesRoute
   '/_authenticated/change-password': typeof AuthenticatedChangePasswordRoute
   '/_authenticated/desktop': typeof AuthenticatedDesktopRoute
   '/_authenticated/extensao': typeof AuthenticatedExtensaoRoute
@@ -133,6 +142,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/admin'
+    | '/atividades'
     | '/change-password'
     | '/desktop'
     | '/extensao'
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
   to:
     | '/auth'
     | '/admin'
+    | '/atividades'
     | '/change-password'
     | '/desktop'
     | '/extensao'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/admin'
+    | '/_authenticated/atividades'
     | '/_authenticated/change-password'
     | '/_authenticated/desktop'
     | '/_authenticated/extensao'
@@ -242,6 +254,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChangePasswordRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/atividades': {
+      id: '/_authenticated/atividades'
+      path: '/atividades'
+      fullPath: '/atividades'
+      preLoaderRoute: typeof AuthenticatedAtividadesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin': {
       id: '/_authenticated/admin'
       path: '/admin'
@@ -268,6 +287,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedAtividadesRoute: typeof AuthenticatedAtividadesRoute
   AuthenticatedChangePasswordRoute: typeof AuthenticatedChangePasswordRoute
   AuthenticatedDesktopRoute: typeof AuthenticatedDesktopRoute
   AuthenticatedExtensaoRoute: typeof AuthenticatedExtensaoRoute
@@ -279,6 +299,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedAtividadesRoute: AuthenticatedAtividadesRoute,
   AuthenticatedChangePasswordRoute: AuthenticatedChangePasswordRoute,
   AuthenticatedDesktopRoute: AuthenticatedDesktopRoute,
   AuthenticatedExtensaoRoute: AuthenticatedExtensaoRoute,
@@ -300,3 +321,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
