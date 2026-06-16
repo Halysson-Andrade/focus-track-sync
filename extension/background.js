@@ -288,6 +288,20 @@ async function handleActive(tab) {
   await openRow(tab);
 }
 
+// Garante uma linha de navegação aberta para a aba ativa quando o expediente
+// está ATIVO e não há linha aberta (ex.: o service worker hibernou e acordou
+// sem um evento de aba para reabrir). Sem isso, um usuário parado na MESMA aba
+// ficaria "sem navegação" no painel até a próxima troca de aba. Reusa
+// handleActive, que já respeita trackingPaused e isTrackable.
+async function ensureActiveRow() {
+  if (trackingPaused) return;
+  if (currentRow && currentRow.id) return;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab) await handleActive(tab);
+  } catch {}
+}
+
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   try {
     const tab = await chrome.tabs.get(tabId);
@@ -359,8 +373,11 @@ chrome.alarms.onAlarm.addListener(async (a) => {
   await loadWhitelist();
 
   if (!currentRow || !currentRow.id) {
-    // Sem linha restaurável — fecha eventual órfã (com o ócio persistido).
+    // Sem linha restaurável — fecha eventual órfã (com o ócio persistido) e,
+    // se o expediente está ATIVO, abre a aba ativa atual (o SW pode ter acordado
+    // sem evento de aba — senão o painel mostraria "sem navegação").
     await closeStaleRow();
+    await ensureActiveRow();
     return;
   }
   // Auto-correção: confere se a aba ativa ainda é a registrada (eventos podem
@@ -557,8 +574,11 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 // SW pode reiniciar a qualquer momento: ao acordar, restaura a linha aberta
 // (com acumuladores de ócio) e recarrega whitelist/status.
-restored.then(() => {
+restored.then(async () => {
   loadWhitelist();
-  fetchMacroStatus();
+  // Resolve o status macro ANTES de tentar abrir a aba ativa — assim o
+  // ensureActiveRow já enxerga o trackingPaused correto e só abre se ATIVO.
+  await fetchMacroStatus();
+  await ensureActiveRow();
   upsertPresencaExtensao(); // beat ao acordar o service worker
 });

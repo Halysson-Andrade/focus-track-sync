@@ -45,6 +45,8 @@ export type Presenca = {
   ultimo_visto?: string | null;
   /** Origem do heartbeat. `web`/`desktop` ancoram online; `ext` só monitoração. */
   fonte?: "desktop" | "web" | "ext";
+  /** Versão do cliente (ext_version / app_version) p/ visibilidade no painel. */
+  versao?: string | null;
 };
 
 export interface UserSnapshot {
@@ -68,6 +70,9 @@ export interface UserSnapshot {
   lastAppPage: { path: string; title: string } | null;
   /** Último app desktop em foco (process_name/app_label), p/ detecção de reunião. */
   lastDesktopApp: { process: string; label: string; live: boolean } | null;
+  /** Versão do cliente reportada no último heartbeat (null = desconhecida). */
+  extVersion: string | null;
+  desktopVersion: string | null;
 }
 
 function durSec(n: NavRow, nowTs: number): number {
@@ -144,16 +149,23 @@ export function buildSnapshots(
   const presencaByUser = new Map<string, number>();
   const desktopAliveByUser = new Map<string, number>();
   const extAliveByUser = new Map<string, number>();
+  // Versão reportada no heartbeat mais recente de cada fonte (visibilidade no painel).
+  const desktopVersionByUser = new Map<string, string | null>();
+  const extVersionByUser = new Map<string, string | null>();
   for (const pr of presenca) {
     const activeTs = pr.ultimo_ativo ? new Date(pr.ultimo_ativo).getTime() : 0;
     const aliveTs = pr.ultimo_visto ? new Date(pr.ultimo_visto).getTime() : 0;
     if (pr.fonte !== "ext" && activeTs > (presencaByUser.get(pr.usuario_id) ?? 0))
       presencaByUser.set(pr.usuario_id, activeTs);
     const aliveBeat = Math.max(activeTs, aliveTs);
-    if (pr.fonte === "desktop" && aliveBeat > (desktopAliveByUser.get(pr.usuario_id) ?? 0))
+    if (pr.fonte === "desktop" && aliveBeat > (desktopAliveByUser.get(pr.usuario_id) ?? 0)) {
       desktopAliveByUser.set(pr.usuario_id, aliveBeat);
-    if (pr.fonte === "ext" && aliveBeat > (extAliveByUser.get(pr.usuario_id) ?? 0))
+      desktopVersionByUser.set(pr.usuario_id, pr.versao ?? null);
+    }
+    if (pr.fonte === "ext" && aliveBeat > (extAliveByUser.get(pr.usuario_id) ?? 0)) {
       extAliveByUser.set(pr.usuario_id, aliveBeat);
+      extVersionByUser.set(pr.usuario_id, pr.versao ?? null);
+    }
   }
   return profiles.map((p) => {
     const myReg = registros.filter((r) => r.usuario_id === p.id);
@@ -269,6 +281,8 @@ export function buildSnapshots(
       lastUrl,
       lastAppPage,
       lastDesktopApp,
+      extVersion: extVersionByUser.get(p.id) ?? null,
+      desktopVersion: desktopVersionByUser.get(p.id) ?? null,
     };
   });
 }

@@ -147,6 +147,12 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
   const meeting = s.isOnline && isMeeting(s);
   const statusLine = statusHeader(s);
 
+  // Rótulo fiel ao estado real quando não há último registro: se o cliente está
+  // VIVO (selo verde) mas ainda sem navegação/app, é "aguardando" — não "sem
+  // sinal". "Sem sinal" só quando o heartbeat do cliente não chega.
+  const extPlaceholder = s.extActive ? "Aguardando navegação" : "Extensão sem sinal";
+  const deskPlaceholder = s.desktopActive ? "Aguardando app" : "App sem sinal";
+
   // Cor do "ponto de alerta" no canto do avatar — segue o spec:
   // 🔴 inatividade · 🟡 almoço longo · 🔵 reunião · 🟣 ócio alto · 🟢 voltou.
   let alertColor: string | null = null;
@@ -207,14 +213,14 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
                     <MonitorRow
                       icon={<Chrome className="h-2.5 w-2.5" />}
                       active={s.extActive}
-                      title={s.lastUrl?.title ?? "sem navegação"}
+                      title={s.lastUrl?.title ?? extPlaceholder}
                       sub={s.lastUrl?.domain}
                       muted={!s.lastUrl}
                     />
                     <MonitorRow
                       icon={<Monitor className="h-2.5 w-2.5" />}
                       active={s.desktopActive}
-                      title={s.lastDesktopApp?.label ?? "sem app"}
+                      title={s.lastDesktopApp?.label ?? deskPlaceholder}
                       muted={!s.lastDesktopApp}
                     />
                   </span>
@@ -338,6 +344,7 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
             <SourceLine
               icon={<Chrome className="h-3 w-3" />}
               name="Extensão"
+              version={s.extVersion}
               active={s.extActive}
               title={s.lastUrl?.title}
               sub={s.lastUrl?.domain}
@@ -346,6 +353,7 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
             <SourceLine
               icon={<Monitor className="h-3 w-3" />}
               name="App desktop"
+              version={s.desktopVersion}
               active={s.desktopActive}
               title={s.lastDesktopApp?.label}
             />
@@ -369,6 +377,7 @@ function Info({ label, value }: { label: string; value: string }) {
 function SourceLine({
   icon,
   name,
+  version,
   active,
   title,
   sub,
@@ -376,6 +385,7 @@ function SourceLine({
 }: {
   icon: React.ReactNode;
   name: string;
+  version?: string | null;
   active: boolean;
   title?: string | null;
   sub?: string | null;
@@ -387,6 +397,7 @@ function SourceLine({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="font-medium">{name}</span>
+          {version && <span className="text-[10px] text-muted-foreground/70">v{version}</span>}
           <span
             className="h-1.5 w-1.5 rounded-full"
             style={{
@@ -399,7 +410,7 @@ function SourceLine({
           </span>
         </div>
         <div className="truncate text-muted-foreground" title={hint ?? undefined}>
-          {title || "—"}
+          {title || (active ? "aguardando registro" : "—")}
         </div>
         {sub && <div className="truncate text-[10px] text-muted-foreground/80">{sub}</div>}
       </div>
