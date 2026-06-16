@@ -276,6 +276,16 @@ export function AvatarDetailSheet({
                         {s.lastUrl.domain}
                       </div>
                     )}
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                      <span>
+                        Extensão {s.extActive ? "monitorando" : "sem sinal"}
+                        {s.extVersion ? ` · v${s.extVersion}` : ""}
+                      </span>
+                      <span>
+                        Desktop {s.desktopActive ? "monitorando" : "sem sinal"}
+                        {s.desktopVersion ? ` · v${s.desktopVersion}` : ""}
+                      </span>
+                    </div>
                   </div>
                 </section>
 

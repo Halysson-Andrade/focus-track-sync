@@ -77,7 +77,9 @@ export function useOfficeData(enabled: boolean): OfficeData {
       // `inicio` — o snapshot decide a janela de validade do último heartbeat.
       // `ultimo_ativo` = atividade real (ancora online); `ultimo_visto` = "app
       // vivo" mesmo ocioso (ancora o selo de monitoração ativa do desktop).
-      supabase.from("presenca_desktop").select("usuario_id, ultimo_ativo, ultimo_visto"),
+      supabase
+        .from("presenca_desktop")
+        .select("usuario_id, ultimo_ativo, ultimo_visto, app_version"),
       // Heartbeat do app web (mesma forma). Unificado com o desktop abaixo — o
       // snapshot já toma o MAX por usuário, então a presença online reflete
       // qualquer fonte (evita marcar offline quem trabalha só no navegador).
@@ -85,7 +87,7 @@ export function useOfficeData(enabled: boolean): OfficeData {
       // Heartbeat "extensão viva" (mesmo ociosa). Sinal dedicado p/ o selo de
       // monitoração da extensão. Tolerante a falha: sem a tabela, cai no fallback
       // (último beat de navegação) sem quebrar o resto da busca.
-      supabase.from("presenca_extensao").select("usuario_id, ultimo_visto"),
+      supabase.from("presenca_extensao").select("usuario_id, ultimo_visto, ext_version"),
     ]);
     setRegistros((r.data ?? []) as Registro[]);
     setNavApp((na.data ?? []) as NavRow[]);
@@ -95,14 +97,25 @@ export function useOfficeData(enabled: boolean): OfficeData {
     // `isOnline` continua ancorado em `ultimo_ativo` de desktop+web (a extensão
     // só alimenta o selo de monitoração, não o online — semântica preservada).
     setPresenca([
-      ...((pr.data ?? []) as Presenca[]).map((x) => ({ ...x, fonte: "desktop" as const })),
+      ...((pr.data ?? []) as (Presenca & { app_version?: string | null })[]).map((x) => ({
+        ...x,
+        versao: x.app_version ?? null,
+        fonte: "desktop" as const,
+      })),
       ...((pw.data ?? []) as Presenca[]).map((x) => ({ ...x, fonte: "web" as const })),
-      ...((pe.data ?? []) as { usuario_id: string; ultimo_visto: string | null }[])
+      ...(
+        (pe.data ?? []) as {
+          usuario_id: string;
+          ultimo_visto: string | null;
+          ext_version?: string | null;
+        }[]
+      )
         .filter((x) => x.ultimo_visto)
         .map((x) => ({
           usuario_id: x.usuario_id,
           ultimo_ativo: x.ultimo_visto as string,
           ultimo_visto: x.ultimo_visto,
+          versao: x.ext_version ?? null,
           fonte: "ext" as const,
         })),
     ]);
