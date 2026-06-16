@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Monitor de Atividade",
-  "version": "1.5.2",
-  "description": "Registra navegação no Chrome para o painel de produtividade.",
+  "version": "1.6.0",
+  "description": "Registra navegação no Chrome e apontamento de atividades por item para o painel de produtividade.",
   "permissions": ["tabs", "storage", "idle", "alarms", "notifications"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -16,6 +16,19 @@
         "https://*.lovableproject.com/*"
       ],
       "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://trello.com/*",
+        "https://dev.azure.com/*",
+        "https://*.visualstudio.com/*",
+        "https://mail.google.com/*",
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*",
+        "https://outlook.live.com/*"
+      ],
+      "js": ["activity-widget.js"],
       "run_at": "document_idle"
     }
   ],

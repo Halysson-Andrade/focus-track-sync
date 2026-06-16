@@ -92,6 +92,23 @@ async function api(path, method, body) {
   });
 }
 
+// Chama uma RPC do Postgres (SECURITY DEFINER) com o token do usuário.
+// Usado pelo apontamento de atividades (iniciar_atividade/parar_atividade).
+async function rpc(name, body) {
+  const session = await getSession();
+  if (!session) return null;
+  return fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${session.access_token}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(body || {}),
+  });
+}
+
 function domainOf(url) {
   try {
     return new URL(url).hostname;
@@ -534,9 +551,97 @@ chrome.windows.onFocusChanged.addListener((winId) => {
   if (winId !== chrome.windows.WINDOW_ID_NONE) broadcastHeartbeat();
 });
 
+// ----- Apontamento de atividades (estilo Time Doctor) ---------------------
+// O widget (activity-widget.js) injetado em Trello/Azure/Gmail/Outlook pede:
+//   ACTIVITY_START → iniciar_atividade (gate: expediente ATIVO no backend)
+//   ACTIVITY_STOP  → parar_atividade
+//   ACTIVITY_STATE → estado do apontamento aberto (p/ renderizar play vs stop)
+// O estado vive no banco; o background é só o intermediário autenticado.
+async function activityStart(payload) {
+  try {
+    const res = await rpc("iniciar_atividade", {
+      p_fonte: payload.fonte,
+      p_external_id: payload.external_id,
+      p_external_url: payload.external_url || null,
+      p_titulo: payload.titulo,
+      p_contexto: payload.contexto || null,
+    });
+    if (res && res.ok) {
+      const row = await res.json();
+      return {
+        ok: true,
+        running: {
+          atividade_id: row.atividade_id,
+          fonte: payload.fonte,
+          external_id: payload.external_id,
+          titulo: payload.titulo,
+          inicio: row.inicio,
+        },
+      };
+    }
+    let error = "Falha ao iniciar atividade.";
+    try {
+      const body = res ? await res.json() : null;
+      if (body && (body.message || body.hint)) error = body.message || body.hint;
+    } catch {}
+    return { ok: false, error };
+  } catch {
+    return { ok: false, error: "Falha de rede." };
+  }
+}
+
+async function activityStop() {
+  try {
+    await rpc("parar_atividade", {});
+  } catch {}
+  return { ok: true };
+}
+
+async function activityState() {
+  const session = await getSession();
+  if (!session) return { running: null };
+  try {
+    const res = await api(
+      `atividade_apontamentos?usuario_id=eq.${session.user.id}&fim=is.null` +
+        `&select=atividade_id,inicio,atividades(fonte,external_id,titulo)&limit=1`,
+      "GET",
+    );
+    if (!res || !res.ok) return { running: null };
+    const [row] = await res.json();
+    if (!row || !row.atividades) return { running: null };
+    return {
+      running: {
+        atividade_id: row.atividade_id,
+        fonte: row.atividades.fonte,
+        external_id: row.atividades.external_id,
+        titulo: row.atividades.titulo,
+        inicio: row.inicio,
+      },
+    };
+  } catch {
+    return { running: null };
+  }
+}
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg && msg.type === "ACTIVITY_START") {
+    activityStart(msg.payload || {}).then(sendResponse);
+    return true; // resposta assíncrona
+  }
+  if (msg && msg.type === "ACTIVITY_STOP") {
+    activityStop().then(sendResponse);
+    return true;
+  }
+  if (msg && msg.type === "ACTIVITY_STATE") {
+    activityState().then(sendResponse);
+    return true;
+  }
+});
+
 chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg.type === "LOGGED_OUT") {
     closeCurrent();
+    rpc("parar_atividade", {}).catch(() => {}); // encerra apontamento aberto
   }
   if (msg.type === "LOGGED_IN") {
     trackingPaused = false;
