@@ -2,7 +2,7 @@
 // routes/_authenticated/operacional.tsx para ser reusado tanto pela visão de
 // LISTA quanto pelo ESCRITÓRIO VIRTUAL (mapa). Função pura, sem efeitos.
 
-import { isChromeProcess } from "./activity-config";
+import { ocioReconciliadoSeg } from "./ocio";
 
 export type Profile = {
   id: string;
@@ -47,6 +47,13 @@ export type Presenca = {
   fonte?: "desktop" | "web" | "ext";
   /** Versão do cliente (ext_version / app_version) p/ visibilidade no painel. */
   versao?: string | null;
+};
+
+/** Intervalo discreto de ociosidade (eventos_ociosidade). Fonte única do ócio. */
+export type EventoOcio = {
+  usuario_id: string;
+  inicio: string;
+  fim: string | null;
 };
 
 export interface UserSnapshot {
@@ -153,6 +160,7 @@ export function buildSnapshots(
   nowTs: number,
   presenca: Presenca[] = [],
   adminIds: Set<string> = new Set(),
+  eventos: EventoOcio[] = [],
 ): UserSnapshot[] {
   // Mapas de heartbeat por usuário:
   //   - `presencaByUser`: ATIVIDADE real (ultimo_ativo) de desktop+web. Ancora o
@@ -206,21 +214,16 @@ export function buildSnapshots(
     const myDesk = navDesk.filter((n) => n.usuario_id === p.id);
     const sumSec = (rows: NavRow[]) => rows.reduce((acc, n) => acc + durSec(n, nowTs), 0);
 
-    // Ociosidade RECONCILIADA entre fontes — não conta o mesmo intervalo de
-    // relógio mais de uma vez (era a causa do "ócio muito alto"):
-    //   - web: só a extensão (navExt). É passive-aware (reunião/vídeo não viram
-    //     ócio). Descartamos o ócio do app interno (navApp = navegacao_paginas) e
-    //     do chrome.exe do desktop, que cobrem a MESMA janela do navegador.
-    //   - apps nativos: só uso_aplicativos NÃO-navegador.
-    // Assim "ocioso no desktop (chrome.exe) e ativo no web" deixa de contar.
-    const extIdle = myExt.reduce((a, n) => a + (n.inativo_segundos || 0), 0);
-    const deskIdle = myDesk
-      .filter((n) => !isChromeProcess(n.process_name) && !isChromeProcess(n.app_label))
-      .reduce((a, n) => a + (n.inativo_segundos || 0), 0);
-    const activeSec = totals.ATIVO * 60;
-    const rawIdle = extIdle + deskIdle;
-    // Ócio nunca pode exceder o tempo ATIVO monitorado da jornada.
-    const idleSeconds = activeSec > 0 ? Math.min(rawIdle, activeSec) : rawIdle;
+    // Ociosidade RECONCILIADA — FONTE ÚNICA: união (merge) dos intervalos de
+    // `eventos_ociosidade` (deduplicando sobreposição entre extension/desktop —
+    // não conta a mesma janela de relógio duas vezes) ∩ janelas ATIVO. Mesma
+    // fonte do número e da timeline do dashboard, então nunca divergem; e o
+    // resultado já é ≤ tempo ATIVO por construção (dispensa clamp).
+    const myEventos = eventos.filter((e) => e.usuario_id === p.id);
+    const ativos = myReg
+      .filter((r) => r.status === "ATIVO")
+      .map((r) => ({ inicio: r.inicio, fim: r.fim }));
+    const idleSeconds = ocioReconciliadoSeg(myEventos, ativos, nowTs);
 
     // Presença ancorada no ÚLTIMO instante conhecido de atividade — NÃO no
     // `inicio` do segmento aberto. A extensão/desktop mantêm UMA linha aberta

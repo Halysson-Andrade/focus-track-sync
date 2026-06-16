@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Profile, Registro, NavRow, Presenca } from "@/lib/operacional-snapshot";
+import type { Profile, Registro, NavRow, Presenca, EventoOcio } from "@/lib/operacional-snapshot";
 
 interface OfficeData {
   profiles: Profile[];
@@ -9,6 +9,8 @@ interface OfficeData {
   navExt: NavRow[];
   navDesk: NavRow[];
   presenca: Presenca[];
+  /** Intervalos de ociosidade (fonte única do ócio reconciliado). */
+  eventos: EventoOcio[];
   /** Ids de usuários com papel admin (para alocá-los na sala de Liderança). */
   adminIds: Set<string>;
   /** true quando o canal de realtime está conectado (senão, cai no poll). */
@@ -24,6 +26,7 @@ const REALTIME_TABLES = [
   "navegacao_externa",
   "navegacao_paginas",
   "uso_aplicativos",
+  "eventos_ociosidade",
 ] as const;
 
 // Poll de segurança (fallback do realtime), adaptativo: enquanto o canal está
@@ -45,6 +48,7 @@ export function useOfficeData(enabled: boolean): OfficeData {
   const [navExt, setNavExt] = useState<NavRow[]>([]);
   const [navDesk, setNavDesk] = useState<NavRow[]>([]);
   const [presenca, setPresenca] = useState<Presenca[]>([]);
+  const [eventos, setEventos] = useState<EventoOcio[]>([]);
   const [adminIds, setAdminIds] = useState<Set<string>>(new Set());
   const [connected, setConnected] = useState(false);
 
@@ -54,7 +58,7 @@ export function useOfficeData(enabled: boolean): OfficeData {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const since = startOfDay.toISOString();
-    const [r, na, ne, nd, pr, pw, pe] = await Promise.all([
+    const [r, na, ne, nd, pr, pw, pe, ev] = await Promise.all([
       supabase
         .from("registros_atividade")
         .select("id, usuario_id, status, inicio, fim, duracao_minutos")
@@ -101,11 +105,21 @@ export function useOfficeData(enabled: boolean): OfficeData {
       // monitoração da extensão. Tolerante a falha: sem a tabela, cai no fallback
       // (último beat de navegação) sem quebrar o resto da busca.
       supabase.from("presenca_extensao").select("usuario_id, ultimo_visto, ext_version"),
+      // Intervalos de ociosidade do dia (fonte ÚNICA do ócio reconciliado).
+      // Volume menor que navegação, mas ainda assim ordenamos+limitamos por
+      // segurança contra o teto de 1000 linhas do PostgREST.
+      supabase
+        .from("eventos_ociosidade")
+        .select("usuario_id, inicio, fim")
+        .gte("inicio", since)
+        .order("inicio", { ascending: false })
+        .limit(2000),
     ]);
     setRegistros((r.data ?? []) as Registro[]);
     setNavApp((na.data ?? []) as NavRow[]);
     setNavExt((ne.data ?? []) as NavRow[]);
     setNavDesk((nd.data ?? []) as NavRow[]);
+    setEventos((ev.data ?? []) as EventoOcio[]);
     // Tagueia a origem p/ o snapshot isolar "desktop ativo", "web" e "extensão".
     // `isOnline` continua ancorado em `ultimo_ativo` de desktop+web (a extensão
     // só alimenta o selo de monitoração, não o online — semântica preservada).
@@ -203,6 +217,7 @@ export function useOfficeData(enabled: boolean): OfficeData {
     navExt,
     navDesk,
     presenca,
+    eventos,
     adminIds,
     connected,
     refetch: fetchData,
