@@ -297,7 +297,16 @@ async function ensureActiveRow() {
   if (trackingPaused) return;
   if (currentRow && currentRow.id) return;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    // Preferimos a janela em foco. Mas quando o Chrome está em segundo plano
+    // (ex.: usuário vendo o painel pelo app desktop ou trabalhando em outro
+    // app), `lastFocusedWindow` volta VAZIO e a navegação nunca era registrada.
+    // Caímos para a aba ativa de qualquer janela (a 1ª rastreável) para ainda
+    // refletir a navegação atual no painel.
+    let [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!tab) {
+      const tabs = await chrome.tabs.query({ active: true });
+      tab = tabs.find((t) => isTrackable(t.url)) || tabs[0];
+    }
     if (tab) await handleActive(tab);
   } catch {}
 }

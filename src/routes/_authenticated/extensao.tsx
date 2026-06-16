@@ -24,7 +24,7 @@ import { toast } from "sonner";
 // Mantém em sincronia com extension/manifest.json. Usado como cache-buster na URL
 // do download: ao subir a versão, a URL muda e navegador/CDN não servem o ZIP
 // antigo em cache.
-const EXT_VERSION = "1.5.1";
+const EXT_VERSION = "1.5.2";
 
 export const Route = createFileRoute("/_authenticated/extensao")({
   head: () => ({ meta: [{ title: "Extensão de Monitoramento" }] }),
