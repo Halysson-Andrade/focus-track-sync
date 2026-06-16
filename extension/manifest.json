@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Monitor de Atividade",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Registra navegação no Chrome e apontamento de atividades por item para o painel de produtividade.",
   "permissions": ["tabs", "storage", "idle", "alarms", "notifications"],
   "host_permissions": ["<all_urls>"],
