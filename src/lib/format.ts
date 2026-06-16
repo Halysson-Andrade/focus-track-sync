@@ -6,6 +6,14 @@ export function formatDuration(minutes: number): string {
   return `${h}h ${m.toString().padStart(2, "0")}min`;
 }
 
+/** "agora" / "há N min" / "há Nh" a partir de um intervalo em ms. */
+export function formatAgo(ageMs: number): string {
+  const min = Math.floor(ageMs / 60_000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  return `há ${Math.floor(min / 60)}h`;
+}
+
 export function formatHM(date: Date | string | null | undefined): string {
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;

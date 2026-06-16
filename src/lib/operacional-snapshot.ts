@@ -65,11 +65,17 @@ export interface UserSnapshot {
   lastSeen: string | null;
   navSegSource: { app: number; ext: number; desktop: number };
   idleSeconds: number;
-  /** `live` = segmento aberto e com heartbeat recente (em foco agora). */
-  lastUrl: { url: string; title: string; domain: string; live: boolean } | null;
+  /** `live` = segmento aberto e com heartbeat recente (em foco agora).
+   *  `ageMs` = quanto tempo desde o último beat do segmento (0 quando live). */
+  lastUrl: { url: string; title: string; domain: string; live: boolean; ageMs: number } | null;
   lastAppPage: { path: string; title: string } | null;
   /** Último app desktop em foco (process_name/app_label), p/ detecção de reunião. */
-  lastDesktopApp: { process: string; label: string; live: boolean } | null;
+  lastDesktopApp: {
+    process: string;
+    label: string;
+    live: boolean;
+    ageMs: number;
+  } | null;
   /** Versão do cliente reportada no último heartbeat (null = desconhecida). */
   extVersion: string | null;
   desktopVersion: string | null;
@@ -113,6 +119,13 @@ function lastBeatOf(rows: NavRow[]): number {
     if (beat > max) max = beat;
   }
   return max;
+}
+
+/** Instante do último "beat" de UM segmento (fim, ou inicio+duração se aberto). */
+function segmentBeatOf(n: NavRow): number {
+  return n.fim
+    ? new Date(n.fim).getTime()
+    : new Date(n.inicio).getTime() + (n.duracao_segundos ?? 0) * 1000;
 }
 
 /** `true` se o segmento está aberto e com atividade recente (em foco agora). */
@@ -248,6 +261,7 @@ export function buildSnapshots(
             title: lastExt.title || lastExt.domain || lastExt.url,
             domain: lastExt.domain || "",
             live: isLiveSegment(lastExt, nowTs),
+            ageMs: Math.max(0, nowTs - segmentBeatOf(lastExt)),
           }
         : null;
 
@@ -262,6 +276,7 @@ export function buildSnapshots(
             process: lastDesk.process_name || "",
             label: lastDesk.app_label || lastDesk.process_name || "",
             live: isLiveSegment(lastDesk, nowTs),
+            ageMs: Math.max(0, nowTs - segmentBeatOf(lastDesk)),
           }
         : null;
 

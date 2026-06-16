@@ -1,7 +1,7 @@
 import { Chrome, Monitor } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { StatusBadge } from "@/components/StatusBadge";
-import { formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
+import { formatAgo, formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
 import type { UserSnapshot } from "@/lib/operacional-snapshot";
 import { isMeeting } from "./office-config";
 import avatarSprite from "@/assets/office-avatar.png";
@@ -214,13 +214,24 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
                       icon={<Chrome className="h-2.5 w-2.5" />}
                       active={s.extActive}
                       title={s.lastUrl?.title ?? extPlaceholder}
-                      sub={s.lastUrl?.domain}
+                      sub={
+                        s.lastUrl
+                          ? s.lastUrl.live
+                            ? s.lastUrl.domain
+                            : `${s.lastUrl.domain || "última"} · ${formatAgo(s.lastUrl.ageMs)}`
+                          : undefined
+                      }
                       muted={!s.lastUrl}
                     />
                     <MonitorRow
                       icon={<Monitor className="h-2.5 w-2.5" />}
                       active={s.desktopActive}
                       title={s.lastDesktopApp?.label ?? deskPlaceholder}
+                      sub={
+                        s.lastDesktopApp && !s.lastDesktopApp.live
+                          ? formatAgo(s.lastDesktopApp.ageMs)
+                          : undefined
+                      }
                       muted={!s.lastDesktopApp}
                     />
                   </span>
