@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMensagensEnviadas, statusMensagem } from "@/hooks/use-mensagens";
 import { StatusBadge } from "@/components/StatusBadge";
-import { formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
+import { formatAgo, formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
 import type { NavRow, Registro, UserSnapshot } from "@/lib/operacional-snapshot";
 import {
   Chrome,
@@ -264,30 +264,82 @@ export function AvatarDetailSheet({
                   </div>
                 </section>
 
-                {/* Tela atual */}
-                <section>
-                  <SectionTitle icon={<MonitorPlay className="h-4 w-4" />}>Tela atual</SectionTitle>
-                  <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                    <div className="truncate font-medium">
-                      {s.lastUrl?.title || s.lastDesktopApp?.label || s.lastAppPage?.title || "—"}
-                    </div>
-                    {s.lastUrl?.domain && (
-                      <div className="truncate text-xs text-muted-foreground">
-                        {s.lastUrl.domain}
+                {/* Tela atual: prioriza a fonte AO VIVO (app desktop em foco ou URL live);
+                    quando nenhuma está live, mostra a mais recente com "há X". O navegador
+                    aparece como "Última navegação" quando não é a tela atual. */}
+                {(() => {
+                  const cands: {
+                    label: string;
+                    sub?: string;
+                    live: boolean;
+                    ageMs: number;
+                    isBrowser: boolean;
+                  }[] = [];
+                  if (s.lastDesktopApp)
+                    cands.push({
+                      label: s.lastDesktopApp.label,
+                      live: s.lastDesktopApp.live,
+                      ageMs: s.lastDesktopApp.ageMs,
+                      isBrowser: false,
+                    });
+                  if (s.lastUrl)
+                    cands.push({
+                      label: s.lastUrl.title,
+                      sub: s.lastUrl.domain,
+                      live: s.lastUrl.live,
+                      ageMs: s.lastUrl.ageMs,
+                      isBrowser: true,
+                    });
+                  // live primeiro; entre iguais, o de menor idade (mais recente).
+                  cands.sort((a, b) => Number(b.live) - Number(a.live) || a.ageMs - b.ageMs);
+                  const cur =
+                    cands[0] ??
+                    (s.lastAppPage
+                      ? { label: s.lastAppPage.title, live: false, ageMs: 0, isBrowser: false }
+                      : null);
+                  const browserSecondary = !cur?.isBrowser && s.lastUrl ? s.lastUrl : null;
+                  return (
+                    <section>
+                      <SectionTitle icon={<MonitorPlay className="h-4 w-4" />}>
+                        Tela atual
+                      </SectionTitle>
+                      <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-medium">{cur?.label ?? "—"}</span>
+                          {cur &&
+                            (cur.live ? (
+                              <span className="shrink-0 text-[10px] font-semibold text-[var(--color-success)]">
+                                ● ao vivo
+                              </span>
+                            ) : (
+                              <span className="shrink-0 text-[10px] text-muted-foreground">
+                                {formatAgo(cur.ageMs)}
+                              </span>
+                            ))}
+                        </div>
+                        {cur?.sub && (
+                          <div className="truncate text-xs text-muted-foreground">{cur.sub}</div>
+                        )}
+                        {browserSecondary && (
+                          <div className="mt-1 truncate text-xs text-muted-foreground">
+                            Última navegação: {browserSecondary.domain || browserSecondary.title} ·{" "}
+                            {browserSecondary.live ? "ao vivo" : formatAgo(browserSecondary.ageMs)}
+                          </div>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                          <span>
+                            Extensão {s.extActive ? "monitorando" : "sem sinal"}
+                            {s.extVersion ? ` · v${s.extVersion}` : ""}
+                          </span>
+                          <span>
+                            Desktop {s.desktopActive ? "monitorando" : "sem sinal"}
+                            {s.desktopVersion ? ` · v${s.desktopVersion}` : ""}
+                          </span>
+                        </div>
                       </div>
-                    )}
-                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                      <span>
-                        Extensão {s.extActive ? "monitorando" : "sem sinal"}
-                        {s.extVersion ? ` · v${s.extVersion}` : ""}
-                      </span>
-                      <span>
-                        Desktop {s.desktopActive ? "monitorando" : "sem sinal"}
-                        {s.desktopVersion ? ` · v${s.desktopVersion}` : ""}
-                      </span>
-                    </div>
-                  </div>
-                </section>
+                    </section>
+                  );
+                })()}
 
                 {/* Aplicações utilizadas */}
                 <section>

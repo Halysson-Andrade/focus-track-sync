@@ -59,20 +59,33 @@ export function useOfficeData(enabled: boolean): OfficeData {
         .from("registros_atividade")
         .select("id, usuario_id, status, inicio, fim, duracao_minutos")
         .gte("inicio", since),
+      // PostgREST limita a resposta a 1000 linhas por padrão. Estas tabelas de
+      // alto volume (uma linha por aba/app) ultrapassam isso com a equipe inteira
+      // num dia — sem ordenação, as 1000 retornadas eram as MAIS ANTIGAS, e quem
+      // logava mais tarde ficava sem suas linhas recentes ("Aguardando navegação").
+      // Ordenar por `inicio` desc + teto folgado garante as linhas RECENTES de cada
+      // usuário (que alimentam o "último por usuário"). Correção definitiva
+      // (latest-por-usuário no servidor) virá via RPC/view.
       supabase
         .from("navegacao_paginas")
         .select("usuario_id, inicio, fim, duracao_segundos, inativo_segundos, path, title")
-        .gte("inicio", since),
+        .gte("inicio", since)
+        .order("inicio", { ascending: false })
+        .limit(2000),
       supabase
         .from("navegacao_externa")
         .select("usuario_id, inicio, fim, duracao_segundos, inativo_segundos, url, title, domain")
-        .gte("inicio", since),
+        .gte("inicio", since)
+        .order("inicio", { ascending: false })
+        .limit(2000),
       supabase
         .from("uso_aplicativos")
         .select(
           "usuario_id, inicio, fim, duracao_segundos, inativo_segundos, process_name, app_label",
         )
-        .gte("inicio", since),
+        .gte("inicio", since)
+        .order("inicio", { ascending: false })
+        .limit(2000),
       // Heartbeat de presença (uma linha por usuário, upsert). Não filtra por
       // `inicio` — o snapshot decide a janela de validade do último heartbeat.
       // `ultimo_ativo` = atividade real (ancora online); `ultimo_visto` = "app
