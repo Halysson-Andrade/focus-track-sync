@@ -106,6 +106,12 @@ type UsoApp = {
 };
 // Intervalo PRECISO de ociosidade (apps nativos = desktop, navegador = extensão).
 type IdleEvent = { inicio: string; fim: string; fonte: string };
+type CategoriaRow = {
+  tipo: string;
+  identificador: string;
+  categoria: string;
+  produtiva: boolean;
+};
 
 
 
@@ -182,6 +188,8 @@ function Dashboard() {
   const [dayRecords, setDayRecords] = useState<Registro[]>([]);
   // Intervalos de ociosidade do dia selecionado, para a linha do tempo.
   const [idleEvents, setIdleEvents] = useState<IdleEvent[]>([]);
+  // Classificação de domínios/processos por categoria (admin gerencia no Supabase).
+  const [categorias, setCategorias] = useState<CategoriaRow[]>([]);
 
   // Admin: filter by target user
   const [users, setUsers] = useState<{ id: string; nome: string }[]>([]);
@@ -226,6 +234,15 @@ function Dashboard() {
         setUsers((data ?? []) as { id: string; nome: string }[]);
       });
   }, [isAdmin]);
+
+  // Classificação por categoria (global; admin gerencia no Supabase).
+  useEffect(() => {
+    supabase
+      .from("categoria_atividade")
+      .select("tipo, identificador, categoria, produtiva")
+      .eq("ativo", true)
+      .then(({ data }) => setCategorias((data ?? []) as CategoriaRow[]));
+  }, []);
 
   // Load registros for the selected day (used when viewing another user OR another day)
   useEffect(() => {
@@ -475,6 +492,49 @@ function Dashboard() {
     }
     return Array.from(m.values()).sort((a, b) => b.trabalhado - a.trabalhado);
   }, [useAggregates, appUsage, appDiario, now]);
+
+  // Distribuição do tempo TRABALHADO por categoria (Dev/Comunicação/Reunião/…),
+  // a partir da classificação `categoria_atividade` (domínio/processo → categoria).
+  // Sites/apps sem classificação caem em "Não categorizado" (não somem).
+  const categoriaStats = useMemo(() => {
+    const domainCat = new Map<string, { categoria: string; produtiva: boolean }>();
+    const procCat = new Map<string, { categoria: string; produtiva: boolean }>();
+    categorias.forEach((c) => {
+      const key = c.identificador.toLowerCase();
+      const val = { categoria: c.categoria, produtiva: c.produtiva };
+      if (c.tipo === "dominio") domainCat.set(key, val);
+      else if (c.tipo === "processo") procCat.set(key, val);
+    });
+    const lookupDomain = (domain: string) => {
+      const d = (domain || "").toLowerCase();
+      if (domainCat.has(d)) return domainCat.get(d);
+      for (const [id, val] of domainCat) if (d === id || d.endsWith("." + id)) return val;
+      return undefined;
+    };
+    const agg = new Map<string, { categoria: string; produtiva: boolean; segundos: number }>();
+    const add = (categoria: string, produtiva: boolean, seg: number) => {
+      if (!seg || seg <= 0) return;
+      const cur = agg.get(categoria);
+      if (cur) cur.segundos += seg;
+      else agg.set(categoria, { categoria, produtiva, segundos: seg });
+    };
+    siteStats.forEach((s) => {
+      const hit = lookupDomain(s.domain);
+      if (hit) add(hit.categoria, hit.produtiva, s.trabalhado);
+      else add("Não categorizado", false, s.trabalhado);
+    });
+    appStats.forEach((a) => {
+      const hit =
+        procCat.get((a.process_name || "").toLowerCase()) ??
+        procCat.get((a.app || "").toLowerCase());
+      if (hit) add(hit.categoria, hit.produtiva, a.trabalhado);
+      else add("Não categorizado", false, a.trabalhado);
+    });
+    const arr = Array.from(agg.values()).sort((x, y) => y.segundos - x.segundos);
+    const total = arr.reduce((s, c) => s + c.segundos, 0);
+    const produtivoSeg = arr.filter((c) => c.produtiva).reduce((s, c) => s + c.segundos, 0);
+    return { arr, total, produtivoSeg, pctProdutivo: total > 0 ? (produtivoSeg / total) * 100 : 0 };
+  }, [categorias, siteStats, appStats]);
 
   // Tempo CONSOLIDADO monitorado — desduplica intervalos sobrepostos da
   // extensão (Chrome) e dos apps desktop (excluindo Chrome), e clampa ao
@@ -1101,6 +1161,59 @@ function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Distribuição por categoria */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <CardTitle>Tempo por categoria</CardTitle>
+          </div>
+          {categoriaStats.total > 0 && (
+            <span className="text-sm font-semibold text-success">
+              {Math.round(categoriaStats.pctProdutivo)}% produtivo
+            </span>
+          )}
+        </CardHeader>
+        <CardContent>
+          {categoriaStats.arr.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Sem dados classificados no dia. Configure domínios/processos em{" "}
+              <code>categoria_atividade</code>.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {categoriaStats.arr.map((c) => {
+                const pct =
+                  categoriaStats.total > 0 ? (c.segundos / categoriaStats.total) * 100 : 0;
+                return (
+                  <li key={c.categoria}>
+                    <div className="mb-0.5 flex items-center justify-between text-xs">
+                      <span className="font-medium">{c.categoria}</span>
+                      <span className="text-muted-foreground">
+                        {formatSeconds(c.segundos)} · {Math.round(pct)}%
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${pct}%`,
+                          background: c.produtiva ? "var(--color-success)" : "var(--color-idle)",
+                        }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Distribuição do tempo trabalhado por categoria (verde = produtiva). Itens sem
+            classificação aparecem como “Não categorizado”.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Monitoração — Web vs Desktop + rankings */}
       <div className="grid gap-6 lg:grid-cols-3">
