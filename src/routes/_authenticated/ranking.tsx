@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Medal, Award } from "lucide-react";
 import { formatDuration } from "@/lib/format";
+import { ocioReconciliadoSeg } from "@/lib/ocio";
 
 export const Route = createFileRoute("/_authenticated/ranking")({
   head: () => ({ meta: [{ title: "Ranking de Produtividade" }] }),
@@ -40,18 +41,37 @@ function rangeFor(period: Period) {
 function RankingPage() {
   const [period, setPeriod] = useState<Period>("day");
   const [data, setData] = useState<
-    { id: string; nome: string; ativo: number; total: number; pct: number }[]
+    {
+      id: string;
+      nome: string;
+      ativo: number;
+      ocio: number;
+      efetivo: number;
+      total: number;
+      pct: number;
+    }[]
   >([]);
 
   useEffect(() => {
     const { from, to } = rangeFor(period);
     (async () => {
-      const { data: rows } = await supabase
-        .from("registros_atividade")
-        .select("usuario_id, status, inicio, fim, duracao_minutos, profiles(nome)")
-        .gte("inicio", from)
-        .lte("inicio", to);
-      const map = new Map<string, { nome: string; ativo: number; total: number }>();
+      const [{ data: rows }, { data: evs }] = await Promise.all([
+        supabase
+          .from("registros_atividade")
+          .select("usuario_id, status, inicio, fim, duracao_minutos, profiles(nome)")
+          .gte("inicio", from)
+          .lte("inicio", to),
+        // Intervalos de ociosidade do periodo (fonte unica do ocio). Guarda
+        // contra o teto de 1000 do PostgREST (periodos longos podem subnotificar
+        // ate a agregacao server-side existir).
+        supabase
+          .from("eventos_ociosidade")
+          .select("usuario_id, inicio, fim")
+          .gte("inicio", from)
+          .lte("inicio", to)
+          .order("inicio", { ascending: false })
+          .limit(5000),
+      ]);
       const nowTs = Date.now();
       type RankRow = {
         usuario_id: string;
@@ -61,6 +81,22 @@ function RankingPage() {
         duracao_minutos: number | null;
         profiles?: { nome: string | null } | null;
       };
+      // Eventos de ocio agrupados por usuario.
+      const eventosByUser = new Map<string, { inicio: string; fim: string | null }[]>();
+      ((evs ?? []) as { usuario_id: string; inicio: string; fim: string | null }[]).forEach((e) => {
+        const list = eventosByUser.get(e.usuario_id) ?? [];
+        list.push({ inicio: e.inicio, fim: e.fim });
+        eventosByUser.set(e.usuario_id, list);
+      });
+      const map = new Map<
+        string,
+        {
+          nome: string;
+          ativo: number;
+          total: number;
+          ativos: { inicio: string; fim: string | null }[];
+        }
+      >();
       ((rows ?? []) as unknown as RankRow[]).forEach((r) => {
         const dur =
           r.duracao_minutos ??
@@ -69,17 +105,30 @@ function RankingPage() {
             : (nowTs - new Date(r.inicio).getTime()) / 60000);
         if (r.status === "ENCERRADO") return;
         if (!map.has(r.usuario_id))
-          map.set(r.usuario_id, { nome: r.profiles?.nome ?? "—", ativo: 0, total: 0 });
+          map.set(r.usuario_id, { nome: r.profiles?.nome ?? "—", ativo: 0, total: 0, ativos: [] });
         const bucket = map.get(r.usuario_id)!;
         bucket.total += dur;
-        if (r.status === "ATIVO") bucket.ativo += dur;
+        if (r.status === "ATIVO") {
+          bucket.ativo += dur;
+          bucket.ativos.push({ inicio: r.inicio, fim: r.fim });
+        }
       });
       const arr = Array.from(map.entries())
-        .map(([id, v]) => ({
-          id,
-          ...v,
-          pct: v.total > 0 ? (v.ativo / v.total) * 100 : 0,
-        }))
+        .map(([id, v]) => {
+          // Ocio (min) = merge eventos ∩ janelas ATIVO. Efetivo = ATIVO - ocio.
+          const ocio = ocioReconciliadoSeg(eventosByUser.get(id) ?? [], v.ativos, nowTs) / 60;
+          const efetivo = Math.max(0, v.ativo - ocio);
+          return {
+            id,
+            nome: v.nome,
+            ativo: v.ativo,
+            ocio,
+            efetivo,
+            total: v.total,
+            // Produtividade CIENTE DO OCIO: tempo efetivo / total.
+            pct: v.total > 0 ? (efetivo / v.total) * 100 : 0,
+          };
+        })
         .sort((a, b) => b.pct - a.pct);
       setData(arr);
     })();
@@ -92,7 +141,9 @@ function RankingPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Ranking de Produtividade</h1>
-        <p className="text-sm text-muted-foreground">Tempo Ativo ÷ Tempo Total do Expediente</p>
+        <p className="text-sm text-muted-foreground">
+          Tempo Efetivo (Ativo − Ócio) ÷ Tempo Total do Expediente
+        </p>
       </div>
 
       <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
@@ -129,7 +180,8 @@ function RankingPage() {
                         <div className="flex-1">
                           <div className="font-medium">{u.nome}</div>
                           <div className="text-xs text-muted-foreground">
-                            {formatDuration(u.ativo)} ativo · {formatDuration(u.total)} total
+                            {formatDuration(u.efetivo)} efetivo · {formatDuration(u.ocio)} ócio ·{" "}
+                            {formatDuration(u.total)} total
                           </div>
                           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                             <div

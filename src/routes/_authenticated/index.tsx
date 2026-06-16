@@ -986,7 +986,7 @@ function Dashboard() {
       </Dialog>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-7">
         <StatCard
           icon={<ActivityIcon className="h-4 w-4" />}
           label="Trabalhadas"
@@ -1005,6 +1005,13 @@ function Dashboard() {
               </span>
             ) : undefined
           }
+        />
+        <StatCard
+          icon={<Clock className="h-4 w-4" />}
+          label="Tempo efetivo"
+          value={formatDuration(Math.max(0, totals.ATIVO - monitored.ocioso.total / 60))}
+          accent="success"
+          hint="Tempo ATIVO menos a ociosidade detectada (esforço efetivo)"
         />
         <StatCard
           icon={<Pause className="h-4 w-4" />}
