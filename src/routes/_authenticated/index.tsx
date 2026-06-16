@@ -48,6 +48,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
 import { tempoTrabalhado, isChromeProcess } from "@/lib/activity-config";
+import { ocioReconciliadoSeg } from "@/lib/ocio";
 import {
   ResponsiveContainer,
   PieChart,
@@ -569,16 +570,40 @@ function Dashboard() {
       //   - apps: só uso_aplicativos NÃO-navegador (deskIdleSec já exclui Chrome).
       // Clampado ao tempo ATIVO da jornada — ócio nunca excede o trabalhado.
       ocioso: (() => {
+        // Detalhe por fonte (mantido para os tooltips/barras) — estimativa por
+        // sessão a partir de inativo_segundos.
         const webIdle = useAggregates
           ? navDiario.reduce((a, n) => a + (n.segundos_inativos || 0), 0)
           : externalNav.reduce((a, n) => a + (n.inativo_segundos || 0), 0);
-        const total =
-          jornadaAtivoSec > 0 ? Math.min(webIdle + deskIdleSec, jornadaAtivoSec) : webIdle + deskIdleSec;
+        // TOTAL = fonte ÚNICA: união dos intervalos de `eventos_ociosidade` ∩
+        // janelas ATIVO (mesma fonte da timeline → número e timeline batem; sem
+        // dupla contagem entre extension/desktop). Em modo agregado (>25d) os
+        // eventos podem ter sido purgados (retenção 30d) → fallback para a soma.
+        const fallback =
+          jornadaAtivoSec > 0
+            ? Math.min(webIdle + deskIdleSec, jornadaAtivoSec)
+            : webIdle + deskIdleSec;
+        const ativos = todayRecords
+          .filter((r) => r.status === "ATIVO")
+          .map((r) => ({ inicio: r.inicio, fim: r.fim }));
+        const total = useAggregates
+          ? fallback
+          : ocioReconciliadoSeg(idleEvents, ativos, now.getTime());
         return { apps: deskIdleSec, web: webIdle, total };
       })(),
       foraJornada: Math.max(0, totalUnion - jornadaAtivoSec),
     };
-  }, [externalNav, navDiario, appUsage, appStats, useAggregates, totals.ATIVO, now]);
+  }, [
+    externalNav,
+    navDiario,
+    appUsage,
+    appStats,
+    useAggregates,
+    totals.ATIVO,
+    now,
+    todayRecords,
+    idleEvents,
+  ]);
 
 
   // Donut Web (Chrome) vs Desktop — usa tempo consolidado (já clampado).
