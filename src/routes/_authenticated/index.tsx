@@ -271,7 +271,7 @@ function Dashboard() {
       const [{ data: regs }, { data: evs }] = await Promise.all([
         supabase
           .from("registros_atividade")
-          .select("usuario_id, status, inicio, fim, duracao_minutos, profiles(nome)")
+          .select("usuario_id, status, inicio, fim, duracao_minutos")
           .gte("inicio", dayRange.start)
           .lt("inicio", dayRange.end)
           .order("inicio", { ascending: false })
@@ -588,6 +588,7 @@ function Dashboard() {
   // Agregação da equipe (visão Geral) — por usuário + totais do dia.
   const teamData = useMemo(() => {
     const nowTs = now.getTime();
+    const nomeById = new Map(users.map((u) => [u.id, u.nome]));
     const eventosByUser = new Map<string, { inicio: string; fim: string | null }[]>();
     teamEventos.forEach((e) => {
       const list = eventosByUser.get(e.usuario_id) ?? [];
@@ -614,7 +615,7 @@ function Dashboard() {
       const a =
         map.get(r.usuario_id) ??
         ({
-          nome: r.profiles?.nome ?? "—",
+          nome: nomeById.get(r.usuario_id) ?? "—",
           ATIVO: 0,
           PAUSA: 0,
           ALMOCO: 0,
@@ -655,7 +656,7 @@ function Dashboard() {
       { ativo: 0, ocio: 0, efetivo: 0, pausa: 0, almoco: 0 },
     );
     return { linhas, tot, pessoas: linhas.length, online: linhas.filter((l) => l.online).length };
-  }, [teamRegistros, teamEventos, now]);
+  }, [teamRegistros, teamEventos, users, now]);
 
   // Tempo CONSOLIDADO monitorado — desduplica intervalos sobrepostos da
   // extensão (Chrome) e dos apps desktop (excluindo Chrome), e clampa ao
