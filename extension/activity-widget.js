@@ -148,6 +148,8 @@
     if (root) return;
     const host = document.createElement("div");
     host.id = "wt-activity-host";
+    // Default: canto inferior direito. applyState() pode reposicionar (left/top)
+    // a partir da posição salva pelo usuário.
     host.style.cssText = "position:fixed;z-index:2147483647;right:16px;bottom:16px;";
     (document.body || document.documentElement).appendChild(host);
     const sh = host.attachShadow({ mode: "open" });
@@ -155,10 +157,18 @@
       <style>
         * { box-sizing: border-box; font-family: -apple-system, Segoe UI, Roboto, sans-serif; }
         .box { width: 256px; background:#111827; color:#f9fafb; border-radius:12px;
-               box-shadow:0 8px 24px rgba(0,0,0,.35); padding:10px 12px; font-size:12px; }
+               box-shadow:0 8px 24px rgba(0,0,0,.35); padding:8px 10px 10px; font-size:12px; }
         .row { display:flex; align-items:center; gap:8px; }
-        .src { font-size:10px; text-transform:uppercase; letter-spacing:.04em; opacity:.6; }
-        .title { font-weight:600; line-height:1.25; max-height:2.6em; overflow:hidden;
+        .hdr { display:flex; align-items:center; gap:6px; }
+        .grip { cursor:grab; opacity:.45; user-select:none; touch-action:none; font-size:13px;
+                line-height:1; padding:2px 1px; letter-spacing:-1px; }
+        .grip:active { cursor:grabbing; }
+        .src { flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.04em; opacity:.6;
+               white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .iconbtn { background:transparent; border:0; color:#f9fafb; opacity:.55; cursor:pointer;
+                   font-size:14px; line-height:1; padding:2px 5px; border-radius:6px; }
+        .iconbtn:hover { opacity:1; background:rgba(255,255,255,.12); }
+        .title { font-weight:600; line-height:1.25; max-height:2.6em; overflow:hidden; margin-top:6px;
                  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
         .timer { font-variant-numeric:tabular-nums; font-weight:700; font-size:14px; }
         .btn { border:0; cursor:pointer; border-radius:8px; padding:7px 10px; font-weight:700;
@@ -168,22 +178,33 @@
         .hint { opacity:.7; font-size:11px; }
         .switch { background:#374151; }
         .hide { display:none; }
+        /* Minimizado: só o cabeçalho (grip + fonte/timer + expandir). */
+        .box.min { width:auto; max-width:200px; padding:6px 8px; }
+        .box.min .body { display:none; }
+        .box.min .title { margin-top:0; }
       </style>
-      <div class="box">
-        <div class="row" style="justify-content:space-between;">
+      <div class="box" id="box">
+        <div class="hdr">
+          <span class="grip" id="grip" title="Arraste para mover">⠿</span>
           <span class="src" id="src">Atividade</span>
           <span class="timer hide" id="timer">00:00</span>
+          <button class="iconbtn" id="toggle" title="Minimizar">–</button>
         </div>
-        <div class="title" id="title">—</div>
-        <div class="row" style="margin-top:8px;">
-          <button class="btn play hide" id="play">▶ Iniciar</button>
-          <button class="btn switch hide" id="switch">▶ Trocar p/ esta</button>
-          <button class="btn stop hide" id="stop">■ Parar</button>
+        <div class="body" id="body">
+          <div class="title" id="title">—</div>
+          <div class="row" style="margin-top:8px;">
+            <button class="btn play hide" id="play">▶ Iniciar</button>
+            <button class="btn switch hide" id="switch">▶ Trocar p/ esta</button>
+            <button class="btn stop hide" id="stop">■ Parar</button>
+          </div>
+          <div class="warn hide" id="warn"></div>
+          <div class="hint hide" id="hint"></div>
         </div>
-        <div class="warn hide" id="warn"></div>
-        <div class="hint hide" id="hint"></div>
       </div>`;
     els = {
+      box: sh.getElementById("box"),
+      grip: sh.getElementById("grip"),
+      toggle: sh.getElementById("toggle"),
       src: sh.getElementById("src"),
       timer: sh.getElementById("timer"),
       title: sh.getElementById("title"),
@@ -196,7 +217,112 @@
     els.play.addEventListener("click", () => startCurrent());
     els.switch.addEventListener("click", () => startCurrent());
     els.stop.addEventListener("click", () => stopRunning());
+    els.toggle.addEventListener("click", () => toggleMinimized());
+    setupDrag(host, els.grip);
     root = host;
+    applyState();
+  }
+
+  // ---- Posição/minimizado persistidos (chrome.storage.local) -------------
+  const STATE_KEY = "wt_widget_state";
+  let widgetState = { left: null, top: null, minimized: false };
+
+  function loadState(cb) {
+    try {
+      chrome.storage.local.get(STATE_KEY, (r) => {
+        void chrome.runtime.lastError;
+        const s = r && r[STATE_KEY];
+        if (s && typeof s === "object") {
+          widgetState = {
+            left: typeof s.left === "number" ? s.left : null,
+            top: typeof s.top === "number" ? s.top : null,
+            minimized: !!s.minimized,
+          };
+        }
+        cb && cb();
+      });
+    } catch (_) {
+      cb && cb();
+    }
+  }
+
+  function saveState() {
+    try {
+      chrome.storage.local.set({ [STATE_KEY]: widgetState });
+    } catch (_) {
+      /* contexto invalidado */
+    }
+  }
+
+  // Mantém o widget dentro da viewport (após mover, minimizar ou redimensionar).
+  function clampIntoView() {
+    if (!root || widgetState.left == null || widgetState.top == null) return;
+    const r = root.getBoundingClientRect();
+    const maxL = Math.max(0, window.innerWidth - r.width);
+    const maxT = Math.max(0, window.innerHeight - r.height);
+    widgetState.left = Math.min(Math.max(0, widgetState.left), maxL);
+    widgetState.top = Math.min(Math.max(0, widgetState.top), maxT);
+    root.style.left = widgetState.left + "px";
+    root.style.top = widgetState.top + "px";
+    root.style.right = "auto";
+    root.style.bottom = "auto";
+  }
+
+  function applyState() {
+    if (!root) return;
+    els.box.classList.toggle("min", widgetState.minimized);
+    els.toggle.textContent = widgetState.minimized ? "▢" : "–";
+    els.toggle.title = widgetState.minimized ? "Expandir" : "Minimizar";
+    if (widgetState.left != null && widgetState.top != null) clampIntoView();
+  }
+
+  function toggleMinimized() {
+    widgetState.minimized = !widgetState.minimized;
+    applyState();
+    // Reclampa: ao expandir, o card maior pode ultrapassar a borda.
+    clampIntoView();
+    saveState();
+  }
+
+  function setupDrag(host, handle) {
+    let startX = 0,
+      startY = 0,
+      baseL = 0,
+      baseT = 0,
+      dragging = false;
+    handle.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      const r = host.getBoundingClientRect();
+      baseL = r.left;
+      baseT = r.top;
+      startX = e.clientX;
+      startY = e.clientY;
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch (_) {
+        /* noop */
+      }
+      e.preventDefault();
+    });
+    handle.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      widgetState.left = baseL + (e.clientX - startX);
+      widgetState.top = baseT + (e.clientY - startY);
+      clampIntoView();
+    });
+    const end = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      try {
+        handle.releasePointerCapture(e.pointerId);
+      } catch (_) {
+        /* noop */
+      }
+      saveState();
+    };
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+    window.addEventListener("resize", clampIntoView);
   }
 
   const SRC_LABEL = { trello: "Trello", azure: "Azure DevOps", gmail: "Gmail", outlook: "Outlook" };
@@ -333,6 +459,7 @@
       return;
     }
     ensureUI();
+    loadState(applyState); // restaura posição/minimizado salvos (storage é assíncrono)
     rescan();
     refreshState();
     hookHistory();
