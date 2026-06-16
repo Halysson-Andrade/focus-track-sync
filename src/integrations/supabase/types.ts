@@ -137,6 +137,36 @@ export type Database = {
         }
         Relationships: []
       }
+      categoria_atividade: {
+        Row: {
+          ativo: boolean
+          categoria: string
+          created_at: string
+          id: string
+          identificador: string
+          produtiva: boolean
+          tipo: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria: string
+          created_at?: string
+          id?: string
+          identificador: string
+          produtiva?: boolean
+          tipo: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string
+          created_at?: string
+          id?: string
+          identificador?: string
+          produtiva?: boolean
+          tipo?: string
+        }
+        Relationships: []
+      }
       eventos_ociosidade: {
         Row: {
           created_at: string
