@@ -73,8 +73,8 @@ interface AtividadeView {
 }
 
 function AtividadesPage() {
-  const { isAdmin } = useAuth();
-  const { atividades, apontamentos, profiles, connected } = useAtividades(true, isAdmin);
+  const { user, isAdmin } = useAuth();
+  const { atividades, apontamentos, profiles, connected } = useAtividades(true, isAdmin, user?.id);
   const [now, setNow] = useState(Date.now());
   const [filter, setFilter] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
