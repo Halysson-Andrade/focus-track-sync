@@ -43,9 +43,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # O empacotamento do .dmg falha de forma intermitente no hdiutil dos
+      # runners Apple Silicon ("Resource busy"). É transitório, então tentamos
+      # até 3x antes de desistir — assim o .dmg para no release de forma
+      # confiável em vez de sumir (causando 404 no download do Mac).
       - name: Build (macOS)
         if: matrix.os == 'macos-latest'
-        run: npm run build:mac
+        run: |
+          for attempt in 1 2 3; do
+            echo "== build:mac (tentativa $attempt/3) =="
+            if npm run build:mac; then
+              echo "build:mac concluído na tentativa $attempt"
+              exit 0
+            fi
+            echo "build:mac falhou na tentativa $attempt; aguardando antes de tentar de novo..."
+            rm -rf dist
+            sleep 15
+          done
+          echo "build:mac falhou após 3 tentativas"
+          exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
