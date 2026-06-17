@@ -715,7 +715,7 @@ export type Database = {
     }
     Enums: {
       activity_status: "ATIVO" | "PAUSA" | "ALMOCO" | "INATIVO" | "ENCERRADO"
-      app_role: "admin" | "user" | "superadmin"
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
