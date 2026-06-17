@@ -72,6 +72,7 @@ jobs:
           name: monitor-${{ matrix.os }}
           path: |
             desktop/dist/*.exe
+            desktop/dist/*.zip
             desktop/dist/*.dmg
             desktop/dist/*.blockmap
             desktop/dist/latest*.yml
@@ -92,6 +93,7 @@ jobs:
           # detectar e baixar atualizações; sem eles o auto-update não funciona.
           files: |
             artifacts/**/*.exe
+            artifacts/**/*.zip
             artifacts/**/*.dmg
             artifacts/**/*.blockmap
             artifacts/**/latest.yml
