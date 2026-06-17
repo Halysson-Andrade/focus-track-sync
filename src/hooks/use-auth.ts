@@ -7,12 +7,14 @@ export interface Profile {
   nome: string;
   email: string;
   ativo: boolean;
+  departamento: string | null;
 }
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,6 +23,7 @@ export function useAuth() {
       if (!session?.user) {
         setProfile(null);
         setIsAdmin(false);
+        setIsSuperadmin(false);
         setLoading(false);
       }
     });
@@ -43,7 +46,8 @@ export function useAuth() {
       ]);
       if (cancelled) return;
       setProfile(p as Profile | null);
-      setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+      setIsAdmin(!!roles?.some((r) => r.role === "admin" || r.role === "superadmin"));
+      setIsSuperadmin(!!roles?.some((r) => r.role === "superadmin"));
       setLoading(false);
     })();
     return () => {
@@ -51,5 +55,5 @@ export function useAuth() {
     };
   }, [user]);
 
-  return { user, profile, isAdmin, loading };
+  return { user, profile, isAdmin, isSuperadmin, loading };
 }

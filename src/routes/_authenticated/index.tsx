@@ -164,7 +164,7 @@ function unionSeconds(intervals: { start: number; end: number }[]): number {
 
 function Dashboard() {
   const router = useRouter();
-  const { user, profile, isAdmin } = useAuth();
+  const { user, profile, isAdmin, isSuperadmin } = useAuth();
   const session = useCurrentSession(user?.id);
   const [breakDialog, setBreakDialog] = useState<{ kind: "PAUSA" | "ALMOCO" } | null>(null);
   const [breakReason, setBreakReason] = useState("");
@@ -207,8 +207,32 @@ function Dashboard() {
   >([]);
 
   // Admin: filter by target user. Default "ALL" = visão Geral (todos os recursos).
-  const [users, setUsers] = useState<{ id: string; nome: string }[]>([]);
+  const [users, setUsers] = useState<{ id: string; nome: string; departamento: string | null }[]>(
+    [],
+  );
   const [targetUserId, setTargetUserId] = useState<string>("ALL");
+
+  // Recorte por área: superadmin vê todos (null = sem filtro); admin vê só os da
+  // sua própria área; admin sem departamento (ou não-admin) vê só a si mesmo.
+  // O Dashboard lê registros_atividade/eventos_ociosidade, que também alimentam o
+  // operacional (admin = todos), então este recorte é aplicado na query (UI), não no RLS.
+  const myDept = (profile?.departamento ?? "").trim().toLowerCase();
+  const areaUserIds = useMemo<string[] | null>(() => {
+    if (isSuperadmin) return null; // sem filtro: todas as áreas
+    if (!myDept) return user?.id ? [user.id] : []; // admin sem área → só ele
+    const ids = users
+      .filter((u) => (u.departamento ?? "").trim().toLowerCase() === myDept)
+      .map((u) => u.id);
+    if (user?.id && !ids.includes(user.id)) ids.push(user.id);
+    return ids;
+  }, [isSuperadmin, myDept, users, user?.id]);
+
+  // Usuários visíveis no seletor individual (superadmin: todos; senão, só a área).
+  const selectableUsers = useMemo(
+    () => (areaUserIds === null ? users : users.filter((u) => areaUserIds.includes(u.id))),
+    [areaUserIds, users],
+  );
+
   const geral = isAdmin && targetUserId === "ALL";
   const effectiveUserId = geral
     ? undefined
@@ -247,11 +271,11 @@ function Dashboard() {
     if (!isAdmin) return;
     supabase
       .from("profiles")
-      .select("id, nome")
+      .select("id, nome, departamento")
       .eq("ativo", true)
       .order("nome")
       .then(({ data }) => {
-        setUsers((data ?? []) as { id: string; nome: string }[]);
+        setUsers((data ?? []) as { id: string; nome: string; departamento: string | null }[]);
       });
   }, [isAdmin]);
 
@@ -268,24 +292,34 @@ function Dashboard() {
   // order desc + limit como guarda contra o teto de 1000 do PostgREST.
   useEffect(() => {
     if (!geral) return;
+    // Recorte por área: superadmin (areaUserIds === null) sem filtro; demais
+    // restritos aos ids da sua área. Lista vazia → nada a buscar.
+    if (areaUserIds !== null && areaUserIds.length === 0) {
+      setTeamRegistros([]);
+      setTeamEventos([]);
+      return;
+    }
     let cancelled = false;
     (async () => {
-      const [{ data: regs }, { data: evs }] = await Promise.all([
-        supabase
-          .from("registros_atividade")
-          .select("usuario_id, status, inicio, fim, duracao_minutos")
-          .gte("inicio", dayRange.start)
-          .lt("inicio", dayRange.end)
-          .order("inicio", { ascending: false })
-          .limit(5000),
-        supabase
-          .from("eventos_ociosidade")
-          .select("usuario_id, inicio, fim")
-          .gte("inicio", dayRange.start)
-          .lt("inicio", dayRange.end)
-          .order("inicio", { ascending: false })
-          .limit(5000),
-      ]);
+      let regsQuery = supabase
+        .from("registros_atividade")
+        .select("usuario_id, status, inicio, fim, duracao_minutos")
+        .gte("inicio", dayRange.start)
+        .lt("inicio", dayRange.end)
+        .order("inicio", { ascending: false })
+        .limit(5000);
+      let evsQuery = supabase
+        .from("eventos_ociosidade")
+        .select("usuario_id, inicio, fim")
+        .gte("inicio", dayRange.start)
+        .lt("inicio", dayRange.end)
+        .order("inicio", { ascending: false })
+        .limit(5000);
+      if (areaUserIds !== null) {
+        regsQuery = regsQuery.in("usuario_id", areaUserIds);
+        evsQuery = evsQuery.in("usuario_id", areaUserIds);
+      }
+      const [{ data: regs }, { data: evs }] = await Promise.all([regsQuery, evsQuery]);
       if (cancelled) return;
       setTeamRegistros((regs ?? []) as unknown as TeamReg[]);
       setTeamEventos((evs ?? []) as { usuario_id: string; inicio: string; fim: string | null }[]);
@@ -293,7 +327,7 @@ function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [geral, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
+  }, [geral, areaUserIds, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
 
   // Load registros for the selected day (used when viewing another user OR another day)
   useEffect(() => {
@@ -902,7 +936,7 @@ function Dashboard() {
             <SelectContent>
               <SelectItem value="ALL">Geral · todos</SelectItem>
               <SelectItem value="self">Eu mesmo ({profile?.nome ?? "..."})</SelectItem>
-              {users
+              {selectableUsers
                 .filter((u) => u.id !== user?.id)
                 .map((u) => (
                   <SelectItem key={u.id} value={u.id}>
@@ -1110,7 +1144,7 @@ function Dashboard() {
                 <SelectContent>
                   <SelectItem value="ALL">Geral · todos</SelectItem>
                   <SelectItem value="self">Eu mesmo ({profile?.nome ?? "..."})</SelectItem>
-                  {users
+                  {selectableUsers
                     .filter((u) => u.id !== user?.id)
                     .map((u) => (
                       <SelectItem key={u.id} value={u.id}>
