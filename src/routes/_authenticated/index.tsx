@@ -1,10 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrentSession } from "@/hooks/use-current-session";
 import { usePresenceStatus } from "@/hooks/use-presence-status";
 import { StatusBadge } from "@/components/StatusBadge";
 import { InactivityModal } from "@/components/InactivityModal";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -162,6 +163,7 @@ function unionSeconds(intervals: { start: number; end: number }[]): number {
 
 
 function Dashboard() {
+  const router = useRouter();
   const { user, profile, isAdmin } = useAuth();
   const session = useCurrentSession(user?.id);
   const [breakDialog, setBreakDialog] = useState<{ kind: "PAUSA" | "ALMOCO" } | null>(null);
@@ -864,6 +866,19 @@ function Dashboard() {
     }
   };
 
+  const handleInactivityResume = async () => {
+    const { ext, desktop } = await presence.checkNow();
+    if (ext && desktop) {
+      await session.resume();
+      return;
+    }
+    session.setShowInactive(false);
+    toast.warning(
+      "Retomada automática exige a extensão do Chrome e o app desktop logados. Inicie o expediente manualmente pelos controles.",
+    );
+    router.navigate({ to: "/" });
+  };
+
   const selectedUser = users.find((u) => u.id === targetUserId);
   const displayName = viewingOther ? (selectedUser?.nome ?? "Usuário") : (profile?.nome ?? "...");
 
@@ -979,7 +994,7 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {!viewingOther && <InactivityModal open={session.showInactive} onResume={session.resume} />}
+      {!viewingOther && <InactivityModal open={session.showInactive} onResume={handleInactivityResume} />}
 
       {/* Header card */}
       <Card>
