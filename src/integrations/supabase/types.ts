@@ -686,6 +686,7 @@ export type Database = {
         }
       }
       is_active: { Args: { _user_id: string }; Returns: boolean }
+      is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       parar_atividade: {
         Args: never
         Returns: {
@@ -712,6 +713,7 @@ export type Database = {
           tabela: string
         }[]
       }
+      same_area: { Args: { _owner: string; _viewer: string }; Returns: boolean }
     }
     Enums: {
       activity_status: "ATIVO" | "PAUSA" | "ALMOCO" | "INATIVO" | "ENCERRADO"
@@ -844,7 +846,7 @@ export const Constants = {
   public: {
     Enums: {
       activity_status: ["ATIVO", "PAUSA", "ALMOCO", "INATIVO", "ENCERRADO"],
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "superadmin"],
     },
   },
 } as const
