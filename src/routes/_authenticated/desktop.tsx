@@ -19,7 +19,10 @@ import { toast } from "sonner";
 // URL onde os instaladores ficam hospedados (GitHub Releases).
 const RELEASES_URL = "https://github.com/Halysson-Andrade/focus-track-sync/releases/latest";
 const WIN_INSTALLER = `${RELEASES_URL}/download/Focus.Track.Monitor.Setup.exe`;
-const MAC_INSTALLER = `${RELEASES_URL}/download/Focus.Track.Monitor.dmg`;
+// macOS é distribuído como .zip (não .dmg): o empacotamento .dmg falhava de
+// forma intermitente no hdiutil dos runners e gerava imagens que não montavam.
+const MAC_ARM = `${RELEASES_URL}/download/Focus.Track.Monitor-arm64.zip`;
+const MAC_INTEL = `${RELEASES_URL}/download/Focus.Track.Monitor-x64.zip`;
 
 export const Route = createFileRoute("/_authenticated/desktop")({
   head: () => ({ meta: [{ title: "App Desktop de Monitoramento" }] }),
@@ -31,9 +34,13 @@ function DesktopPage() {
     window.open(WIN_INSTALLER, "_blank");
     toast.success("Baixando instalador do Windows…");
   };
-  const downloadMac = () => {
-    window.open(MAC_INSTALLER, "_blank");
-    toast.success("Baixando instalador do macOS…");
+  const downloadMacArm = () => {
+    window.open(MAC_ARM, "_blank");
+    toast.success("Baixando app para Mac (Apple Silicon)…");
+  };
+  const downloadMacIntel = () => {
+    window.open(MAC_INTEL, "_blank");
+    toast.success("Baixando app para Mac (Intel)…");
   };
 
   return (
@@ -69,16 +76,32 @@ function DesktopPage() {
           </button>
 
           <button
-            onClick={downloadMac}
+            onClick={downloadMacArm}
             className="flex items-center gap-4 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent hover:border-primary"
           >
             <div className="grid h-12 w-12 place-items-center rounded-lg bg-zinc-500/10 text-zinc-700 dark:text-zinc-300">
               <Apple className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <div className="font-semibold">macOS</div>
+              <div className="font-semibold">macOS — Apple Silicon</div>
               <div className="text-xs text-muted-foreground">
-                Imagem .dmg (Intel e Apple Silicon)
+                .zip (Macs M1/M2/M3/M4 — a maioria desde 2020)
+              </div>
+            </div>
+            <Download className="h-5 w-5 text-muted-foreground" />
+          </button>
+
+          <button
+            onClick={downloadMacIntel}
+            className="flex items-center gap-4 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent hover:border-primary"
+          >
+            <div className="grid h-12 w-12 place-items-center rounded-lg bg-zinc-500/10 text-zinc-700 dark:text-zinc-300">
+              <Apple className="h-6 w-6" />
+            </div>
+            <div className="flex-1">
+              <div className="font-semibold">macOS — Intel</div>
+              <div className="text-xs text-muted-foreground">
+                .zip (Macs Intel, anteriores a 2020)
               </div>
             </div>
             <Download className="h-5 w-5 text-muted-foreground" />
@@ -118,16 +141,22 @@ function DesktopPage() {
             </div>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground ml-1">
               <li>
-                Dê duplo clique no arquivo <code className="bg-muted px-1 rounded">.dmg</code>.
+                Dê duplo clique no arquivo <code className="bg-muted px-1 rounded">.zip</code> para
+                descompactar — vai aparecer o app <b>Focus Track Monitor</b>.
               </li>
               <li>
-                Arraste o ícone <b>Focus Track Monitor</b> para a pasta <b>Aplicativos</b>.
+                Arraste o <b>Focus Track Monitor</b> para a pasta <b>Aplicativos</b>.
               </li>
               <li>
-                Na primeira execução, se aparecer "não pode ser aberto porque é de um desenvolvedor
-                não identificado", vá em <b>Ajustes do Sistema → Privacidade e Segurança</b> e
-                clique em
-                <b> Abrir Assim Mesmo</b>.
+                Como o app ainda não é assinado, abra o <b>Terminal</b> e rode (cola e dá Enter):
+                <code className="bg-muted px-1 rounded block mt-1 whitespace-pre-wrap">
+                  xattr -cr "/Applications/Focus Track Monitor.app"
+                </code>
+              </li>
+              <li>
+                Depois clique com o <b>botão direito</b> no app → <b>Abrir</b> → <b>Abrir</b>. Se
+                ainda bloquear, vá em <b>Ajustes do Sistema → Privacidade e Segurança</b> e clique
+                em <b>Abrir Assim Mesmo</b>.
               </li>
             </ol>
           </div>
