@@ -1,17 +1,6 @@
 import { useState } from "react";
 import { Chrome, Monitor, LogOut } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatAgo, formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
 import type { UserSnapshot } from "@/lib/operacional-snapshot";
@@ -410,10 +399,12 @@ export function OfficeAvatar({
   );
 }
 
-/** Botão "Encerrar expediente" (superadmin) com confirmação. A RPC encerra o
- *  registro aberto do alvo (fica offline) e grava log; o painel atualiza sozinho. */
+/** Botão "Encerrar expediente" (superadmin) com confirmação INLINE (sem Dialog
+ *  modal). A confirmação acontece dentro do próprio hover-card para evitar travar
+ *  o `<body>` caso o hover feche com um modal aberto. A RPC encerra o registro
+ *  aberto do alvo (fica offline) e grava log; o painel atualiza sozinho. */
 function ForceLogoutButton({ snapshot: s }: { snapshot: UserSnapshot }) {
-  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function encerrar() {
@@ -422,7 +413,7 @@ function ForceLogoutButton({ snapshot: s }: { snapshot: UserSnapshot }) {
       p_usuario: s.profile.id,
     });
     setLoading(false);
-    setOpen(false);
+    setConfirming(false);
     if (error) {
       toast.error(error.message ?? "Falha ao encerrar o expediente");
       return;
@@ -430,40 +421,45 @@ function ForceLogoutButton({ snapshot: s }: { snapshot: UserSnapshot }) {
     toast.success(`Expediente de ${s.profile.nome.split(" ")[0]} encerrado`);
   }
 
+  const destructive =
+    "flex items-center justify-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-60";
+
   return (
     <div className="mt-3 border-t pt-2">
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogTrigger asChild>
-          <button
-            type="button"
-            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
-          >
-            <LogOut className="h-3.5 w-3.5" /> Encerrar expediente
-          </button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Encerrar expediente de {s.profile.nome}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              O registro de atividade aberto será encerrado e a pessoa ficará offline no escritório.
-              A ação fica registrada em log. O expediente só reabre quando ela iniciar de novo pelo
-              app web.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                void encerrar();
-              }}
+      {!confirming ? (
+        <button
+          type="button"
+          className={`w-full ${destructive}`}
+          onClick={() => setConfirming(true)}
+        >
+          <LogOut className="h-3.5 w-3.5" /> Encerrar expediente
+        </button>
+      ) : (
+        <div className="space-y-1.5">
+          <p className="text-[11px] text-muted-foreground">
+            Encerrar o expediente de {s.profile.nome.split(" ")[0]}? Ficará offline (registrado em
+            log).
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={`flex-1 ${destructive}`}
+              onClick={() => void encerrar()}
               disabled={loading}
             >
-              {loading ? "Encerrando…" : "Encerrar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              {loading ? "Encerrando…" : "Confirmar"}
+            </button>
+            <button
+              type="button"
+              className="flex-1 rounded-md border px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
+              onClick={() => setConfirming(false)}
+              disabled={loading}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
