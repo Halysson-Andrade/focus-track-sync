@@ -17,9 +17,6 @@ import {
 import { Flame } from "lucide-react";
 import officeMap from "@/assets/office-map.jpg";
 
-
-
-
 interface Stats {
   total: number;
   online: number;
@@ -35,6 +32,10 @@ interface Props {
   stats: Stats;
   nowTs: number;
   onSelect?: (s: UserSnapshot) => void;
+  /** Ids cujo detalhe (monitor + barra lateral) o perfil atual pode ver. */
+  inspectableIds?: Set<string>;
+  /** Superadmin: habilita "Encerrar expediente" nos avatares inspecionáveis. */
+  canForceLogout?: boolean;
 }
 
 function pct(cell: { cx: number; cy: number }) {
@@ -60,7 +61,14 @@ const DUST = Array.from({ length: 14 }, (_, i) => ({
   size: 1.5 + ((i * 7) % 3),
 }));
 
-export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
+export function VirtualOffice({
+  snapshots,
+  stats,
+  nowTs,
+  onSelect,
+  inspectableIds,
+  canForceLogout = false,
+}: Props) {
   const placed = useMemo(() => placeAvatars(snapshots), [snapshots]);
   const grid = useMemo(() => buildWalkGrid(), []);
   const density = useMemo(() => densityByRoom(snapshots), [snapshots]);
@@ -88,10 +96,7 @@ export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
 
       {/* Palco do escritório — mapa pixel-art top-down (planta atualizada) */}
       <div className="relative overflow-hidden rounded-2xl border-2 border-foreground/15 bg-black shadow-2xl">
-        <div
-          className="relative w-full"
-          style={{ aspectRatio: `${WORLD.cols} / ${WORLD.rows}` }}
-        >
+        <div className="relative w-full" style={{ aspectRatio: `${WORLD.cols} / ${WORLD.rows}` }}>
           {/* Mapa do escritório (background pixel-art) */}
           <img
             src={officeMap}
@@ -101,8 +106,6 @@ export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
             style={{ imageRendering: "pixelated" }}
             loading="lazy"
           />
-
-
 
           {/* Vinheta sutil nas bordas para dar profundidade */}
           <div
@@ -123,8 +126,7 @@ export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
               style={{
                 left: `${l.x}%`,
                 top: `${l.y}%`,
-                background:
-                  "radial-gradient(circle, rgba(255,210,120,0.35), transparent 70%)",
+                background: "radial-gradient(circle, rgba(255,210,120,0.35), transparent 70%)",
                 animationDelay: `${i * 0.6}s`,
                 transform: "translate(-50%, -50%)",
               }}
@@ -166,6 +168,8 @@ export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
               grid={grid}
               nowTs={nowTs}
               onSelect={onSelect}
+              inspectable={inspectableIds ? inspectableIds.has(snapshot.profile.id) : true}
+              canForceLogout={canForceLogout}
             />
           ))}
         </div>
@@ -174,19 +178,22 @@ export function VirtualOffice({ snapshots, stats, nowTs, onSelect }: Props) {
   );
 }
 
-
 function AnimatedAvatar({
   snapshot,
   target,
   grid,
   nowTs,
   onSelect,
+  inspectable,
+  canForceLogout,
 }: {
   snapshot: UserSnapshot;
   target: Cell;
   grid: WalkGrid;
   nowTs: number;
   onSelect?: (s: UserSnapshot) => void;
+  inspectable: boolean;
+  canForceLogout: boolean;
 }) {
   const { cx, cy, moving } = useAvatarMovement(target, grid);
   const p = pct({ cx, cy });
@@ -198,6 +205,8 @@ function AnimatedAvatar({
       nowTs={nowTs}
       moving={moving}
       onClick={onSelect}
+      inspectable={inspectable}
+      canForceLogout={canForceLogout && inspectable}
     />
   );
 }
@@ -231,9 +240,7 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
         <span>{room.label}</span>
         <span
           className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-px text-[9px] font-bold leading-none ${
-            count > 0
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground"
+            count > 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
           }`}
         >
           {count}
@@ -242,7 +249,6 @@ function RoomBox({ room, count, heat }: { room: Room; count: number; heat: numbe
     </div>
   );
 }
-
 
 function Legend() {
   const items: Array<{ color: string; label: string; dot?: boolean }> = [
