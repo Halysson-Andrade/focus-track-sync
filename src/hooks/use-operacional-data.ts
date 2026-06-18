@@ -39,20 +39,17 @@ export interface OperacionalData {
   refetch: () => void;
 }
 
-const REALTIME_TABLES = [
-  "registros_atividade",
-  "presenca_desktop",
-  "presenca_web",
-  "presenca_extensao",
-  "navegacao_externa",
-  "navegacao_paginas",
-  "uso_aplicativos",
-  "eventos_ociosidade",
-] as const;
+// Realtime APENAS nas tabelas de baixa escrita que mudam o estado do mapa
+// (status + presença). As tabelas de alta escrita (navegação/apps/ócio/extensão)
+// foram REMOVIDAS do gatilho: elas disparavam refetch constante (enxurrada de
+// office_overview/office_detail que entupia o backend). O detalhe dessas fontes
+// é atualizado pelo poll periódico, não a cada evento.
+const REALTIME_TABLES = ["registros_atividade", "presenca_desktop", "presenca_web"] as const;
 
 const SAFETY_POLL_CONNECTED_MS = 30_000;
-const SAFETY_POLL_DISCONNECTED_MS = 15_000;
-const REFETCH_DEBOUNCE_MS = 300;
+const SAFETY_POLL_DISCONNECTED_MS = 20_000;
+// Debounce folgado: coalesce rajadas de eventos em um único refetch.
+const REFETCH_DEBOUNCE_MS = 1_500;
 
 const EMPTY_DETAIL: DetailData = {
   navApp: [],
@@ -79,68 +76,81 @@ export function useOperacionalData(enabled: boolean, isAdmin: boolean): Operacio
   const [detail, setDetail] = useState<DetailData>(EMPTY_DETAIL);
   const [connected, setConnected] = useState(false);
   const debounceRef = useRef<number | null>(null);
+  // Guarda de "em andamento": impede SOBREPOSIÇÃO de fetches. Sem isso, realtime
+  // + poll podiam disparar várias chamadas concorrentes de office_overview/detail
+  // que ficavam pendentes e entupiam o pool de conexões do backend.
+  const inFlightRef = useRef(false);
 
   const fetchData = useCallback(async () => {
     if (!enabled) return;
-    const since = startOfDayIso();
+    if (inFlightRef.current) return;
+    // Não busca com a aba em segundo plano (evita poll/realtime consumir backend
+    // e rede sem ninguém olhando).
+    if (typeof document !== "undefined" && document.hidden) return;
+    inFlightRef.current = true;
+    try {
+      const since = startOfDayIso();
 
-    const ov = await supabase.rpc("office_overview", { p_since: since });
-    if (ov.error) {
-      console.error("[operacional] office_overview", ov.error.message);
-    } else if (ov.data) {
-      const o = ov.data as {
-        profiles?: Profile[];
-        registros?: Registro[];
-        presenca?: Presenca[];
-        admin_ids?: string[];
-      };
-      setBase({
-        profiles: o.profiles ?? [],
-        registros: o.registros ?? [],
-        presenca: o.presenca ?? [],
-        adminIds: new Set(o.admin_ids ?? []),
-      });
-    }
+      const ov = await supabase.rpc("office_overview", { p_since: since });
+      if (ov.error) {
+        console.error("[operacional] office_overview", ov.error.message);
+      } else if (ov.data) {
+        const o = ov.data as {
+          profiles?: Profile[];
+          registros?: Registro[];
+          presenca?: Presenca[];
+          admin_ids?: string[];
+        };
+        setBase({
+          profiles: o.profiles ?? [],
+          registros: o.registros ?? [],
+          presenca: o.presenca ?? [],
+          adminIds: new Set(o.admin_ids ?? []),
+        });
+      }
 
-    if (!isAdmin) {
-      setDetail(EMPTY_DETAIL);
-      return;
-    }
+      if (!isAdmin) {
+        setDetail(EMPTY_DETAIL);
+        return;
+      }
 
-    const dt = await supabase.rpc("office_detail", { p_since: since });
-    if (dt.error) {
-      console.error("[operacional] office_detail", dt.error.message);
-    } else if (dt.data) {
-      const d = dt.data as {
-        inspectable_ids?: string[];
-        nav_app?: NavRow[];
-        nav_ext?: NavRow[];
-        nav_desk?: NavRow[];
-        presenca_ext?: {
-          usuario_id: string;
-          ultimo_visto: string | null;
-          ext_version?: string | null;
-        }[];
-        eventos?: EventoOcio[];
-      };
-      setDetail({
-        navApp: d.nav_app ?? [],
-        navExt: d.nav_ext ?? [],
-        navDesk: d.nav_desk ?? [],
-        // Presença da extensão alimenta apenas o selo de "monitoração ativa"
-        // (fonte 'ext' NÃO ancora o online — semântica preservada no snapshot).
-        presencaExt: (d.presenca_ext ?? [])
-          .filter((x) => x.ultimo_visto)
-          .map((x) => ({
-            usuario_id: x.usuario_id,
-            ultimo_ativo: x.ultimo_visto as string,
-            ultimo_visto: x.ultimo_visto,
-            versao: x.ext_version ?? null,
-            fonte: "ext" as const,
-          })),
-        eventos: d.eventos ?? [],
-        inspectableIds: new Set(d.inspectable_ids ?? []),
-      });
+      const dt = await supabase.rpc("office_detail", { p_since: since });
+      if (dt.error) {
+        console.error("[operacional] office_detail", dt.error.message);
+      } else if (dt.data) {
+        const d = dt.data as {
+          inspectable_ids?: string[];
+          nav_app?: NavRow[];
+          nav_ext?: NavRow[];
+          nav_desk?: NavRow[];
+          presenca_ext?: {
+            usuario_id: string;
+            ultimo_visto: string | null;
+            ext_version?: string | null;
+          }[];
+          eventos?: EventoOcio[];
+        };
+        setDetail({
+          navApp: d.nav_app ?? [],
+          navExt: d.nav_ext ?? [],
+          navDesk: d.nav_desk ?? [],
+          // Presença da extensão alimenta apenas o selo de "monitoração ativa"
+          // (fonte 'ext' NÃO ancora o online — semântica preservada no snapshot).
+          presencaExt: (d.presenca_ext ?? [])
+            .filter((x) => x.ultimo_visto)
+            .map((x) => ({
+              usuario_id: x.usuario_id,
+              ultimo_ativo: x.ultimo_visto as string,
+              ultimo_visto: x.ultimo_visto,
+              versao: x.ext_version ?? null,
+              fonte: "ext" as const,
+            })),
+          eventos: d.eventos ?? [],
+          inspectableIds: new Set(d.inspectable_ids ?? []),
+        });
+      }
+    } finally {
+      inFlightRef.current = false;
     }
   }, [enabled, isAdmin]);
 
@@ -173,12 +183,24 @@ export function useOperacionalData(enabled: boolean, isAdmin: boolean): Operacio
   }, [enabled, fetchData, scheduleRefetch]);
 
   // Poll de segurança adaptativo (cobre o user comum, sem realtime das tabelas alheias).
+  // fetchData já ignora chamadas com a aba oculta ou com um fetch em andamento.
   useEffect(() => {
     if (!enabled) return;
     const intervalMs = connected ? SAFETY_POLL_CONNECTED_MS : SAFETY_POLL_DISCONNECTED_MS;
     const poll = window.setInterval(fetchData, intervalMs);
     return () => window.clearInterval(poll);
   }, [enabled, connected, fetchData]);
+
+  // Ao voltar a aba para o primeiro plano, faz uma atualização (já que pausamos
+  // o fetch enquanto oculta).
+  useEffect(() => {
+    if (!enabled) return;
+    const onVisible = () => {
+      if (!document.hidden) void fetchData();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [enabled, fetchData]);
 
   return { base, detail, connected, refetch: fetchData };
 }
