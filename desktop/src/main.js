@@ -91,6 +91,7 @@ let flushTimer = null;
 let current = null; // { id, process_name, app_label, executable_path, enteredAt, idleAccum, lastIdleStart }
 let syncedCount = 0; // registros (uso_aplicativos) gravados com sucesso nesta sessão
 let lastError = null; // último erro de sincronização (mostrado na UI para diagnóstico)
+let emptyAppTicks = 0; // macOS: ticks consecutivos sem app ativo lido (diagnóstico)
 let idleWhitelist = new Set(); // process_name (lowercase) de apps passivos (reunião/vídeo)
 let whitelistTimer = null;
 // Coordenação com a sessão macro (registros_atividade). Só rastreamos apps
@@ -381,12 +382,38 @@ async function tick() {
   if (trackingPaused) return; // sessão macro não-ATIVA: não rastreia nem envia presença
   try {
     const activeWin = await getActiveWin();
-    const info = await activeWin();
+    // Windows: undefined === comportamento atual (activeWin() sem opções), intocado.
+    // macOS: pula title/url (que não usamos) e as checagens de permissão TCC que
+    // fazem o active-win não retornar o app ativo no app ad-hoc/não-assinado.
+    const awOpts =
+      process.platform === "darwin"
+        ? { accessibilityPermission: false, screenRecordingPermission: false }
+        : undefined;
+    const info = await activeWin(awOpts);
     const idleSec = powerMonitor.getSystemIdleTime();
     const rawIdle = idleSec >= cfg.IDLE_THRESHOLD_S;
 
     const procName =
       info && info.owner ? (info.owner.name || info.owner.path || "").toString() : "";
+
+    // Diagnóstico macOS: hoje, se o app ativo não é lido, tudo falha em silêncio
+    // e o painel fica eterno em "Aguardando app". Torna visível na bandeja.
+    if (process.platform === "darwin") {
+      if (!procName) {
+        emptyAppTicks += 1;
+        if (emptyAppTicks === 3) {
+          lastError = "macOS: não foi possível ler o app ativo.";
+          console.error("tick: active-win não retornou app ativo (macOS) por 3 ticks");
+          sendStatus();
+        }
+      } else if (emptyAppTicks > 0) {
+        emptyAppTicks = 0;
+        if (lastError && lastError.startsWith("macOS: não foi possível ler o app ativo")) {
+          lastError = null;
+          sendStatus();
+        }
+      }
+    }
     // App passivo (reunião/vídeo/leitura): ausência de input não é ociosidade.
     const passive = procName ? idleWhitelist.has(procName.toLowerCase()) : false;
     // Navegador em foco: ócio é responsabilidade da extensão (passive-aware),
