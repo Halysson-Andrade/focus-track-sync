@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { isTimeoutError, withTimeout } from "@/lib/async-timeout";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Entrar — Controle de Atividade" }] }),
@@ -28,11 +29,19 @@ function AuthPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        12_000,
+        "Tempo esgotado ao conectar com a autenticação.",
+      );
       if (error) throw error;
       router.navigate({ to: "/" });
     } catch (err) {
-      toast.error((err as Error).message ?? "Erro");
+      toast.error(
+        isTimeoutError(err)
+          ? "Não foi possível conectar agora. Recarregue a página e tente novamente."
+          : ((err as Error).message ?? "Erro"),
+      );
     } finally {
       setLoading(false);
     }
