@@ -26,7 +26,7 @@ import { ExtensionOnboarding } from "@/components/ExtensionOnboarding";
 const nav = [
   { to: "/", label: "Dashboard", icon: Activity },
   { to: "/atividades", label: "Atividades", icon: Timer },
-  { to: "/operacional", label: "Operacional", icon: Eye, admin: true },
+  { to: "/operacional", label: "Operacional", icon: Eye },
   { to: "/extensao", label: "Extensão", icon: Chrome },
   { to: "/desktop", label: "App Desktop", icon: Monitor },
   { to: "/relatorios", label: "Relatórios", icon: FileText, admin: true },

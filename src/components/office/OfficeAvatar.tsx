@@ -1,9 +1,23 @@
-import { Chrome, Monitor } from "lucide-react";
+import { useState } from "react";
+import { Chrome, Monitor, LogOut } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatAgo, formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
 import type { UserSnapshot } from "@/lib/operacional-snapshot";
 import { isMeeting } from "./office-config";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import avatarSprite from "@/assets/office-avatar.png";
 
 /** Hash determinístico → matiz, p/ variar levemente a cor do sprite por pessoa. */
@@ -137,9 +151,23 @@ interface Props {
   nowTs: number;
   moving?: boolean;
   onClick?: (s: UserSnapshot) => void;
+  /** Pode ver monitor de acesso + hover-card detalhado deste avatar. Quando false,
+   *  o hover mostra só o nome (sem monitor/nav) — visão de user / admin fora da área. */
+  inspectable?: boolean;
+  /** Superadmin: habilita "Encerrar expediente" no hover-card. */
+  canForceLogout?: boolean;
 }
 
-export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, onClick }: Props) {
+export function OfficeAvatar({
+  snapshot: s,
+  xPct,
+  yPct,
+  nowTs,
+  moving = false,
+  onClick,
+  inspectable = true,
+  canForceLogout = false,
+}: Props) {
   const color = STATUS_COLOR[s.currentStatus] ?? "var(--color-muted-foreground)";
   const sinceMin = s.currentSince ? (nowTs - new Date(s.currentSince).getTime()) / 60000 : 0;
   const lastSeenMin = s.lastSeen ? (nowTs - new Date(s.lastSeen).getTime()) / 60000 : 0;
@@ -176,8 +204,9 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
             className="group flex w-20 cursor-pointer flex-col items-center gap-0.5 focus:outline-none"
           >
             {/* Monitor expandido: selos de monitoração ativa (desktop/extensão)
-                acima + uma linha por fonte com o último registro e liveness. */}
-            {s.isOnline && (
+                acima + uma linha por fonte com o último registro e liveness.
+                Só para avatares inspecionáveis (oculto p/ user e admin fora da área). */}
+            {s.isOnline && inspectable && (
               <span className="pointer-events-none relative mb-0.5 flex w-[124px] flex-col items-center">
                 {/* selos de "monitoração ativa" por cliente */}
                 <span className="mb-0.5 flex items-center gap-1 text-[7px] font-semibold">
@@ -306,71 +335,135 @@ export function OfficeAvatar({ snapshot: s, xPct, yPct, nowTs, moving = false, o
           </button>
         </HoverCardTrigger>
 
-        <HoverCardContent className="w-72" align="center">
-          <div className="flex items-start gap-3">
-            <span
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold text-white"
-              style={{ background: color }}
-            >
-              {initialsOf(s.profile.nome)}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-semibold">{s.profile.nome}</div>
-              <div className="truncate text-xs text-muted-foreground">
-                {s.profile.cargo || s.profile.email}
-                {s.profile.departamento ? ` · ${s.profile.departamento}` : ""}
-              </div>
-              <div className="mt-1">
-                {s.isOnline ? (
-                  <StatusBadge status={s.currentStatus} />
-                ) : (
-                  <span className="text-xs text-muted-foreground">Offline</span>
-                )}
+        {/* Hover-card detalhado só para inspecionáveis; do contrário o hover
+            mostra apenas o nome (label sempre visível embaixo do avatar). */}
+        {inspectable && (
+          <HoverCardContent className="w-72" align="center">
+            <div className="flex items-start gap-3">
+              <span
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold text-white"
+                style={{ background: color }}
+              >
+                {initialsOf(s.profile.nome)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold">{s.profile.nome}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {s.profile.cargo || s.profile.email}
+                  {s.profile.departamento ? ` · ${s.profile.departamento}` : ""}
+                </div>
+                <div className="mt-1">
+                  {s.isOnline ? (
+                    <StatusBadge status={s.currentStatus} />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Offline</span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-            <Info label="Trabalhado hoje" value={formatDuration(s.totals.ATIVO)} />
-            <Info label="Produtividade" value={`${produtividade(s)}%`} />
-            <Info label="Em pausa" value={formatDuration(s.totals.PAUSA)} />
-            <Info label="Almoço" value={formatDuration(s.totals.ALMOCO)} />
-            <Info
-              label={s.isOnline ? "Neste status há" : "Última atividade"}
-              value={
-                s.isOnline
-                  ? formatDuration(sinceMin)
-                  : s.lastSeen
-                    ? `há ${formatDuration(lastSeenMin)}`
-                    : "—"
-              }
-            />
-            <Info label="Ócio detectado" value={formatDuration(s.idleSeconds / 60)} />
-          </div>
-
-          <div className="mt-3 border-t pt-2 text-xs">
-            <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-              Monitoração
+            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+              <Info label="Trabalhado hoje" value={formatDuration(s.totals.ATIVO)} />
+              <Info label="Produtividade" value={`${produtividade(s)}%`} />
+              <Info label="Em pausa" value={formatDuration(s.totals.PAUSA)} />
+              <Info label="Almoço" value={formatDuration(s.totals.ALMOCO)} />
+              <Info
+                label={s.isOnline ? "Neste status há" : "Última atividade"}
+                value={
+                  s.isOnline
+                    ? formatDuration(sinceMin)
+                    : s.lastSeen
+                      ? `há ${formatDuration(lastSeenMin)}`
+                      : "—"
+                }
+              />
+              <Info label="Ócio detectado" value={formatDuration(s.idleSeconds / 60)} />
             </div>
-            <SourceLine
-              icon={<Chrome className="h-3 w-3" />}
-              name="Extensão"
-              version={s.extVersion}
-              active={s.extActive}
-              title={s.lastUrl?.title}
-              sub={s.lastUrl?.domain}
-              hint={s.lastUrl?.url}
-            />
-            <SourceLine
-              icon={<Monitor className="h-3 w-3" />}
-              name="App desktop"
-              version={s.desktopVersion}
-              active={s.desktopActive}
-              title={s.lastDesktopApp?.label}
-            />
-          </div>
-        </HoverCardContent>
+
+            <div className="mt-3 border-t pt-2 text-xs">
+              <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                Monitoração
+              </div>
+              <SourceLine
+                icon={<Chrome className="h-3 w-3" />}
+                name="Extensão"
+                version={s.extVersion}
+                active={s.extActive}
+                title={s.lastUrl?.title}
+                sub={s.lastUrl?.domain}
+                hint={s.lastUrl?.url}
+              />
+              <SourceLine
+                icon={<Monitor className="h-3 w-3" />}
+                name="App desktop"
+                version={s.desktopVersion}
+                active={s.desktopActive}
+                title={s.lastDesktopApp?.label}
+              />
+            </div>
+
+            {canForceLogout && s.isOnline && <ForceLogoutButton snapshot={s} />}
+          </HoverCardContent>
+        )}
       </HoverCard>
+    </div>
+  );
+}
+
+/** Botão "Encerrar expediente" (superadmin) com confirmação. A RPC encerra o
+ *  registro aberto do alvo (fica offline) e grava log; o painel atualiza sozinho. */
+function ForceLogoutButton({ snapshot: s }: { snapshot: UserSnapshot }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function encerrar() {
+    setLoading(true);
+    const { error } = await supabase.rpc("encerrar_expediente_admin", {
+      p_usuario: s.profile.id,
+    });
+    setLoading(false);
+    setOpen(false);
+    if (error) {
+      toast.error(error.message ?? "Falha ao encerrar o expediente");
+      return;
+    }
+    toast.success(`Expediente de ${s.profile.nome.split(" ")[0]} encerrado`);
+  }
+
+  return (
+    <div className="mt-3 border-t pt-2">
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+          >
+            <LogOut className="h-3.5 w-3.5" /> Encerrar expediente
+          </button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Encerrar expediente de {s.profile.nome}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O registro de atividade aberto será encerrado e a pessoa ficará offline no escritório.
+              A ação fica registrada em log. O expediente só reabre quando ela iniciar de novo pelo
+              app web.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void encerrar();
+              }}
+              disabled={loading}
+            >
+              {loading ? "Encerrando…" : "Encerrar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
