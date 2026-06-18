@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { withTimeout } from "@/lib/async-timeout";
 
 export interface Profile {
   id: string;
@@ -28,10 +29,18 @@ export function useAuth() {
       }
     });
 
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
-      if (!data.session?.user) setLoading(false);
-    });
+    withTimeout(supabase.auth.getSession(), 8_000, "Tempo esgotado ao recuperar sessão.")
+      .then(({ data }) => {
+        setUser(data.session?.user ?? null);
+        if (!data.session?.user) setLoading(false);
+      })
+      .catch(() => {
+        setUser(null);
+        setProfile(null);
+        setIsAdmin(false);
+        setIsSuperadmin(false);
+        setLoading(false);
+      });
 
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -40,10 +49,14 @@ export function useAuth() {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const [{ data: p }, { data: roles }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", user.id),
-      ]);
+      const [{ data: p }, { data: roles }] = await withTimeout(
+        Promise.all([
+          supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+          supabase.from("user_roles").select("role").eq("user_id", user.id),
+        ]),
+        10_000,
+        "Tempo esgotado ao carregar perfil.",
+      ).catch(() => [{ data: null }, { data: [] }]);
       if (cancelled) return;
       setProfile(p as Profile | null);
       setIsAdmin(!!roles?.some((r) => r.role === "admin" || r.role === "superadmin"));
