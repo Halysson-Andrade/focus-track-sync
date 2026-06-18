@@ -656,12 +656,12 @@ export type Database = {
         }
       }
       agregar_dia: { Args: { p_dia: string }; Returns: undefined }
-      encerrar_sessoes_ociosas: {
-        Args: { p_timeout_min?: number }
-        Returns: number
-      }
       encerrar_expediente_admin: {
         Args: { p_motivo?: string; p_usuario: string }
+        Returns: number
+      }
+      encerrar_sessoes_ociosas: {
+        Args: { p_timeout_min?: number }
         Returns: number
       }
       enviar_notificacao: {
