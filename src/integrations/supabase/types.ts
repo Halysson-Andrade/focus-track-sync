@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_acoes_log: {
+        Row: {
+          acao: string
+          alvo_id: string
+          ator_id: string
+          ator_nome: string | null
+          criado_em: string
+          id: string
+          motivo: string | null
+        }
+        Insert: {
+          acao: string
+          alvo_id: string
+          ator_id: string
+          ator_nome?: string | null
+          criado_em?: string
+          id?: string
+          motivo?: string | null
+        }
+        Update: {
+          acao?: string
+          alvo_id?: string
+          ator_id?: string
+          ator_nome?: string | null
+          criado_em?: string
+          id?: string
+          motivo?: string | null
+        }
+        Relationships: []
+      }
       atividade_apontamentos: {
         Row: {
           atividade_id: string
@@ -626,6 +656,10 @@ export type Database = {
         }
       }
       agregar_dia: { Args: { p_dia: string }; Returns: undefined }
+      encerrar_expediente_admin: {
+        Args: { p_motivo?: string; p_usuario: string }
+        Returns: number
+      }
       encerrar_sessoes_ociosas: {
         Args: { p_timeout_min?: number }
         Returns: number
@@ -687,6 +721,8 @@ export type Database = {
       }
       is_active: { Args: { _user_id: string }; Returns: boolean }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
+      office_detail: { Args: { p_since: string }; Returns: Json }
+      office_overview: { Args: { p_since: string }; Returns: Json }
       parar_atividade: {
         Args: never
         Returns: {
