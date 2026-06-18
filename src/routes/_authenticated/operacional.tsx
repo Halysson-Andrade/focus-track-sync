@@ -87,20 +87,23 @@ function OperacionalPage() {
         canForceLogout={isSuperadmin}
       />
 
-      {/* Avatar inspecionável → painel detalhado; demais → só mensagem. */}
-      {canInspectSelected ? (
-        <AvatarDetailSheet
-          selected={selectedLive}
-          registros={base.registros}
-          navApp={detail.navApp}
-          navExt={detail.navExt}
-          navDesk={detail.navDesk}
-          nowTs={now}
-          onClose={() => setSelected(null)}
-        />
-      ) : (
-        <AvatarMessageSheet selected={selectedLive} onClose={() => setSelected(null)} />
-      )}
+      {/* Avatar inspecionável → painel detalhado; demais → só mensagem.
+          IMPORTANTE: os dois sheets ficam SEMPRE montados e só o `selected`
+          alterna. Desmontar um Dialog (Radix) ainda aberto deixaria o `<body>`
+          com `pointer-events: none` preso — travando os cliques (navegação). */}
+      <AvatarDetailSheet
+        selected={canInspectSelected ? selectedLive : null}
+        registros={base.registros}
+        navApp={detail.navApp}
+        navExt={detail.navExt}
+        navDesk={detail.navDesk}
+        nowTs={now}
+        onClose={() => setSelected(null)}
+      />
+      <AvatarMessageSheet
+        selected={canInspectSelected ? null : selectedLive}
+        onClose={() => setSelected(null)}
+      />
     </div>
   );
 }
