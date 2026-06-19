@@ -44,63 +44,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ajustes_jornada: {
-        Row: {
-          criado_em: string
-          decidido_em: string | null
-          decidido_por: string | null
-          decidido_por_nome: string | null
-          departamento: string | null
-          dia: string
-          fim: string | null
-          id: string
-          inicio: string | null
-          justificativa: string
-          justificativa_decisao: string | null
-          status: Database["public"]["Enums"]["ajuste_status"]
-          status_alvo: Database["public"]["Enums"]["activity_status"] | null
-          tipo: Database["public"]["Enums"]["ajuste_tipo"]
-          usuario_id: string
-          usuario_nome: string
-        }
-        Insert: {
-          criado_em?: string
-          decidido_em?: string | null
-          decidido_por?: string | null
-          decidido_por_nome?: string | null
-          departamento?: string | null
-          dia: string
-          fim?: string | null
-          id?: string
-          inicio?: string | null
-          justificativa: string
-          justificativa_decisao?: string | null
-          status?: Database["public"]["Enums"]["ajuste_status"]
-          status_alvo?: Database["public"]["Enums"]["activity_status"] | null
-          tipo: Database["public"]["Enums"]["ajuste_tipo"]
-          usuario_id: string
-          usuario_nome: string
-        }
-        Update: {
-          criado_em?: string
-          decidido_em?: string | null
-          decidido_por?: string | null
-          decidido_por_nome?: string | null
-          departamento?: string | null
-          dia?: string
-          fim?: string | null
-          id?: string
-          inicio?: string | null
-          justificativa?: string
-          justificativa_decisao?: string | null
-          status?: Database["public"]["Enums"]["ajuste_status"]
-          status_alvo?: Database["public"]["Enums"]["activity_status"] | null
-          tipo?: Database["public"]["Enums"]["ajuste_tipo"]
-          usuario_id?: string
-          usuario_nome?: string
-        }
-        Relationships: []
-      }
       atividade_apontamentos: {
         Row: {
           atividade_id: string
@@ -713,33 +656,6 @@ export type Database = {
         }
       }
       agregar_dia: { Args: { p_dia: string }; Returns: undefined }
-      decidir_ajuste_jornada: {
-        Args: { p_aprovar: boolean; p_id: string; p_justificativa: string }
-        Returns: {
-          criado_em: string
-          decidido_em: string | null
-          decidido_por: string | null
-          decidido_por_nome: string | null
-          departamento: string | null
-          dia: string
-          fim: string | null
-          id: string
-          inicio: string | null
-          justificativa: string
-          justificativa_decisao: string | null
-          status: Database["public"]["Enums"]["ajuste_status"]
-          status_alvo: Database["public"]["Enums"]["activity_status"] | null
-          tipo: Database["public"]["Enums"]["ajuste_tipo"]
-          usuario_id: string
-          usuario_nome: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "ajustes_jornada"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       encerrar_expediente_admin: {
         Args: { p_motivo?: string; p_usuario: string }
         Returns: number
@@ -834,45 +750,9 @@ export type Database = {
         }[]
       }
       same_area: { Args: { _owner: string; _viewer: string }; Returns: boolean }
-      solicitar_ajuste_jornada: {
-        Args: {
-          p_dia: string
-          p_fim?: string
-          p_inicio?: string
-          p_justificativa: string
-          p_status_alvo?: Database["public"]["Enums"]["activity_status"]
-          p_tipo: Database["public"]["Enums"]["ajuste_tipo"]
-        }
-        Returns: {
-          criado_em: string
-          decidido_em: string | null
-          decidido_por: string | null
-          decidido_por_nome: string | null
-          departamento: string | null
-          dia: string
-          fim: string | null
-          id: string
-          inicio: string | null
-          justificativa: string
-          justificativa_decisao: string | null
-          status: Database["public"]["Enums"]["ajuste_status"]
-          status_alvo: Database["public"]["Enums"]["activity_status"] | null
-          tipo: Database["public"]["Enums"]["ajuste_tipo"]
-          usuario_id: string
-          usuario_nome: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "ajustes_jornada"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
     }
     Enums: {
       activity_status: "ATIVO" | "PAUSA" | "ALMOCO" | "INATIVO" | "ENCERRADO"
-      ajuste_status: "pendente" | "aprovada" | "rejeitada"
-      ajuste_tipo: "ajuste_periodo" | "atestado" | "abono"
       app_role: "admin" | "user" | "superadmin"
     }
     CompositeTypes: {
@@ -1002,8 +882,6 @@ export const Constants = {
   public: {
     Enums: {
       activity_status: ["ATIVO", "PAUSA", "ALMOCO", "INATIVO", "ENCERRADO"],
-      ajuste_status: ["pendente", "aprovada", "rejeitada"],
-      ajuste_tipo: ["ajuste_periodo", "atestado", "abono"],
       app_role: ["admin", "user", "superadmin"],
     },
   },
