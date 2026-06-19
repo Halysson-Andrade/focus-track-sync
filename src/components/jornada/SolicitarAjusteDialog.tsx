@@ -98,6 +98,39 @@ export function SolicitarAjusteDialog({
     [records],
   );
 
+  // Lacunas: intervalos SEM tracking entre o fim de um registro e o início do próximo
+  // (ou entre o fim do último e "agora"). Aparecem como itens clicáveis para o usuário
+  // converter para ATIVO via ajuste de período.
+  type Gap = { kind: "gap"; inicio: string; fim: string };
+  type Linha = (RegistroLinha & { kind: "rec" }) | Gap;
+  const itens = useMemo<Linha[]>(() => {
+    const out: Linha[] = [];
+    const MIN_GAP_MS = 60_000; // ignora lacunas <1min (ruído)
+    let cursorFim: number | null = null;
+    for (const r of linhas) {
+      const ini = new Date(r.inicio).getTime();
+      if (cursorFim != null && ini - cursorFim >= MIN_GAP_MS) {
+        out.push({
+          kind: "gap",
+          inicio: new Date(cursorFim).toISOString(),
+          fim: new Date(ini).toISOString(),
+        });
+      }
+      out.push({ ...r, kind: "rec" });
+      const fim = r.fim ? new Date(r.fim).getTime() : null;
+      if (fim != null) cursorFim = Math.max(cursorFim ?? 0, fim);
+      else cursorFim = null; // registro aberto cobre até agora
+    }
+    if (cursorFim != null && nowTs - cursorFim >= MIN_GAP_MS) {
+      out.push({
+        kind: "gap",
+        inicio: new Date(cursorFim).toISOString(),
+        fim: new Date(nowTs).toISOString(),
+      });
+    }
+    return out;
+  }, [linhas, nowTs]);
+
   const precisaPeriodo = tipo === "ajuste_periodo" || !diaInteiro;
 
   const reset = () => {
@@ -113,6 +146,14 @@ export function SolicitarAjusteDialog({
     setInicioHm(hmFromIso(r.inicio));
     setFimHm(hmFromIso(r.fim));
     setDiaInteiro(false);
+  };
+
+  const selecionarLacuna = (g: Gap) => {
+    setInicioHm(hmFromIso(g.inicio));
+    setFimHm(hmFromIso(g.fim));
+    setDiaInteiro(false);
+    setTipo("ajuste_periodo");
+    setStatusAlvo("ATIVO");
   };
 
   const submit = async () => {
