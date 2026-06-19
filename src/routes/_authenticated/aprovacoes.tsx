@@ -62,11 +62,19 @@ function AprovacoesPage() {
   }, [loading, isAdmin, router]);
 
   const lista = useMemo(
-    () => (filtro === "pendente" ? ajustes.filter((a) => a.status === "pendente") : ajustes),
+    () => (filtro === "todas" ? ajustes : ajustes.filter((a) => a.status === filtro)),
     [ajustes, filtro],
   );
   const pendentesCount = useMemo(
     () => ajustes.filter((a) => a.status === "pendente").length,
+    [ajustes],
+  );
+  const aprovadasCount = useMemo(
+    () => ajustes.filter((a) => a.status === "aprovada").length,
+    [ajustes],
+  );
+  const rejeitadasCount = useMemo(
+    () => ajustes.filter((a) => a.status === "rejeitada").length,
     [ajustes],
   );
 
