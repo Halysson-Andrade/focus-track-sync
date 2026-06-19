@@ -121,13 +121,27 @@ function AprovacoesPage() {
             {pendentesCount} pendente(s) na sua área de aprovação.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={filtro === "pendente" ? "default" : "outline"}
             size="sm"
             onClick={() => setFiltro("pendente")}
           >
-            Pendentes
+            Pendentes{pendentesCount > 0 ? ` (${pendentesCount})` : ""}
+          </Button>
+          <Button
+            variant={filtro === "aprovada" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFiltro("aprovada")}
+          >
+            Aprovadas{aprovadasCount > 0 ? ` (${aprovadasCount})` : ""}
+          </Button>
+          <Button
+            variant={filtro === "rejeitada" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFiltro("rejeitada")}
+          >
+            Rejeitadas{rejeitadasCount > 0 ? ` (${rejeitadasCount})` : ""}
           </Button>
           <Button
             variant={filtro === "todas" ? "default" : "outline"}
@@ -142,7 +156,7 @@ function AprovacoesPage() {
       {lista.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Nenhuma solicitação {filtro === "pendente" ? "pendente" : ""} no momento.
+            Nenhuma solicitação {filtro !== "todas" ? (AJUSTE_STATUS_LABEL[filtro]?.toLowerCase() ?? filtro) : ""} no momento.
           </CardContent>
         </Card>
       ) : (
