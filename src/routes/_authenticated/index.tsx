@@ -1790,7 +1790,9 @@ function Dashboard() {
                 // efetiva" da jornada (faixas editadas + recálculo dos totais).
                 const dayKeyIso = day.date.toISOString().slice(0, 10);
                 const dayAjustes = history30Ajustes.filter((a) => a.dia === dayKeyIso);
+                const dayIdleEvents = history30IdleEvents.get(dayKeyIso) ?? [];
                 const effective = aplicarAjustes(day.records, dayAjustes, day.date);
+
                 const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
                 effective.forEach((r) => {
                   const dur =
