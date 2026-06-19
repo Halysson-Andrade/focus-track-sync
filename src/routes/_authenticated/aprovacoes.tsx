@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/aprovacoes")({
   component: AprovacoesPage,
 });
 
-type Filtro = "pendente" | "todas";
+type Filtro = "pendente" | "aprovada" | "rejeitada" | "todas";
 
 function statusBadgeVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
   if (status === "aprovada") return "default";
