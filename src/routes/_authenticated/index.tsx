@@ -1754,8 +1754,13 @@ function Dashboard() {
           ) : (
             <div className="space-y-5">
               {history30.map((day) => {
+                // Aplica ajustes aprovados do dia para refletir a mesma "visão
+                // efetiva" da jornada (faixas editadas + recálculo dos totais).
+                const dayKeyIso = day.date.toISOString().slice(0, 10);
+                const dayAjustes = history30Ajustes.filter((a) => a.dia === dayKeyIso);
+                const effective = aplicarAjustes(day.records, dayAjustes, day.date);
                 const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
-                day.records.forEach((r) => {
+                effective.forEach((r) => {
                   const dur =
                     r.duracao_minutos ??
                     (r.fim
@@ -1793,7 +1798,7 @@ function Dashboard() {
                         <span className="text-destructive">I {formatDuration(totals.INATIVO)}</span>
                       </div>
                     </div>
-                    <HorizontalTimeline records={day.records} />
+                    <HorizontalTimeline records={effective} />
                   </div>
                 );
               })}
