@@ -182,6 +182,7 @@ function Dashboard() {
   const [breakBusy, setBreakBusy] = useState(false);
   const [now, setNow] = useState(new Date());
   const [history30, setHistory30] = useState<{ date: Date; records: Registro[] }[]>([]);
+  const [history30Ajustes, setHistory30Ajustes] = useState<AjusteJornada[]>([]);
 
   // Selected day (defaults to today). When != today, dashboard shows historic data.
   const startOfToday = useMemo(() => {
@@ -496,7 +497,27 @@ function Dashboard() {
           .sort((a, b) => b.date.getTime() - a.date.getTime());
         setHistory30(arr);
       });
-  }, [effectiveUserId, session.current?.id]);
+  }, [effectiveUserId, session.current?.id, ajustesRefresh]);
+
+  // Ajustes aprovados nos últimos 30 dias para aplicar nas linhas do histórico
+  // (mesma "visão efetiva" da jornada do dia).
+  useEffect(() => {
+    if (!effectiveUserId) {
+      setHistory30Ajustes([]);
+      return;
+    }
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    since.setHours(0, 0, 0, 0);
+    const sinceKey = since.toISOString().slice(0, 10);
+    supabase
+      .from("ajustes_jornada")
+      .select("*")
+      .eq("usuario_id", effectiveUserId)
+      .eq("status", "aprovada")
+      .gte("dia", sinceKey)
+      .then(({ data }) => setHistory30Ajustes((data ?? []) as AjusteJornada[]));
+  }, [effectiveUserId, session.current?.id, ajustesRefresh]);
 
   // Records to display on the board for the selected day
   const todayRecords: Registro[] = isToday && !viewingOther ? session.todayRecords : dayRecords;
@@ -1733,8 +1754,13 @@ function Dashboard() {
           ) : (
             <div className="space-y-5">
               {history30.map((day) => {
+                // Aplica ajustes aprovados do dia para refletir a mesma "visão
+                // efetiva" da jornada (faixas editadas + recálculo dos totais).
+                const dayKeyIso = day.date.toISOString().slice(0, 10);
+                const dayAjustes = history30Ajustes.filter((a) => a.dia === dayKeyIso);
+                const effective = aplicarAjustes(day.records, dayAjustes, day.date);
                 const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
-                day.records.forEach((r) => {
+                effective.forEach((r) => {
                   const dur =
                     r.duracao_minutos ??
                     (r.fim
@@ -1772,7 +1798,7 @@ function Dashboard() {
                         <span className="text-destructive">I {formatDuration(totals.INATIVO)}</span>
                       </div>
                     </div>
-                    <HorizontalTimeline records={day.records} />
+                    <HorizontalTimeline records={effective} />
                   </div>
                 );
               })}
