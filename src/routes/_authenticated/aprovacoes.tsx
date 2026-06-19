@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/aprovacoes")({
   component: AprovacoesPage,
 });
 
-type Filtro = "pendente" | "todas";
+type Filtro = "pendente" | "aprovada" | "rejeitada" | "todas";
 
 function statusBadgeVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
   if (status === "aprovada") return "default";
@@ -62,11 +62,19 @@ function AprovacoesPage() {
   }, [loading, isAdmin, router]);
 
   const lista = useMemo(
-    () => (filtro === "pendente" ? ajustes.filter((a) => a.status === "pendente") : ajustes),
+    () => (filtro === "todas" ? ajustes : ajustes.filter((a) => a.status === filtro)),
     [ajustes, filtro],
   );
   const pendentesCount = useMemo(
     () => ajustes.filter((a) => a.status === "pendente").length,
+    [ajustes],
+  );
+  const aprovadasCount = useMemo(
+    () => ajustes.filter((a) => a.status === "aprovada").length,
+    [ajustes],
+  );
+  const rejeitadasCount = useMemo(
+    () => ajustes.filter((a) => a.status === "rejeitada").length,
     [ajustes],
   );
 
@@ -113,13 +121,27 @@ function AprovacoesPage() {
             {pendentesCount} pendente(s) na sua área de aprovação.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={filtro === "pendente" ? "default" : "outline"}
             size="sm"
             onClick={() => setFiltro("pendente")}
           >
-            Pendentes
+            Pendentes{pendentesCount > 0 ? ` (${pendentesCount})` : ""}
+          </Button>
+          <Button
+            variant={filtro === "aprovada" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFiltro("aprovada")}
+          >
+            Aprovadas{aprovadasCount > 0 ? ` (${aprovadasCount})` : ""}
+          </Button>
+          <Button
+            variant={filtro === "rejeitada" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFiltro("rejeitada")}
+          >
+            Rejeitadas{rejeitadasCount > 0 ? ` (${rejeitadasCount})` : ""}
           </Button>
           <Button
             variant={filtro === "todas" ? "default" : "outline"}
@@ -134,7 +156,7 @@ function AprovacoesPage() {
       {lista.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Nenhuma solicitação {filtro === "pendente" ? "pendente" : ""} no momento.
+            Nenhuma solicitação {filtro !== "todas" ? (AJUSTE_STATUS_LABEL[filtro]?.toLowerCase() ?? filtro) : ""} no momento.
           </CardContent>
         </Card>
       ) : (
