@@ -2087,7 +2087,7 @@ function HorizontalTimeline({
           const width = Math.max(pct(e) - left, 0.2);
           const isAtivo = r.status === "ATIVO";
           const editado = r.editado;
-          const d = dimsForStatus(r.status);
+          const d = dimsForStatus(r.status, editado);
           return (
             <div
               key={r.id}
