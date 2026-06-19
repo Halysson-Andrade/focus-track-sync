@@ -183,6 +183,8 @@ function Dashboard() {
   const [now, setNow] = useState(new Date());
   const [history30, setHistory30] = useState<{ date: Date; records: Registro[] }[]>([]);
   const [history30Ajustes, setHistory30Ajustes] = useState<AjusteJornada[]>([]);
+  const [history30IdleEvents, setHistory30IdleEvents] = useState<Map<string, IdleEvent[]>>(new Map());
+
 
   // Selected day (defaults to today). When != today, dashboard shows historic data.
   const startOfToday = useMemo(() => {
@@ -518,6 +520,36 @@ function Dashboard() {
       .gte("dia", sinceKey)
       .then(({ data }) => setHistory30Ajustes((data ?? []) as AjusteJornada[]));
   }, [effectiveUserId, session.current?.id, ajustesRefresh]);
+
+  // 30-day history idle events for effective user — grouped per day so the
+  // historical timeline can overlay ociosidade on top of each day's jornada.
+  useEffect(() => {
+    if (!effectiveUserId) {
+      setHistory30IdleEvents(new Map());
+      return;
+    }
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    since.setHours(0, 0, 0, 0);
+    supabase
+      .from("eventos_ociosidade")
+      .select("inicio, fim, fonte")
+      .eq("usuario_id", effectiveUserId)
+      .gte("inicio", since.toISOString())
+      .order("inicio", { ascending: true })
+      .then(({ data }) => {
+        const map = new Map<string, IdleEvent[]>();
+        (data ?? []).forEach((e) => {
+          const d = new Date(e.inicio);
+          d.setHours(0, 0, 0, 0);
+          const key = d.toISOString().slice(0, 10);
+          if (!map.has(key)) map.set(key, []);
+          map.get(key)!.push(e as IdleEvent);
+        });
+        setHistory30IdleEvents(map);
+      });
+  }, [effectiveUserId, session.current?.id, ajustesRefresh]);
+
 
   // Records to display on the board for the selected day
   const todayRecords: Registro[] = isToday && !viewingOther ? session.todayRecords : dayRecords;
@@ -1758,7 +1790,9 @@ function Dashboard() {
                 // efetiva" da jornada (faixas editadas + recálculo dos totais).
                 const dayKeyIso = day.date.toISOString().slice(0, 10);
                 const dayAjustes = history30Ajustes.filter((a) => a.dia === dayKeyIso);
+                const dayIdleEvents = history30IdleEvents.get(dayKeyIso) ?? [];
                 const effective = aplicarAjustes(day.records, dayAjustes, day.date);
+
                 const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
                 effective.forEach((r) => {
                   const dur =
@@ -1798,7 +1832,7 @@ function Dashboard() {
                         <span className="text-destructive">I {formatDuration(totals.INATIVO)}</span>
                       </div>
                     </div>
-                    <HorizontalTimeline records={effective} />
+                    <HorizontalTimeline records={effective} idleEvents={dayIdleEvents} />
                   </div>
                 );
               })}
