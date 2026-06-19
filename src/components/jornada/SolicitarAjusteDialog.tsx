@@ -178,8 +178,8 @@ export function SolicitarAjusteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader className="gap-1">
+      <DialogContent className="flex max-h-[95vh] flex-col gap-0 p-0 sm:max-w-xl">
+        <DialogHeader className="gap-1 px-6 pt-6">
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="font-normal">
               {diaFormatado}
@@ -191,164 +191,166 @@ export function SolicitarAjusteDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
-          {/* 1. Selecione o período */}
-          <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">1. Selecione o período</h3>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Pointer className="h-3 w-3" />
-                Clique num evento para preencher
-              </span>
-            </div>
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="space-y-5">
+            {/* 1. Selecione o período */}
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">1. Selecione o período</h3>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Pointer className="h-3 w-3" />
+                  Clique num evento para preencher
+                </span>
+              </div>
 
-            <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border border-border bg-background p-2">
-              {linhas.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground">Sem registros neste dia.</p>
-              ) : (
-                linhas.map((r) => {
-                  const dur =
-                    r.duracao_minutos ??
-                    (r.fim
-                      ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000
-                      : (nowTs - new Date(r.inicio).getTime()) / 60000);
-                  return (
-                    <button
-                      type="button"
-                      key={r.id}
-                      onClick={() => selecionarLinha(r)}
-                      className="flex w-full items-center gap-3 rounded-md border border-border px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-accent"
-                    >
-                      <span
-                        className="h-3 w-3 shrink-0 rounded-full"
-                        style={{
-                          background: STATUS_COLOR[r.status] ?? "var(--color-muted-foreground)",
-                        }}
-                      />
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-medium">{STATUS_LABEL[r.status] ?? r.status}</span>
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {formatHM(r.inicio)}
-                          {r.fim ? `–${formatHM(r.fim)}` : "…"}
+              <div className="max-h-36 space-y-2 overflow-y-auto rounded-lg border border-border bg-background p-2">
+                {linhas.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">Sem registros neste dia.</p>
+                ) : (
+                  linhas.map((r) => {
+                    const dur =
+                      r.duracao_minutos ??
+                      (r.fim
+                        ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000
+                        : (nowTs - new Date(r.inicio).getTime()) / 60000);
+                    return (
+                      <button
+                        type="button"
+                        key={r.id}
+                        onClick={() => selecionarLinha(r)}
+                        className="flex w-full items-center gap-3 rounded-md border border-border px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-accent"
+                      >
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full"
+                          style={{
+                            background: STATUS_COLOR[r.status] ?? "var(--color-muted-foreground)",
+                          }}
+                        />
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-medium">{STATUS_LABEL[r.status] ?? r.status}</span>
+                          <span className="font-mono text-[11px] text-muted-foreground">
+                            {formatHM(r.inicio)}
+                            {r.fim ? `–${formatHM(r.fim)}` : "…"}
+                          </span>
+                        </div>
+                        <span className="ml-auto font-mono text-[11px] text-muted-foreground">
+                          {formatDuration(dur)}
                         </span>
-                      </div>
-                      <span className="ml-auto font-mono text-[11px] text-muted-foreground">
-                        {formatDuration(dur)}
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="ajuste-inicio" className="text-xs">
-                  Início
-                </Label>
-                <Input
-                  id="ajuste-inicio"
-                  type="time"
-                  value={inicioHm}
-                  onChange={(e) => setInicioHm(e.target.value)}
-                />
+                      </button>
+                    );
+                  })
+                )}
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ajuste-fim" className="text-xs">
-                  Fim
-                </Label>
-                <Input
-                  id="ajuste-fim"
-                  type="time"
-                  value={fimHm}
-                  onChange={(e) => setFimHm(e.target.value)}
-                />
-              </div>
-            </div>
-          </section>
 
-          <Separator />
-
-          {/* 2. Tipo de ajuste */}
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold">2. Tipo de ajuste</h3>
-
-            <div className="grid grid-cols-3 gap-2">
-              {(["ajuste_periodo", "atestado", "abono"] as AjusteTipo[]).map((t) => (
-                <button
-                  type="button"
-                  key={t}
-                  onClick={() => setTipo(t)}
-                  className={`flex flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 text-xs transition-colors ${
-                    tipo === t
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
-                  }`}
-                >
-                  {TIPO_ICON[t]}
-                  <span className="text-center leading-tight">{AJUSTE_TIPO_LABEL[t]}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Status-alvo (só para ajuste de período) */}
-            {tipo === "ajuste_periodo" && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">Novo status do período</Label>
-                <Select value={statusAlvo} onValueChange={setStatusAlvo}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_ALVO_OPCOES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        <span className="flex items-center gap-2">
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ background: STATUS_COLOR[s] }}
-                          />
-                          {STATUS_LABEL[s]}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Dia inteiro (atestado/abono) */}
-            {tipo !== "ajuste_periodo" && (
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="dia-inteiro" className="text-sm font-medium">
-                    Cobrir o dia inteiro
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ajuste-inicio" className="text-xs">
+                    Início
                   </Label>
-                  <p className="text-xs text-muted-foreground">Aplica o ajuste sobre toda a jornada do dia.</p>
+                  <Input
+                    id="ajuste-inicio"
+                    type="time"
+                    value={inicioHm}
+                    onChange={(e) => setInicioHm(e.target.value)}
+                  />
                 </div>
-                <Checkbox
-                  id="dia-inteiro"
-                  checked={diaInteiro}
-                  onCheckedChange={(checked) => setDiaInteiro(checked === true)}
-                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="ajuste-fim" className="text-xs">
+                    Fim
+                  </Label>
+                  <Input
+                    id="ajuste-fim"
+                    type="time"
+                    value={fimHm}
+                    onChange={(e) => setFimHm(e.target.value)}
+                  />
+                </div>
               </div>
-            )}
-          </section>
+            </section>
 
-          <Separator />
+            <Separator />
 
-          {/* 3. Justificativa */}
-          <section className="space-y-1.5">
-            <h3 className="text-sm font-semibold">3. Justificativa</h3>
-            <Textarea
-              value={justificativa}
-              onChange={(e) => setJustificativa(e.target.value)}
-              placeholder="Explique o motivo do ajuste (obrigatório)."
-              rows={3}
-            />
-          </section>
+            {/* 2. Tipo de ajuste */}
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold">2. Tipo de ajuste</h3>
+
+              <div className="grid grid-cols-3 gap-2">
+                {(["ajuste_periodo", "atestado", "abono"] as AjusteTipo[]).map((t) => (
+                  <button
+                    type="button"
+                    key={t}
+                    onClick={() => setTipo(t)}
+                    className={`flex flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 text-xs transition-colors ${
+                      tipo === t
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+                    }`}
+                  >
+                    {TIPO_ICON[t]}
+                    <span className="text-center leading-tight">{AJUSTE_TIPO_LABEL[t]}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Status-alvo (só para ajuste de período) */}
+              {tipo === "ajuste_periodo" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Novo status do período</Label>
+                  <Select value={statusAlvo} onValueChange={setStatusAlvo}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_ALVO_OPCOES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ background: STATUS_COLOR[s] }}
+                            />
+                            {STATUS_LABEL[s]}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Dia inteiro (atestado/abono) */}
+              {tipo !== "ajuste_periodo" && (
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="dia-inteiro" className="text-sm font-medium">
+                      Cobrir o dia inteiro
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Aplica o ajuste sobre toda a jornada do dia.</p>
+                  </div>
+                  <Checkbox
+                    id="dia-inteiro"
+                    checked={diaInteiro}
+                    onCheckedChange={(checked) => setDiaInteiro(checked === true)}
+                  />
+                </div>
+              )}
+            </section>
+
+            <Separator />
+
+            {/* 3. Justificativa */}
+            <section className="space-y-1.5">
+              <h3 className="text-sm font-semibold">3. Justificativa</h3>
+              <Textarea
+                value={justificativa}
+                onChange={(e) => setJustificativa(e.target.value)}
+                placeholder="Explique o motivo do ajuste (obrigatório)."
+                rows={3}
+              />
+            </section>
+          </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2 border-t border-border px-6 py-4 sm:gap-3">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancelar
           </Button>
@@ -360,3 +362,4 @@ export function SolicitarAjusteDialog({
     </Dialog>
   );
 }
+
