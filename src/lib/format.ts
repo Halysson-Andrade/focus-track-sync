@@ -46,6 +46,30 @@ export const STATUS_LABEL: Record<string, string> = {
   ENCERRADO: "Encerrado",
 };
 
+// Rótulos dos tipos de ajuste de jornada (solicitação/aprovação).
+export const AJUSTE_TIPO_LABEL: Record<string, string> = {
+  ajuste_periodo: "Ajuste de período",
+  atestado: "Atestado",
+  abono: "Abono / falta justificada",
+};
+
+// Rótulos do status da solicitação de ajuste.
+export const AJUSTE_STATUS_LABEL: Record<string, string> = {
+  pendente: "Pendente",
+  aprovada: "Aprovada",
+  rejeitada: "Rejeitada",
+};
+
+// Cor única que marca QUALQUER segmento vindo de um ajuste aprovado como
+// "editado", independentemente do status resultante. Usa --color-primary (roxo do
+// app) por ser distinta das cores de status do tracking (verde/amarelo/azul/cinza).
+export const EDITADO_COLOR = "var(--color-primary)";
+
+// Atestado/abono não são status de tracking: viram um bucket "Abonado" (justificado,
+// não-produtivo) na distribuição e na linha do tempo. Cor própria, separada de INATIVO.
+export const ABONO_COLOR = "var(--color-info)";
+export const ABONO_LABEL = "Abonado";
+
 // Fonte única de cor por status. INATIVO macro = slate (afastado, não erro);
 // o vermelho destructive fica reservado para ações destrutivas. A ociosidade
 // granular (micro-ócio dentro de apps/sites) usa --color-idle, separadamente.

@@ -32,6 +32,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Hourglass,
+  Pencil,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -47,9 +48,19 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
+import {
+  formatDuration,
+  formatHM,
+  STATUS_COLOR,
+  ABONO_COLOR,
+  EDITADO_COLOR,
+  AJUSTE_TIPO_LABEL,
+  AJUSTE_STATUS_LABEL,
+} from "@/lib/format";
 import { tempoTrabalhado, isChromeProcess } from "@/lib/activity-config";
 import { ocioReconciliadoSeg } from "@/lib/ocio";
+import { aplicarAjustes, type SegmentoEfetivo, type AjusteJornada } from "@/lib/jornada-efetiva";
+import { SolicitarAjusteDialog } from "@/components/jornada/SolicitarAjusteDialog";
 import {
   ResponsiveContainer,
   PieChart,
@@ -198,6 +209,12 @@ function Dashboard() {
   const [dayRecords, setDayRecords] = useState<Registro[]>([]);
   // Intervalos de ociosidade do dia selecionado, para a linha do tempo.
   const [idleEvents, setIdleEvents] = useState<IdleEvent[]>([]);
+  // Ajustes de jornada (overlay) do usuário/dia selecionado. Os aprovados entram na
+  // linha do tempo (cor "editado") e recalculam os totais; pendentes alimentam a
+  // lista "Minhas solicitações". `ajustesRefresh` força reload após enviar uma nova.
+  const [ajustes, setAjustes] = useState<AjusteJornada[]>([]);
+  const [ajustesRefresh, setAjustesRefresh] = useState(0);
+  const [ajusteDialogOpen, setAjusteDialogOpen] = useState(false);
   // Classificação de domínios/processos por categoria (admin gerencia no Supabase).
   const [categorias, setCategorias] = useState<CategoriaRow[]>([]);
   // Visão Geral (admin): registros + ócio de TODOS os usuários no dia.
@@ -375,6 +392,21 @@ function Dashboard() {
       .then(({ data }) => setIdleEvents((data ?? []) as IdleEvent[]));
   }, [effectiveUserId, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
 
+  // Ajustes de jornada do usuário/dia (RLS já entrega só o escopo permitido).
+  useEffect(() => {
+    if (!effectiveUserId) {
+      setAjustes([]);
+      return;
+    }
+    supabase
+      .from("ajustes_jornada")
+      .select("*")
+      .eq("usuario_id", effectiveUserId)
+      .eq("dia", dayKey)
+      .order("criado_em", { ascending: false })
+      .then(({ data }) => setAjustes((data ?? []) as AjusteJornada[]));
+  }, [effectiveUserId, dayKey, ajustesRefresh, isToday ? now.getMinutes() : 0]);
+
   // Para o dia selecionado:
   //   - dentro da retenção bruta (≤25d): lemos navegacao_paginas / navegacao_externa /
   //     uso_aplicativos (mesma fidelidade de sessão-a-sessão).
@@ -470,10 +502,17 @@ function Dashboard() {
   const todayRecords: Registro[] = isToday && !viewingOther ? session.todayRecords : dayRecords;
   void otherRecords;
 
+  // Jornada EFETIVA = tracking bruto + ajustes aprovados (overlay). É a base única da
+  // linha do tempo e dos totais — assim a aprovação de um ajuste recalcula tudo junto.
+  const effectiveRecords = useMemo<SegmentoEfetivo[]>(
+    () => aplicarAjustes(todayRecords, ajustes, selectedDate, now.getTime()),
+    [todayRecords, ajustes, selectedDate, now],
+  );
+
   const totals = useMemo(() => {
-    const t = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
+    const t = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0, ABONO: 0 };
     const nowTs = Date.now();
-    todayRecords.forEach((r) => {
+    effectiveRecords.forEach((r) => {
       const dur =
         r.duracao_minutos ??
         (r.fim
@@ -482,7 +521,7 @@ function Dashboard() {
       if (r.status in t) t[r.status as keyof typeof t] += dur;
     });
     return t;
-  }, [todayRecords, now]);
+  }, [effectiveRecords, now]);
 
   const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
 
@@ -870,6 +909,7 @@ function Dashboard() {
     { name: "Pausa", value: totals.PAUSA, color: "var(--color-warning)" },
     { name: "Almoço", value: totals.ALMOCO, color: "var(--color-info)" },
     { name: "Inativo", value: totals.INATIVO, color: "var(--color-muted-foreground)" },
+    { name: "Abonado", value: totals.ABONO, color: ABONO_COLOR },
   ].filter((d) => d.value > 0);
 
   const canStart = !session.current || session.current.status === "ENCERRADO";
@@ -1431,18 +1471,63 @@ function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle>Jornada {isToday ? "de hoje" : "do dia"} — linha do tempo</CardTitle>
+            {!viewingOther && (
+              <Button variant="outline" size="sm" onClick={() => setAjusteDialogOpen(true)}>
+                <Pencil className="mr-2 h-3.5 w-3.5" />
+                Solicitar ajuste
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
-            {todayRecords.length === 0 ? (
+            {effectiveRecords.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Sem registros.</p>
             ) : (
-              <HorizontalTimeline records={todayRecords} idleEvents={idleEvents} />
+              <HorizontalTimeline records={effectiveRecords} idleEvents={idleEvents} />
+            )}
+            {!viewingOther && ajustes.length > 0 && (
+              <div className="mt-4 space-y-1 border-t border-border pt-3">
+                <p className="text-xs font-medium text-muted-foreground">Solicitações do dia</p>
+                {ajustes.map((a) => (
+                  <div key={a.id} className="flex items-center gap-2 text-xs">
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{
+                        background:
+                          a.status === "aprovada"
+                            ? "var(--color-success)"
+                            : a.status === "rejeitada"
+                              ? "var(--color-destructive)"
+                              : "var(--color-warning)",
+                      }}
+                    />
+                    <span>{AJUSTE_TIPO_LABEL[a.tipo] ?? a.tipo}</span>
+                    {a.inicio && a.fim && (
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {formatHM(a.inicio)}–{formatHM(a.fim)}
+                      </span>
+                    )}
+                    <span className="ml-auto text-muted-foreground">
+                      {AJUSTE_STATUS_LABEL[a.status] ?? a.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {!viewingOther && (
+        <SolicitarAjusteDialog
+          dia={selectedDate}
+          records={todayRecords}
+          open={ajusteDialogOpen}
+          onOpenChange={setAjusteDialogOpen}
+          onSubmitted={() => setAjustesRefresh((n) => n + 1)}
+        />
+      )}
 
       {/* Distribuição por categoria */}
       <Card>
@@ -1823,14 +1908,15 @@ function HorizontalTimeline({
   records,
   idleEvents = [],
 }: {
-  records: Registro[];
+  records: SegmentoEfetivo[];
   idleEvents?: IdleEvent[];
 }) {
   // Reaproveita o mapa central; ENCERRADO usa o muted (mais claro) por ser fundo
-  // de faixa, não texto.
+  // de faixa, não texto. ABONO (atestado/abono aprovado) tem cor própria.
   const colorByStatus: Record<string, string> = {
     ...STATUS_COLOR,
     ENCERRADO: "var(--color-muted)",
+    ABONO: ABONO_COLOR,
   };
   const labelByStatus: Record<string, string> = {
     ATIVO: "Ativo",
@@ -1838,6 +1924,7 @@ function HorizontalTimeline({
     ALMOCO: "Almoço",
     INATIVO: "Inativo",
     ENCERRADO: "Encerrado",
+    ABONO: "Abonado",
   };
 
   const nowTs = Date.now();
@@ -1918,7 +2005,9 @@ function HorizontalTimeline({
   const ativoEnd = workEndTs;
 
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const [hover, setHover] = useState<{ x: number; ts: number; rec: Registro | null } | null>(null);
+  const [hover, setHover] = useState<{ x: number; ts: number; rec: SegmentoEfetivo | null } | null>(
+    null,
+  );
 
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = trackRef.current;
@@ -1936,9 +2025,14 @@ function HorizontalTimeline({
     setHover({ x, ts, rec });
   };
 
-  // ATIVO occupies the central band (tall); other statuses render as thin strips, centered
+  // ATIVO occupies the central band (tall); ABONO (justificado) usa banda média para
+  // ficar visível; demais status renderizam como faixas finas centradas.
   const dimsForStatus = (s: string) =>
-    s === "ATIVO" ? { top: "18%", bottom: "18%" } : { top: "40%", bottom: "40%" };
+    s === "ATIVO"
+      ? { top: "18%", bottom: "18%" }
+      : s === "ABONO"
+        ? { top: "28%", bottom: "28%" }
+        : { top: "40%", bottom: "40%" };
 
   return (
     <div className="space-y-2">
@@ -1989,6 +2083,7 @@ function HorizontalTimeline({
           const left = pct(s);
           const width = Math.max(pct(e) - left, 0.2);
           const isAtivo = r.status === "ATIVO";
+          const editado = r.editado;
           const d = dimsForStatus(r.status);
           return (
             <div
@@ -2000,11 +2095,15 @@ function HorizontalTimeline({
                 top: d.top,
                 bottom: d.bottom,
                 background: colorByStatus[r.status] ?? "var(--color-muted)",
-                opacity: isAtivo ? 1 : 0.65,
-                zIndex: isAtivo ? 2 : 1,
-                boxShadow: isAtivo
-                  ? "0 0 0 1px color-mix(in oklch, var(--color-success) 50%, transparent)"
-                  : undefined,
+                opacity: editado ? 0.95 : isAtivo ? 1 : 0.65,
+                // Ajuste aprovado: anel na cor "editado" + topo da pilha, para
+                // distinguir visualmente do tracking original.
+                zIndex: editado ? 4 : isAtivo ? 2 : 1,
+                boxShadow: editado
+                  ? `0 0 0 2px ${EDITADO_COLOR}`
+                  : isAtivo
+                    ? "0 0 0 1px color-mix(in oklch, var(--color-success) 50%, transparent)"
+                    : undefined,
               }}
             />
           );
@@ -2077,6 +2176,7 @@ function HorizontalTimeline({
                 <div className="text-muted-foreground">
                   {labelByStatus[hover.rec.status] ?? hover.rec.status} •{" "}
                   {formatHM(hover.rec.inicio)} → {hover.rec.fim ? formatHM(hover.rec.fim) : "agora"}
+                  {hover.rec.editado && <span style={{ color: EDITADO_COLOR }}> • editado</span>}
                 </div>
               ) : (
                 <div className="text-muted-foreground">Offline</div>
@@ -2151,6 +2251,25 @@ function HorizontalTimeline({
             }}
           />
           Ocioso
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="rounded-sm"
+            style={{ background: ABONO_COLOR, width: "10px", height: "6px" }}
+          />
+          Abonado
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="rounded-sm"
+            style={{
+              width: "10px",
+              height: "6px",
+              background: "transparent",
+              boxShadow: `0 0 0 2px ${EDITADO_COLOR}`,
+            }}
+          />
+          Editado
         </span>
       </div>
     </div>

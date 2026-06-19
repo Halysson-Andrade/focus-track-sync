@@ -13,6 +13,7 @@ import {
   Eye,
   Monitor,
   Timer,
+  ClipboardCheck,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -29,6 +30,7 @@ const nav = [
   { to: "/operacional", label: "Operacional", icon: Eye },
   { to: "/extensao", label: "Extensão", icon: Chrome },
   { to: "/desktop", label: "App Desktop", icon: Monitor },
+  { to: "/aprovacoes", label: "Aprovações", icon: ClipboardCheck, admin: true },
   { to: "/relatorios", label: "Relatórios", icon: FileText, admin: true },
   { to: "/ranking", label: "Ranking", icon: Trophy, admin: true },
   { to: "/admin", label: "Usuários", icon: Users, admin: true },
@@ -206,7 +208,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       {/* Main */}
-      <div className={cn("flex-1 transition-all duration-200", collapsed ? "md:ml-16" : "md:ml-64")}>
+      <div
+        className={cn("flex-1 transition-all duration-200", collapsed ? "md:ml-16" : "md:ml-64")}
+      >
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-card/80 px-4 backdrop-blur md:px-8">
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setOpen(true)}>
             <Menu className="h-5 w-5" />
@@ -219,7 +223,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
             title={collapsed ? "Expandir menu" : "Recolher menu"}
           >
-            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            {collapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
           </Button>
           <div className="flex-1" />
           <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Alternar tema">

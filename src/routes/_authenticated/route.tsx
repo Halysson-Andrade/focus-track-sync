@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageTracker } from "@/hooks/use-page-tracker";
 import { useNotificacoesRecebidas } from "@/hooks/use-mensagens";
+import { useDecisaoAjusteToast } from "@/hooks/use-ajustes";
 import { withTimeout } from "@/lib/async-timeout";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -40,6 +41,8 @@ function AuthenticatedLayout() {
   usePageTracker(user?.id, null);
   // Toast ao vivo de mensagens recebidas (mensageria mão única do painel).
   useNotificacoesRecebidas(user?.id);
+  // Toast ao solicitante quando seu ajuste de jornada é aprovado/rejeitado.
+  useDecisaoAjusteToast(user?.id);
 
   return (
     <AppShell>
