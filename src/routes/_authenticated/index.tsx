@@ -1832,7 +1832,7 @@ function Dashboard() {
                         <span className="text-destructive">I {formatDuration(totals.INATIVO)}</span>
                       </div>
                     </div>
-                    <HorizontalTimeline records={effective} />
+                    <HorizontalTimeline records={effective} idleEvents={dayIdleEvents} />
                   </div>
                 );
               })}
