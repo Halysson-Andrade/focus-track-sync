@@ -2103,7 +2103,7 @@ function HorizontalTimeline({
                 // distinguir visualmente do tracking original.
                 zIndex: editado ? 4 : isAtivo ? 2 : 1,
                 boxShadow: editado
-                  ? `0 0 0 2px ${EDITADO_COLOR}`
+                  ? `0 0 0 1px ${EDITADO_COLOR}`
                   : isAtivo
                     ? "0 0 0 1px color-mix(in oklch, var(--color-success) 50%, transparent)"
                     : undefined,
