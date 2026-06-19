@@ -20,7 +20,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { formatHM, formatDuration, STATUS_LABEL, STATUS_COLOR } from "@/lib/format";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { formatHM, formatDuration, STATUS_LABEL, STATUS_COLOR, AJUSTE_TIPO_LABEL } from "@/lib/format";
+import { Clock, FileText, CalendarCheck, ArrowRight, Pointer } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type AjusteTipo = Database["public"]["Enums"]["ajuste_tipo"];
@@ -34,6 +38,12 @@ type RegistroLinha = {
 };
 
 const STATUS_ALVO_OPCOES = ["ATIVO", "PAUSA", "ALMOCO", "INATIVO"] as const;
+
+const TIPO_ICON: Record<AjusteTipo, React.ReactNode> = {
+  ajuste_periodo: <Clock className="h-4 w-4" />,
+  atestado: <FileText className="h-4 w-4" />,
+  abono: <CalendarCheck className="h-4 w-4" />,
+};
 
 function hmFromIso(iso: string | null): string {
   if (!iso) return "";
@@ -57,9 +67,9 @@ function diaLocalStr(dia: Date): string {
 }
 
 /**
- * Popup de solicitação de ajuste de jornada. Mostra os eventos do dia linha a linha
- * (clicar pré-preenche o período) e envia via RPC solicitar_ajuste_jornada. O próprio
- * usuário solicita sobre a própria jornada; entra como 'pendente' para aprovação.
+ * Popup de solicitação de ajuste de jornada. Mostra os eventos do dia em cards clicáveis
+ * (pré-preenchem o período), organiza os campos em seções e envia via RPC
+ * solicitar_ajuste_jornada. A solicitação entra como 'pendente' para aprovação da gestão.
  */
 export function SolicitarAjusteDialog({
   dia,
@@ -159,29 +169,42 @@ export function SolicitarAjusteDialog({
     }
   };
 
+  const diaFormatado = dia.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Solicitar ajuste de jornada</DialogTitle>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader className="gap-1">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="font-normal">
+              {diaFormatado}
+            </Badge>
+          </div>
+          <DialogTitle className="text-xl">Solicitar ajuste de jornada</DialogTitle>
           <DialogDescription>
-            {dia.toLocaleDateString("pt-BR", {
-              weekday: "long",
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            })}{" "}
-            — escolha um período e o tipo de ajuste. A solicitação entra para aprovação da gestão.
+            Escolha um período, o tipo de ajuste e a justificativa. A solicitação entra para aprovação da gestão.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Eventos do dia, linha a linha — clicar pré-preenche o período */}
-          <div className="space-y-1">
-            <Label>Eventos do dia</Label>
-            <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+        <div className="space-y-5">
+          {/* 1. Selecione o período */}
+          <section className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">1. Selecione o período</h3>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Pointer className="h-3 w-3" />
+                Clique num evento para preencher
+              </span>
+            </div>
+
+            <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border border-border bg-background p-2">
               {linhas.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Sem registros neste dia.</p>
+                <p className="py-4 text-center text-xs text-muted-foreground">Sem registros neste dia.</p>
               ) : (
                 linhas.map((r) => {
                   const dur =
@@ -194,19 +217,21 @@ export function SolicitarAjusteDialog({
                       type="button"
                       key={r.id}
                       onClick={() => selecionarLinha(r)}
-                      className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-sm hover:bg-accent"
+                      className="flex w-full items-center gap-3 rounded-md border border-border px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-accent"
                     >
                       <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        className="h-3 w-3 shrink-0 rounded-full"
                         style={{
                           background: STATUS_COLOR[r.status] ?? "var(--color-muted-foreground)",
                         }}
                       />
-                      <span className="font-mono text-[11px] text-muted-foreground">
-                        {formatHM(r.inicio)}
-                        {r.fim ? `–${formatHM(r.fim)}` : "…"}
-                      </span>
-                      <span className="text-xs">{STATUS_LABEL[r.status] ?? r.status}</span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-medium">{STATUS_LABEL[r.status] ?? r.status}</span>
+                        <span className="font-mono text-[11px] text-muted-foreground">
+                          {formatHM(r.inicio)}
+                          {r.fim ? `–${formatHM(r.fim)}` : "…"}
+                        </span>
+                      </div>
                       <span className="ml-auto font-mono text-[11px] text-muted-foreground">
                         {formatDuration(dur)}
                       </span>
@@ -215,82 +240,115 @@ export function SolicitarAjusteDialog({
                 })
               )}
             </div>
-          </div>
 
-          {/* Tipo de ajuste */}
-          <div className="space-y-2">
-            <Label>Tipo de ajuste</Label>
-            <Select value={tipo} onValueChange={(v) => setTipo(v as AjusteTipo)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ajuste_periodo">Ajustar período (mudar status)</SelectItem>
-                <SelectItem value="atestado">Atestado</SelectItem>
-                <SelectItem value="abono">Abono / falta justificada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Status-alvo (só para ajuste de período) */}
-          {tipo === "ajuste_periodo" && (
-            <div className="space-y-2">
-              <Label>Novo status do período</Label>
-              <Select value={statusAlvo} onValueChange={setStatusAlvo}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_ALVO_OPCOES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {STATUS_LABEL[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Dia inteiro (atestado/abono) */}
-          {tipo !== "ajuste_periodo" && (
-            <label className="flex items-center justify-between rounded-md border border-border p-3 text-sm">
-              <span>Cobrir o dia inteiro</span>
-              <input
-                type="checkbox"
-                checked={diaInteiro}
-                onChange={(e) => setDiaInteiro(e.target.checked)}
-                className="h-4 w-4"
-              />
-            </label>
-          )}
-
-          {/* Período */}
-          {precisaPeriodo && (
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Início</Label>
-                <Input type="time" value={inicioHm} onChange={(e) => setInicioHm(e.target.value)} />
+              <div className="space-y-1.5">
+                <Label htmlFor="ajuste-inicio" className="text-xs">
+                  Início
+                </Label>
+                <Input
+                  id="ajuste-inicio"
+                  type="time"
+                  value={inicioHm}
+                  onChange={(e) => setInicioHm(e.target.value)}
+                />
               </div>
-              <div className="space-y-2">
-                <Label>Fim</Label>
-                <Input type="time" value={fimHm} onChange={(e) => setFimHm(e.target.value)} />
+              <div className="space-y-1.5">
+                <Label htmlFor="ajuste-fim" className="text-xs">
+                  Fim
+                </Label>
+                <Input
+                  id="ajuste-fim"
+                  type="time"
+                  value={fimHm}
+                  onChange={(e) => setFimHm(e.target.value)}
+                />
               </div>
             </div>
-          )}
+          </section>
 
-          {/* Justificativa */}
-          <div className="space-y-2">
-            <Label>Justificativa</Label>
+          <Separator />
+
+          {/* 2. Tipo de ajuste */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">2. Tipo de ajuste</h3>
+
+            <div className="grid grid-cols-3 gap-2">
+              {(["ajuste_periodo", "atestado", "abono"] as AjusteTipo[]).map((t) => (
+                <button
+                  type="button"
+                  key={t}
+                  onClick={() => setTipo(t)}
+                  className={`flex flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 text-xs transition-colors ${
+                    tipo === t
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+                  }`}
+                >
+                  {TIPO_ICON[t]}
+                  <span className="text-center leading-tight">{AJUSTE_TIPO_LABEL[t]}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Status-alvo (só para ajuste de período) */}
+            {tipo === "ajuste_periodo" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Novo status do período</Label>
+                <Select value={statusAlvo} onValueChange={setStatusAlvo}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_ALVO_OPCOES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{ background: STATUS_COLOR[s] }}
+                          />
+                          {STATUS_LABEL[s]}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Dia inteiro (atestado/abono) */}
+            {tipo !== "ajuste_periodo" && (
+              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="dia-inteiro" className="text-sm font-medium">
+                    Cobrir o dia inteiro
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Aplica o ajuste sobre toda a jornada do dia.</p>
+                </div>
+                <Checkbox
+                  id="dia-inteiro"
+                  checked={diaInteiro}
+                  onCheckedChange={(checked) => setDiaInteiro(checked === true)}
+                />
+              </div>
+            )}
+          </section>
+
+          <Separator />
+
+          {/* 3. Justificativa */}
+          <section className="space-y-1.5">
+            <h3 className="text-sm font-semibold">3. Justificativa</h3>
             <Textarea
               value={justificativa}
               onChange={(e) => setJustificativa(e.target.value)}
               placeholder="Explique o motivo do ajuste (obrigatório)."
               rows={3}
             />
-          </div>
+          </section>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancelar
           </Button>
