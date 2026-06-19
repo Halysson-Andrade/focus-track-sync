@@ -497,7 +497,27 @@ function Dashboard() {
           .sort((a, b) => b.date.getTime() - a.date.getTime());
         setHistory30(arr);
       });
-  }, [effectiveUserId, session.current?.id]);
+  }, [effectiveUserId, session.current?.id, ajustesRefresh]);
+
+  // Ajustes aprovados nos últimos 30 dias para aplicar nas linhas do histórico
+  // (mesma "visão efetiva" da jornada do dia).
+  useEffect(() => {
+    if (!effectiveUserId) {
+      setHistory30Ajustes([]);
+      return;
+    }
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    since.setHours(0, 0, 0, 0);
+    const sinceKey = since.toISOString().slice(0, 10);
+    supabase
+      .from("ajustes_jornada")
+      .select("*")
+      .eq("usuario_id", effectiveUserId)
+      .eq("status", "aprovada")
+      .gte("dia", sinceKey)
+      .then(({ data }) => setHistory30Ajustes((data ?? []) as AjusteJornada[]));
+  }, [effectiveUserId, session.current?.id, ajustesRefresh]);
 
   // Records to display on the board for the selected day
   const todayRecords: Registro[] = isToday && !viewingOther ? session.todayRecords : dayRecords;
