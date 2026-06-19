@@ -244,11 +244,40 @@ export function SolicitarAjusteDialog({
                 </span>
               </div>
 
-              <div className="max-h-36 space-y-2 overflow-y-auto rounded-lg border border-border bg-background p-2">
-                {linhas.length === 0 ? (
+              <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border border-border bg-background p-2">
+                {itens.length === 0 ? (
                   <p className="py-4 text-center text-xs text-muted-foreground">Sem registros neste dia.</p>
                 ) : (
-                  linhas.map((r) => {
+                  itens.map((it, idx) => {
+                    if (it.kind === "gap") {
+                      const dur = (new Date(it.fim).getTime() - new Date(it.inicio).getTime()) / 60000;
+                      return (
+                        <button
+                          type="button"
+                          key={`gap-${idx}-${it.inicio}`}
+                          onClick={() => selecionarLacuna(it)}
+                          className="flex w-full items-center gap-3 rounded-md border border-dashed border-warning/50 bg-warning/5 px-2.5 py-2 text-left transition-colors hover:border-warning hover:bg-warning/10"
+                          title="Sem tracking neste intervalo. Clique para solicitar conversão para ATIVO."
+                        >
+                          <span
+                            className="h-3 w-3 shrink-0 rounded-full border-2"
+                            style={{ background: "transparent", borderColor: "var(--color-warning)" }}
+                          />
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-medium text-warning">
+                              Sem tracking · clique para converter em ATIVO
+                            </span>
+                            <span className="font-mono text-[11px] text-muted-foreground">
+                              {formatHM(it.inicio)}–{formatHM(it.fim)}
+                            </span>
+                          </div>
+                          <span className="ml-auto font-mono text-[11px] text-warning">
+                            {formatDuration(dur)}
+                          </span>
+                        </button>
+                      );
+                    }
+                    const r = it;
                     const dur =
                       r.duracao_minutos ??
                       (r.fim
