@@ -2027,12 +2027,15 @@ function HorizontalTimeline({
 
   // ATIVO occupies the central band (tall); ABONO (justificado) usa banda média para
   // ficar visível; demais status renderizam como faixas finas centradas.
-  const dimsForStatus = (s: string) =>
-    s === "ATIVO"
+  // Ajustes (editado) sempre usam faixa fina para não dominar a linha do tempo.
+  const dimsForStatus = (s: string, editado?: boolean) => {
+    if (editado) return { top: "36%", bottom: "36%" };
+    return s === "ATIVO"
       ? { top: "18%", bottom: "18%" }
       : s === "ABONO"
-        ? { top: "28%", bottom: "28%" }
+        ? { top: "32%", bottom: "32%" }
         : { top: "40%", bottom: "40%" };
+  };
 
   return (
     <div className="space-y-2">
@@ -2084,7 +2087,7 @@ function HorizontalTimeline({
           const width = Math.max(pct(e) - left, 0.2);
           const isAtivo = r.status === "ATIVO";
           const editado = r.editado;
-          const d = dimsForStatus(r.status);
+          const d = dimsForStatus(r.status, editado);
           return (
             <div
               key={r.id}
@@ -2100,7 +2103,7 @@ function HorizontalTimeline({
                 // distinguir visualmente do tracking original.
                 zIndex: editado ? 4 : isAtivo ? 2 : 1,
                 boxShadow: editado
-                  ? `0 0 0 2px ${EDITADO_COLOR}`
+                  ? `0 0 0 1px ${EDITADO_COLOR}`
                   : isAtivo
                     ? "0 0 0 1px color-mix(in oklch, var(--color-success) 50%, transparent)"
                     : undefined,
