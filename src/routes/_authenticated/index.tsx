@@ -2027,12 +2027,15 @@ function HorizontalTimeline({
 
   // ATIVO occupies the central band (tall); ABONO (justificado) usa banda média para
   // ficar visível; demais status renderizam como faixas finas centradas.
-  const dimsForStatus = (s: string) =>
-    s === "ATIVO"
+  // Ajustes (editado) sempre usam faixa fina para não dominar a linha do tempo.
+  const dimsForStatus = (s: string, editado?: boolean) => {
+    if (editado) return { top: "36%", bottom: "36%" };
+    return s === "ATIVO"
       ? { top: "18%", bottom: "18%" }
       : s === "ABONO"
-        ? { top: "28%", bottom: "28%" }
+        ? { top: "32%", bottom: "32%" }
         : { top: "40%", bottom: "40%" };
+  };
 
   return (
     <div className="space-y-2">
