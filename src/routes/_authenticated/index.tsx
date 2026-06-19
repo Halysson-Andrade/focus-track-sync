@@ -182,6 +182,7 @@ function Dashboard() {
   const [breakBusy, setBreakBusy] = useState(false);
   const [now, setNow] = useState(new Date());
   const [history30, setHistory30] = useState<{ date: Date; records: Registro[] }[]>([]);
+  const [history30Ajustes, setHistory30Ajustes] = useState<AjusteJornada[]>([]);
 
   // Selected day (defaults to today). When != today, dashboard shows historic data.
   const startOfToday = useMemo(() => {
