@@ -128,28 +128,33 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 transform bg-sidebar text-sidebar-foreground transition-all duration-200 md:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex flex-col bg-sidebar text-sidebar-foreground transition-all duration-200 md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
           collapsed ? "w-16" : "w-64",
         )}
       >
         <div
           className={cn(
-            "flex h-16 items-center gap-3 border-b border-sidebar-border",
-            collapsed ? "justify-center px-2" : "px-6",
+            "flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border",
+            collapsed ? "justify-center px-2" : "px-5",
           )}
         >
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <Activity className="h-5 w-5" />
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <Activity className="h-4 w-4" />
           </div>
           {!collapsed && (
             <div className="min-w-0">
               <div className="text-sm font-semibold leading-tight">Tempo</div>
-              <div className="text-xs opacity-70">Controle de Atividade</div>
+              <div className="text-[11px] opacity-70 leading-tight">Controle de Atividade</div>
             </div>
           )}
         </div>
-        <nav className={cn("space-y-1", collapsed ? "p-2" : "p-3")}>
+        <nav
+          className={cn(
+            "flex-1 space-y-0.5 overflow-y-auto",
+            collapsed ? "px-2 py-2" : "px-2 py-2",
+          )}
+        >
           {nav
             .filter((n) => !n.admin || isAdmin)
             .map((item) => (
@@ -159,7 +164,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 onClick={() => setOpen(false)}
                 title={collapsed ? item.label : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-md py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  "flex items-center gap-3 rounded-md py-1.5 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   collapsed ? "justify-center px-2" : "px-3",
                 )}
                 activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground" }}
@@ -172,26 +177,28 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div
           className={cn(
-            "absolute inset-x-0 bottom-0 border-t border-sidebar-border",
-            collapsed ? "p-2" : "p-4",
+            "shrink-0 border-t border-sidebar-border",
+            collapsed ? "p-2" : "px-3 py-2",
           )}
         >
           {!collapsed && (
-            <div className="mb-3 text-xs">
-              <div className="font-semibold">{profile?.nome ?? "..."}</div>
-              <div className="opacity-70 truncate">{profile?.email}</div>
-              {isAdmin && (
-                <div className="mt-1 inline-block rounded bg-sidebar-primary px-2 py-0.5 text-[10px] text-sidebar-primary-foreground">
-                  ADMIN
-                </div>
-              )}
+            <div className="mb-2 text-xs leading-tight">
+              <div className="flex items-center gap-2">
+                <span className="truncate font-semibold">{profile?.nome ?? "..."}</span>
+                {isAdmin && (
+                  <span className="rounded bg-sidebar-primary px-1.5 py-0.5 text-[9px] font-semibold text-sidebar-primary-foreground">
+                    ADMIN
+                  </span>
+                )}
+              </div>
+              <div className="truncate opacity-60 text-[11px]">{profile?.email}</div>
             </div>
           )}
           <Button
             variant="ghost"
             size={collapsed ? "icon" : "sm"}
             className={cn(
-              "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              "h-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               collapsed ? "w-full" : "w-full justify-start",
             )}
             onClick={logout}
