@@ -105,6 +105,14 @@ let macroPollTimer = null;
 let presenceHeartbeatTimer = null; // heartbeat "app vivo" (ultimo_visto), independente do tracking
 let extOnline = false; // extensão do Chrome vista recentemente em presenca_extensao
 let todayData = { totals: { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 }, records: [], idleEvents: [] };
+let macroChannel = null; // canal realtime de registros_atividade (sincronismo com a web)
+let alertWin = null; // janela popup always-on-top "sessão perdida / voltar ao trabalho"
+let alertKind = null; // "inactive" (retomar de INATIVO) | "lost" (expediente encerrado por ociosidade)
+let suppressLostAlert = false; // suprime o popup "perdido" quando o próprio usuário encerrou
+// Auto-update: estado visível na UI para diagnóstico (antes os erros eram engolidos).
+let updateStatus = "idle"; // idle | checking | available | downloading | downloaded | none | error | manual
+let lastUpdateError = null;
+const RELEASES_URL = "https://github.com/Halysson-Andrade/focus-track-sync/releases/latest";
 
 // Carrega a lista de apps passivos (reunião, player de vídeo, leitor de PDF):
 // nesses apps a ausência de mouse/teclado NÃO conta como ociosidade.
@@ -153,6 +161,68 @@ function createWindow() {
   });
 }
 
+// Popup dedicado "sessão perdida / voltar ao trabalho". Janela própria
+// always-on-top que aparece sobre tudo (mesmo com o app na bandeja), em Windows
+// e macOS — espelha o InactivityModal da web. `kind`: "inactive" (retomar de
+// INATIVO) ou "lost" (expediente encerrado por ociosidade → reiniciar).
+function showAlert(kind) {
+  if (alertWin && !alertWin.isDestroyed()) {
+    alertKind = kind;
+    alertWin.webContents.send("alert:kind", kind);
+    bringAlertToFront();
+    return;
+  }
+  alertKind = kind;
+  alertWin = new BrowserWindow({
+    width: 420,
+    height: 300,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    show: false,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, "alert-preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  alertWin.loadFile(path.join(__dirname, "renderer", "alert.html"));
+  alertWin.webContents.on("did-finish-load", () => {
+    alertWin.webContents.send("alert:kind", alertKind);
+    bringAlertToFront();
+  });
+  alertWin.on("closed", () => {
+    alertWin = null;
+    alertKind = null;
+  });
+}
+
+function bringAlertToFront() {
+  if (!alertWin || alertWin.isDestroyed()) return;
+  // "screen-saver" garante sobreposição mesmo a telas em tela cheia / outros
+  // apps always-on-top; foca e mostra para "priorizar na máquina".
+  try {
+    alertWin.setAlwaysOnTop(true, "screen-saver");
+  } catch {
+    alertWin.setAlwaysOnTop(true);
+  }
+  alertWin.show();
+  alertWin.focus();
+}
+
+function closeAlert() {
+  if (alertWin && !alertWin.isDestroyed()) {
+    alertWin.close();
+  }
+  alertWin = null;
+  alertKind = null;
+}
+
 function buildTrayMenu() {
   const items = [
     {
@@ -166,12 +236,20 @@ function buildTrayMenu() {
       click: () => shell.openExternal(PORTAL_URL),
     },
   ];
-  // Aparece só quando há atualização baixada e pronta (usuário decide aplicar).
+  // Atualização baixada e pronta (Windows): aplica e reinicia.
   if (pendingUpdateVersion) {
     items.push({ type: "separator" });
     items.push({
       label: `Atualizar e reiniciar agora (v${pendingUpdateVersion})`,
       click: () => installUpdateNow(),
+    });
+  } else if (updateStatus === "manual" || updateStatus === "error") {
+    // Fallback manual (macOS sem assinatura, ou erro de download/apply):
+    // abre a página de releases para baixar/instalar manualmente.
+    items.push({ type: "separator" });
+    items.push({
+      label: "Baixar atualização (manual)",
+      click: () => shell.openExternal(RELEASES_URL),
     });
   }
   items.push({ type: "separator" });
@@ -490,15 +568,30 @@ async function applyTrackingGate() {
 // Aqui apenas espelhamos o status macro para abrir/fechar o rastreamento de
 // apps/navegação (applyTrackingGate só rastreia quando o status é ATIVO).
 async function reconcileMacro(row) {
+  const prev = macroStatus;
   if (!row) {
     macroStatus = null;
     macroSessionId = null;
     await applyTrackingGate();
+    // Expediente encerrado por ociosidade (servidor) enquanto a pessoa estava
+    // INATIVA: oferece reiniciar. Não dispara quando o próprio usuário encerrou
+    // (suppressLostAlert) nem quando já não havia expediente (prev null).
+    if (prev === "INATIVO" && !suppressLostAlert) {
+      showAlert("lost");
+    }
+    suppressLostAlert = false;
     return;
   }
   macroStatus = row.status;
   macroSessionId = row.id;
   await applyTrackingGate();
+  // Espelha o popup da web: ao ser marcado INATIVO, oferece "voltar ao trabalho".
+  if (row.status === "INATIVO" && prev !== "INATIVO") {
+    showAlert("inactive");
+  } else if (row.status === "ATIVO") {
+    // Retomou: fecha o popup se estiver aberto.
+    closeAlert();
+  }
 }
 
 async function fetchMacroStatus() {
@@ -548,6 +641,58 @@ async function closeMacroSessionIfOwned() {
   }
 }
 
+// Assina mudanças de registros_atividade do próprio usuário em tempo real. Faz
+// o desktop reagir em segundos (em vez de esperar o poll de 60s) quando a web/
+// outra fonte inicia/transiciona o expediente — sincronismo bidirecional. O poll
+// (macroPollTimer) permanece como rede de segurança caso o realtime caia.
+let macroRtDebounce = null;
+async function subscribeMacroRealtime() {
+  const userId = await getUserId();
+  if (!userId) return;
+  if (macroChannel) {
+    try {
+      await supabase.removeChannel(macroChannel);
+    } catch {
+      /* noop */
+    }
+    macroChannel = null;
+  }
+  macroChannel = supabase
+    .channel(`desktop-macro-${userId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "registros_atividade",
+        filter: `usuario_id=eq.${userId}`,
+      },
+      () => {
+        if (macroRtDebounce) clearTimeout(macroRtDebounce);
+        macroRtDebounce = setTimeout(() => {
+          macroRtDebounce = null;
+          fetchMacroStatus();
+        }, 400);
+      },
+    )
+    .subscribe();
+}
+
+async function unsubscribeMacroRealtime() {
+  if (macroRtDebounce) {
+    clearTimeout(macroRtDebounce);
+    macroRtDebounce = null;
+  }
+  if (macroChannel) {
+    try {
+      await supabase.removeChannel(macroChannel);
+    } catch {
+      /* noop */
+    }
+    macroChannel = null;
+  }
+}
+
 function startMonitoring() {
   if (monitoring) return;
   monitoring = true;
@@ -560,6 +705,7 @@ function startMonitoring() {
   sendHeartbeat();
   loadWhitelist();
   fetchMacroStatus();
+  subscribeMacroRealtime();
   tick();
   sendStatus();
 }
@@ -572,6 +718,8 @@ async function stopMonitoring() {
   if (whitelistTimer) clearInterval(whitelistTimer);
   if (presenceHeartbeatTimer) clearInterval(presenceHeartbeatTimer);
   pollTimer = flushTimer = macroPollTimer = whitelistTimer = presenceHeartbeatTimer = null;
+  await unsubscribeMacroRealtime();
+  closeAlert();
   await closeCurrent();
   sendStatus();
 }
@@ -585,6 +733,12 @@ function statusPayload() {
     macroStatus, // status da jornada (ATIVO/PAUSA/ALMOCO/INATIVO) ou null
     extOnline, // extensão do Chrome vista recentemente (gate do Iniciar)
     today: todayData, // { totals, records, idleEvents } do dia para totais/timeline
+    update: {
+      status: updateStatus,
+      error: lastUpdateError,
+      version: pendingUpdateVersion,
+      current: app.getVersion(),
+    },
   };
 }
 
@@ -683,6 +837,10 @@ async function abrirRegistro(status, observacao) {
 async function encerrarJornada() {
   const userId = await getUserId();
   if (!userId) return { error: "Sessão expirada — faça login novamente." };
+  // Encerramento explícito pelo usuário: não mostrar o popup "sessão perdida"
+  // quando o próximo reconcile vir a linha fechada.
+  suppressLostAlert = true;
+  closeAlert();
   try {
     const { data: openRow } = await supabase
       .from("registros_atividade")
@@ -762,6 +920,82 @@ ipcMain.handle("session:transition", async (_e, { status, observacao }) => {
 
 ipcMain.handle("session:stop", async () => encerrarJornada());
 
+// Popup "sessão perdida / voltar ao trabalho": retomar (INATIVO→ATIVO) ou
+// reiniciar (sessão encerrada→ATIVO). Ambos abrem status ATIVO → passam pelo
+// GATE de monitoração do backend (RPC abrir_registro exige extensão + desktop).
+// Se faltar alguma fonte, a RPC recusa e devolvemos o erro para o popup exibir —
+// é isso que impede retomar o expediente sem monitoração.
+ipcMain.handle("alert:action", async () => {
+  const r = await abrirRegistro("ATIVO");
+  if (r?.ok) closeAlert();
+  return r;
+});
+
+ipcMain.handle("alert:dismiss", async () => {
+  closeAlert();
+  return { ok: true };
+});
+
+// Auto-update: verificação manual (botão "Verificar atualizações").
+ipcMain.handle("update:check", async () => {
+  if (!app.isPackaged) {
+    updateStatus = "dev";
+    lastUpdateError = "Atualização automática só funciona no app instalado.";
+    sendStatus();
+    return { status: updateStatus, error: lastUpdateError };
+  }
+  // No macOS não há assinatura → o apply automático falha; vamos direto ao
+  // fallback manual em vez de tentar baixar/instalar e falhar silenciosamente.
+  if (process.platform === "darwin") {
+    try {
+      const res = await autoUpdater.checkForUpdates();
+      const remote = res?.updateInfo?.version;
+      if (remote && remote !== app.getVersion()) {
+        updateStatus = "manual";
+        lastUpdateError = null;
+        notifyManualUpdate(remote);
+        refreshTrayMenu();
+      } else {
+        updateStatus = "none";
+      }
+    } catch (e) {
+      updateStatus = "error";
+      lastUpdateError = e?.message || String(e);
+    }
+    sendStatus();
+    return { status: updateStatus, error: lastUpdateError };
+  }
+  try {
+    updateStatus = "checking";
+    lastUpdateError = null;
+    sendStatus();
+    await autoUpdater.checkForUpdates();
+  } catch (e) {
+    updateStatus = "error";
+    lastUpdateError = e?.message || String(e);
+    sendStatus();
+  }
+  return { status: updateStatus, error: lastUpdateError };
+});
+
+// Abre a página de releases (fallback manual de atualização — funciona em
+// qualquer SO, inclusive macOS sem assinatura).
+ipcMain.handle("update:open-releases", () => {
+  shell.openExternal(RELEASES_URL);
+  return { ok: true };
+});
+
+// Aplica a atualização baixada (Windows). No macOS isto não é exposto (sem
+// assinatura o quitAndInstall falha) — lá o botão abre os releases.
+ipcMain.handle("update:install", async () => {
+  if (process.platform === "darwin" || !pendingUpdateVersion) {
+    shell.openExternal(RELEASES_URL);
+    return { ok: true, manual: true };
+  }
+  await installUpdateNow();
+  return { ok: true };
+});
+
 ipcMain.handle("session:today", async () => {
   const userId = await getUserId();
   await refreshPanel(userId);
@@ -807,13 +1041,62 @@ async function installUpdateNow() {
   autoUpdater.quitAndInstall();
 }
 
+// Notifica que há atualização para baixar manualmente (fallback). Usado no
+// macOS (sem assinatura o apply automático falha) e em qualquer erro de apply.
+function notifyManualUpdate(version) {
+  try {
+    if (Notification.isSupported()) {
+      const n = new Notification({
+        title: "Atualização disponível",
+        body: `A versão ${version || "nova"} está pronta. Clique para baixar e instalar.`,
+      });
+      n.on("click", () => shell.openExternal(RELEASES_URL));
+      n.show();
+    }
+  } catch {
+    /* noop */
+  }
+}
+
 function setupAutoUpdate() {
-  if (!app.isPackaged) return; // em dev (npm start) o updater lança "no published versions"
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  if (!app.isPackaged) {
+    updateStatus = "dev"; // em dev (npm start) o updater lança "no published versions"
+    return;
+  }
+
+  // Visibilidade: antes os erros eram engolidos (.catch vazio) e não dava para
+  // saber por que o update "não funcionava". Agora todo evento atualiza o estado
+  // exposto na UI (statusPayload.update) e nos logs.
+  autoUpdater.on("checking-for-update", () => {
+    updateStatus = "checking";
+    sendStatus();
+  });
+  autoUpdater.on("update-available", (info) => {
+    updateStatus = "available";
+    lastUpdateError = null;
+    sendStatus();
+    // macOS não assinado: não dá para aplicar via Squirrel → fallback manual.
+    if (process.platform === "darwin") {
+      updateStatus = "manual";
+      notifyManualUpdate(info?.version);
+      refreshTrayMenu();
+      sendStatus();
+    }
+  });
+  autoUpdater.on("update-not-available", () => {
+    updateStatus = "none";
+    sendStatus();
+  });
+  autoUpdater.on("download-progress", () => {
+    updateStatus = "downloading";
+    sendStatus();
+  });
   autoUpdater.on("update-downloaded", (info) => {
     pendingUpdateVersion = info?.version || "nova";
+    updateStatus = "downloaded";
+    lastUpdateError = null;
     refreshTrayMenu();
+    sendStatus();
     try {
       if (Notification.isSupported()) {
         const n = new Notification({
@@ -827,8 +1110,24 @@ function setupAutoUpdate() {
       /* noop */
     }
   });
-  autoUpdater.on("error", (e) => console.error("autoUpdater:", e?.message || e));
-  autoUpdater.checkForUpdates().catch(() => {});
+  autoUpdater.on("error", (e) => {
+    updateStatus = "error";
+    lastUpdateError = e?.message || String(e);
+    console.error("autoUpdater:", lastUpdateError);
+    // Em erro de download/apply, oferece o caminho manual para não travar.
+    refreshTrayMenu();
+    sendStatus();
+  });
+
+  // No macOS evitamos o download automático (apply falha sem assinatura): só
+  // checamos e, havendo versão nova, caímos no fallback manual.
+  autoUpdater.autoDownload = process.platform !== "darwin";
+  autoUpdater.autoInstallOnAppQuit = process.platform !== "darwin";
+  autoUpdater.checkForUpdates().catch((e) => {
+    updateStatus = "error";
+    lastUpdateError = e?.message || String(e);
+    sendStatus();
+  });
   setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 6 * 60 * 60 * 1000);
 }
 
@@ -857,17 +1156,15 @@ app.on("before-quit", async (e) => {
   }
 });
 
-// Desligamento/restart da máquina: fecha sessão (mesmo padrão da extensão/web)
+// Desligamento/restart da máquina: encerra o expediente em aberto, mas NÃO
+// desloga. A sessão (login) persiste em electron-store e é restaurada no próximo
+// boot — alinhado ao web/extensão, que também não forçam mais novo login no
+// reinício. (Sem isso, o usuário precisaria relogar toda vez que ligava o PC, e
+// o desktop ficaria offline para o gate de monitoração.)
 powerMonitor.on("shutdown", async (e) => {
   e.preventDefault();
   await stopMonitoring();
   await closeMacroSessionIfOwned();
-  store.delete("session");
-  try {
-    await supabase.auth.signOut();
-  } catch {
-    /* noop */
-  }
   app.isQuiting = true;
   app.quit();
 });

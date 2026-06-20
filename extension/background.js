@@ -48,8 +48,9 @@ function isWhitelistedDomain(host) {
 async function getSession() {
   const { session } = await chrome.storage.local.get("session");
   if (!session) return null;
-  // refresh se faltar < 60s
-  if (session.expires_at && session.expires_at - 60 < Math.floor(Date.now() / 1000)) {
+  // refresh se faltar < 120s (janela ampla tolera a hibernação do service
+  // worker MV3, que mata timers em memória ~30s após inatividade)
+  if (session.expires_at && session.expires_at - 120 < Math.floor(Date.now() / 1000)) {
     try {
       const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
         method: "POST",
@@ -66,12 +67,32 @@ async function getSession() {
         };
         await chrome.storage.local.set({ session: next });
         return next;
-      } else {
+      }
+      // Só apaga a sessão em erro DEFINITIVO de auth (refresh token inválido/
+      // revogado). Para 5xx/429/erros transitórios, MANTÉM a sessão e tenta de
+      // novo no próximo heartbeat — antes, qualquer não-2xx deslogava o usuário.
+      let definitive = res.status === 400 || res.status === 401;
+      if (definitive) {
+        try {
+          const body = await res.json();
+          const code = (body.error_code || body.error || body.msg || "").toString().toLowerCase();
+          // Confirma que é problema do refresh token, não um 400 genérico.
+          definitive =
+            code.includes("refresh_token") ||
+            code.includes("invalid_grant") ||
+            code.includes("invalid refresh");
+        } catch {
+          // 400/401 sem corpo legível: trata como definitivo (token ruim).
+          definitive = true;
+        }
+      }
+      if (definitive) {
         await chrome.storage.local.remove("session");
         return null;
       }
+      return session; // transitório: preserva a sessão
     } catch {
-      return session;
+      return session; // rede/offline: preserva a sessão
     }
   }
   return session;
@@ -668,11 +689,9 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  // Máquina/navegador foi reiniciado: derruba a sessão da extensão para
-  // forçar novo login, alinhado com o comportamento do app web.
-  try {
-    await chrome.storage.local.remove("session");
-  } catch {}
+  // A sessão (login) PERSISTE entre reinícios do navegador — não forçamos mais
+  // novo login no boot. Limpamos apenas o estado efêmero da jornada (openRow):
+  // a sessão de expediente aberta não deve "vazar" para a próxima abertura.
   try {
     await chrome.storage.session.remove("openRow");
   } catch {}

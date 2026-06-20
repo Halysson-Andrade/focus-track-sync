@@ -19,14 +19,22 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // Só o evento SIGNED_OUT é tratado como logout. Uma falha TRANSITÓRIA de
+      // refresh (rede/timeout/5xx) NÃO emite SIGNED_OUT — o SDK só o emite quando
+      // o refresh token é definitivamente inválido. Assim evitamos derrubar o
+      // usuário para /auth por um soluço de rede.
+      if (event === "SIGNED_OUT") {
+        setUser(null);
         setProfile(null);
         setIsAdmin(false);
         setIsSuperadmin(false);
         setLoading(false);
+        return;
       }
+      // SIGNED_IN / TOKEN_REFRESHED / USER_UPDATED / INITIAL_SESSION: sincroniza.
+      setUser(session?.user ?? null);
+      if (!session?.user) setLoading(false);
     });
 
     withTimeout(supabase.auth.getSession(), 8_000, "Tempo esgotado ao recuperar sessão.")

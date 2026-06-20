@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+    <title>Focus Track</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --card: #1e293b;
+        --border: #334155;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --primary: #2563eb;
+        --primary-hover: #1d4ed8;
+        --danger: #ef4444;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        user-select: none;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 22px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      }
+      .icon {
+        width: 56px; height: 56px;
+        margin: 0 auto 12px;
+        border-radius: 50%;
+        display: grid; place-items: center;
+        background: rgba(239, 68, 68, 0.12);
+        color: var(--danger);
+        font-size: 28px; font-weight: 700;
+      }
+      h2 { margin: 0 0 6px; font-size: 19px; }
+      p { margin: 0 0 18px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+      button {
+        font: inherit; cursor: pointer; border: none; border-radius: 9px;
+        padding: 11px 14px; width: 100%; font-weight: 600;
+      }
+      .primary { background: var(--primary); color: #fff; }
+      .primary:hover { background: var(--primary-hover); }
+      .ghost {
+        background: transparent; color: var(--muted);
+        margin-top: 8px; font-weight: 500;
+      }
+      .ghost:hover { color: var(--text); }
+      .err {
+        color: var(--danger); font-size: 12.5px; min-height: 16px;
+        margin: -8px 0 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="icon">!</div>
+      <h2 id="title">Você foi marcado como inativo</h2>
+      <p id="msg">
+        Não detectamos atividade por um tempo. Quando estiver pronto, retome seu expediente.
+      </p>
+      <div class="err" id="err"></div>
+      <button class="primary" id="confirm">Voltar ao trabalho</button>
+      <button class="ghost" id="dismiss">Agora não</button>
+    </div>
+
+    <script>
+      var kind = "inactive";
+      var $ = function (id) { return document.getElementById(id); };
+
+      function render() {
+        if (kind === "lost") {
+          $("title").textContent = "Sessão encerrada por inatividade";
+          $("msg").textContent =
+            "Seu expediente foi encerrado automaticamente por falta de atividade. Para voltar a trabalhar, reinicie o expediente.";
+          $("confirm").textContent = "Reiniciar expediente";
+        } else {
+          $("title").textContent = "Você foi marcado como inativo";
+          $("msg").textContent =
+            "Não detectamos atividade por um tempo. Quando estiver pronto, retome seu expediente.";
+          $("confirm").textContent = "Voltar ao trabalho";
+        }
+      }
+
+      window.alertApi.onKind(function (k) {
+        kind = k || "inactive";
+        $("err").textContent = "";
+        render();
+      });
+
+      $("confirm").onclick = async function () {
+        $("err").textContent = "";
+        $("confirm").disabled = true;
+        var r = await window.alertApi.action();
+        $("confirm").disabled = false;
+        if (r && r.error) {
+          var m = String(r.error).toLowerCase();
+          if (m.indexOf("extension_offline") >= 0) {
+            $("err").textContent =
+              "A extensão do Chrome precisa estar aberta e logada para retomar.";
+          } else if (m.indexOf("desktop_offline") >= 0) {
+            $("err").textContent = "O app desktop precisa estar logado para retomar.";
+          } else {
+            $("err").textContent = r.error;
+          }
+        }
+        // Em sucesso, a janela é fechada pelo processo principal.
+      };
+
+      $("dismiss").onclick = function () {
+        window.alertApi.dismiss();
+      };
+
+      render();
+    </script>
+  </body>
+</html>

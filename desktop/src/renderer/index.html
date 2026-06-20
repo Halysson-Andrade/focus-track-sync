@@ -311,6 +311,15 @@
           <span>Iniciar com o Windows/macOS</span>
           <input id="auto-launch" type="checkbox" style="width: auto; margin: 0" />
         </div>
+
+        <div style="height: 10px"></div>
+        <div style="font-size: 12px; color: #94a3b8">
+          Versão <span id="app-version">—</span> · <span id="update-status">—</span>
+        </div>
+        <button class="ghost" id="btn-update">Verificar atualizações</button>
+        <button class="ghost hide" id="btn-update-install">Atualizar agora</button>
+
+        <div style="height: 10px"></div>
         <button class="ghost" id="btn-logout">Sair (logout)</button>
       </div>
     </div>
@@ -328,13 +337,14 @@
       </div>
     </div>
 
-    <!-- Modal: gate da extensão -->
+    <!-- Modal: gate de monitoração (extensão + desktop) -->
     <div id="gate-overlay" class="overlay hide">
       <div class="modal">
-        <h3>Extensão do Chrome necessária</h3>
+        <h3>Monitoração necessária</h3>
         <p>
-          Para iniciar o expediente, a extensão do Chrome precisa estar ativa e logada.
-          Abra o portal, ative/instale a extensão e tente novamente.
+          Para iniciar/retomar o expediente, a <b>extensão do Chrome</b> e o <b>app desktop</b>
+          precisam estar abertos e logados — eles garantem a monitoração. Verifique ambos e tente
+          novamente.
         </p>
         <div class="grid2">
           <button class="ghost" id="gate-close">Fechar</button>
@@ -407,6 +417,9 @@
         $("current-proc").textContent = s.current?.process || "";
         $("sync-err").textContent = s.lastError || "";
 
+        // Auto-update: status visível + botão de instalar quando aplicável.
+        applyUpdate(s.update);
+
         // Totais + timeline
         const totals = s.today?.totals || { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
         $("t-ativo").textContent = formatDuration(totals.ATIVO);
@@ -476,7 +489,9 @@
       async function doTransition(status, observacao) {
         $("action-err").textContent = "";
         const r = await window.api.transition(status, observacao);
-        if (r?.error === "extension_offline") {
+        const errStr = (r?.error || "").toLowerCase();
+        // Gate de monitoração do backend: extensão e/ou desktop offline.
+        if (errStr.includes("extension_offline") || errStr.includes("desktop_offline")) {
           $("gate-overlay").classList.remove("hide");
           return;
         }
@@ -550,6 +565,40 @@
       };
       $("auto-launch").onchange = async (e) => {
         await window.api.setAutoLaunch(e.target.checked);
+      };
+
+      // --- Auto-update (visibilidade + ação) ---
+      const UPDATE_LABEL = {
+        idle: "atualizado",
+        dev: "modo desenvolvimento",
+        checking: "verificando…",
+        available: "baixando atualização…",
+        downloading: "baixando atualização…",
+        downloaded: "atualização pronta para instalar",
+        none: "você está na versão mais recente",
+        manual: "atualização disponível — baixar manualmente",
+        error: "falha ao verificar atualização",
+      };
+      function applyUpdate(u) {
+        if (!u) return;
+        $("app-version").textContent = u.current || "—";
+        let label = UPDATE_LABEL[u.status] || u.status || "—";
+        if (u.status === "error" && u.error) label += " (" + u.error + ")";
+        $("update-status").textContent = label;
+        // Botão "Atualizar agora": Windows com download pronto, ou fallback
+        // manual (macOS / erro) abrindo a página de releases.
+        const showInstall =
+          u.status === "downloaded" || u.status === "manual" || u.status === "error";
+        $("btn-update-install").classList.toggle("hide", !showInstall);
+        $("btn-update-install").textContent =
+          u.status === "downloaded" ? "Atualizar e reiniciar" : "Baixar atualização";
+      }
+      $("btn-update").onclick = async () => {
+        $("update-status").textContent = "verificando…";
+        await window.api.checkUpdate();
+      };
+      $("btn-update-install").onclick = async () => {
+        await window.api.installUpdate();
       };
 
       window.api.onStatus(applyStatus);
