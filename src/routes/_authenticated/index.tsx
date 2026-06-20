@@ -978,12 +978,13 @@ function Dashboard() {
     setStartChecking(true);
     try {
       // Verificação fresca no clique — nunca confia só no estado renderizado.
-      // Gate bloqueia apenas pela EXTENSÃO (que reporta presença de forma
-      // sustentada quando logada). O app desktop é informativo: ele só envia
-      // presença quando o expediente está ATIVO, então entra online sozinho
-      // logo após o início — não dá para exigi-lo ANTES de iniciar.
-      const { ext } = await presence.checkNow();
-      if (!ext) {
+      // Exige EXTENSÃO + APP DESKTOP logados/online: sem ambos não há
+      // monitoração completa. O desktop reporta presença sustentada (coluna
+      // `ultimo_visto`) enquanto logado, mesmo fora de expediente — por isso dá
+      // para exigi-lo ANTES de iniciar. O backend (RPC abrir_registro) reaplica
+      // este gate como autoridade final; aqui é só feedback imediato de UX.
+      const { ext, desktop } = await presence.checkNow();
+      if (!ext || !desktop) {
         setStartGateOpen(true);
         return;
       }
@@ -1313,9 +1314,9 @@ function Dashboard() {
               Não é possível iniciar o expediente
             </DialogTitle>
             <DialogDescription>
-              Para iniciar o expediente é necessário que a <b>extensão do Chrome</b> esteja online.
-              Faça login nela e tente novamente. O app desktop é opcional — ele entra online
-              automaticamente assim que você inicia.
+              Para iniciar o expediente é necessário que a <b>extensão do Chrome</b> e o{" "}
+              <b>app desktop</b> estejam abertos e logados — eles garantem a monitoração. Faça login
+              em ambos e tente novamente.
             </DialogDescription>
           </DialogHeader>
           <ul className="space-y-2 text-sm">
@@ -1340,9 +1341,9 @@ function Dashboard() {
                 )}
               />
               <Monitor className="h-4 w-4" />
-              <span className="font-medium">App Desktop (opcional):</span>
-              <span className={presence.desktopOnline ? "text-success" : "text-muted-foreground"}>
-                {presence.desktopOnline ? "online" : "offline — entra online ao iniciar"}
+              <span className="font-medium">App Desktop:</span>
+              <span className={presence.desktopOnline ? "text-success" : "text-destructive"}>
+                {presence.desktopOnline ? "online" : "offline — abra e faça login no app desktop"}
               </span>
             </li>
           </ul>
@@ -1353,14 +1354,14 @@ function Dashboard() {
             <Button
               onClick={async () => {
                 // Reverifica de forma autoritativa antes de liberar o início.
-                // Só a extensão é obrigatória; o desktop é informativo.
-                const { ext } = await presence.checkNow();
-                if (ext) {
+                // Exige extensão E desktop online (gate de monitoração completo).
+                const { ext, desktop } = await presence.checkNow();
+                if (ext && desktop) {
                   setStartGateOpen(false);
                   session.start();
                 }
               }}
-              disabled={!presence.extOnline}
+              disabled={!presence.extOnline || !presence.desktopOnline}
             >
               <Play className="mr-2 h-4 w-4" /> Iniciar
             </Button>

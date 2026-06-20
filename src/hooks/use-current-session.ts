@@ -19,6 +19,19 @@ export interface Registro {
   observacao: string | null;
 }
 
+// Mensagens amigáveis para os erros do gate de monitoração do backend
+// (RPC abrir_registro). O gate exige extensão + app desktop logados para abrir
+// o expediente em ATIVO — ver migration de gate_monitoramento.
+function friendlyRpcError(message: string | undefined): string {
+  const m = (message || "").toLowerCase();
+  if (m.includes("extension_offline"))
+    return "A extensão do Chrome precisa estar ativa e logada para iniciar/retomar o expediente.";
+  if (m.includes("desktop_offline"))
+    return "O app desktop precisa estar aberto e logado para iniciar/retomar o expediente.";
+  if (m.includes("user not active")) return "Seu usuário está inativo. Procure o administrador.";
+  return message || "Não foi possível iniciar o expediente.";
+}
+
 function notify(title: string, body: string) {
   try {
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
@@ -69,6 +82,39 @@ export function useCurrentSession(userId: string | undefined) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Sincronismo em tempo real do próprio expediente. Sem isto, o card só
+  // atualizava após uma ação local (ou um F5): se o status mudasse no app
+  // desktop (ou em outra aba), a tela ficava defasada. `registros_atividade` já
+  // está na publicação realtime; o poll/refresh acima permanece como fallback.
+  useEffect(() => {
+    if (!userId) return;
+    let debounce: number | null = null;
+    const scheduleRefresh = () => {
+      if (debounce != null) window.clearTimeout(debounce);
+      debounce = window.setTimeout(() => {
+        debounce = null;
+        void refresh();
+      }, 400);
+    };
+    const channel = supabase
+      .channel(`current-session-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "registros_atividade",
+          filter: `usuario_id=eq.${userId}`,
+        },
+        scheduleRefresh,
+      )
+      .subscribe();
+    return () => {
+      if (debounce != null) window.clearTimeout(debounce);
+      void supabase.removeChannel(channel);
+    };
+  }, [userId, refresh]);
 
   // Poll de presença do app desktop. Se houve atividade recente em um app
   // nativo, conta como atividade do usuário (evita falso INATIVO) — espelhando
@@ -195,7 +241,7 @@ export function useCurrentSession(userId: string | undefined) {
           p_observacao: observacao ?? undefined,
         });
         if (error) {
-          toast.error(error.message);
+          toast.error(friendlyRpcError(error.message));
           return false;
         }
         setCurrent(data as Registro);

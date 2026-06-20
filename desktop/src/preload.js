@@ -14,4 +14,8 @@ contextBridge.exposeInMainWorld("api", {
   getAutoLaunch: () => ipcRenderer.invoke("autolaunch:get"),
   setAutoLaunch: (v) => ipcRenderer.invoke("autolaunch:set", v),
   onStatus: (cb) => ipcRenderer.on("status", (_e, s) => cb(s)),
+  // Auto-update: verificação manual, instalar (Win) / abrir releases (fallback).
+  checkUpdate: () => ipcRenderer.invoke("update:check"),
+  installUpdate: () => ipcRenderer.invoke("update:install"),
+  openReleases: () => ipcRenderer.invoke("update:open-releases"),
 });
