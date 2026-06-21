@@ -101,6 +101,24 @@ export type Database = {
         }
         Relationships: []
       }
+      app_config: {
+        Row: {
+          atualizado_em: string
+          chave: string
+          valor: Json
+        }
+        Insert: {
+          atualizado_em?: string
+          chave: string
+          valor: Json
+        }
+        Update: {
+          atualizado_em?: string
+          chave?: string
+          valor?: Json
+        }
+        Relationships: []
+      }
       atividade_apontamentos: {
         Row: {
           atividade_id: string
@@ -771,6 +789,7 @@ export type Database = {
         Args: { p_fim: string; p_uid: string }
         Returns: undefined
       }
+      gate_monitoramento_ativo: { Args: never; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
