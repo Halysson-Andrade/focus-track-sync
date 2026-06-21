@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
-import { adminCreateUser, adminDeleteUser, adminUpdateUser } from "@/lib/admin.functions";
+import { adminCreateUser, adminDeleteUser, adminToggleActive, adminUpdateUser } from "@/lib/admin.functions";
 import { DEPARTAMENTOS } from "@/components/office/office-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,7 @@ function AdminUsers() {
   const createFn = useServerFn(adminCreateUser);
   const deleteFn = useServerFn(adminDeleteUser);
   const updateFn = useServerFn(adminUpdateUser);
+  const toggleActiveFn = useServerFn(adminToggleActive);
   const [list, setList] = useState<AdminUser[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
@@ -160,9 +161,13 @@ function AdminUsers() {
   };
 
   const toggleActive = async (id: string, ativo: boolean) => {
-    await supabase.from("profiles").update({ ativo: !ativo }).eq("id", id);
-    toast.success(ativo ? "Desativado" : "Ativado");
-    load();
+    try {
+      await toggleActiveFn({ data: { userId: id, ativo: !ativo } });
+      toast.success(ativo ? "Desativado" : "Ativado");
+      load();
+    } catch (err) {
+      toast.error((err as Error).message ?? "Erro");
+    }
   };
 
   const remove = async (id: string) => {
