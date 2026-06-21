@@ -86,7 +86,7 @@ export function useCurrentSession(userId: string | undefined) {
   // Sincronismo em tempo real do próprio expediente. Sem isto, o card só
   // atualizava após uma ação local (ou um F5): se o status mudasse no app
   // desktop (ou em outra aba), a tela ficava defasada. `registros_atividade` já
-  // está na publicação realtime; o poll/refresh acima permanece como fallback.
+  // está na publicação realtime (REPLICA IDENTITY FULL).
   useEffect(() => {
     if (!userId) return;
     let debounce: number | null = null;
@@ -113,6 +113,25 @@ export function useCurrentSession(userId: string | undefined) {
     return () => {
       if (debounce != null) window.clearTimeout(debounce);
       void supabase.removeChannel(channel);
+    };
+  }, [userId, refresh]);
+
+  // Rede de segurança do sincronismo: se o realtime perder um evento (ou ainda
+  // não tiver conectado), o card se atualiza sozinho — sem precisar de F5.
+  // Espelha o poll de segurança do painel operacional. Atualiza ao focar/voltar
+  // para a aba e num poll leve enquanto a aba está visível.
+  useEffect(() => {
+    if (!userId) return;
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    const poll = window.setInterval(refreshIfVisible, 20000);
+    return () => {
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+      window.clearInterval(poll);
     };
   }, [userId, refresh]);
 
