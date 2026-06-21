@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
-import { adminCreateUser, adminDeleteUser, adminUpdateUser } from "@/lib/admin.functions";
+import { adminCreateUser, adminDeleteUser, adminToggleActive, adminUpdateUser } from "@/lib/admin.functions";
 import { DEPARTAMENTOS } from "@/components/office/office-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
