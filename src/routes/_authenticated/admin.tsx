@@ -161,9 +161,13 @@ function AdminUsers() {
   };
 
   const toggleActive = async (id: string, ativo: boolean) => {
-    await supabase.from("profiles").update({ ativo: !ativo }).eq("id", id);
-    toast.success(ativo ? "Desativado" : "Ativado");
-    load();
+    try {
+      await toggleActiveFn({ data: { userId: id, ativo: !ativo } });
+      toast.success(ativo ? "Desativado" : "Ativado");
+      load();
+    } catch (err) {
+      toast.error((err as Error).message ?? "Erro");
+    }
   };
 
   const remove = async (id: string) => {
