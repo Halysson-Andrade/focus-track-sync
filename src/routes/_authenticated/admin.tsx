@@ -64,6 +64,7 @@ function AdminUsers() {
   const createFn = useServerFn(adminCreateUser);
   const deleteFn = useServerFn(adminDeleteUser);
   const updateFn = useServerFn(adminUpdateUser);
+  const toggleActiveFn = useServerFn(adminToggleActive);
   const [list, setList] = useState<AdminUser[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
