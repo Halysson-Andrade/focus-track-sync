@@ -785,6 +785,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      enviar_notificacao_geral: {
+        Args: { p_conteudo: string }
+        Returns: number
+      }
       fechar_apontamento_aberto: {
         Args: { p_fim: string; p_uid: string }
         Returns: undefined
