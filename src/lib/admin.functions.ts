@@ -103,3 +103,26 @@ export const adminUpdateUser = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+export const adminToggleActive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ userId: z.string().uuid(), ativo: z.boolean() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: ok } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!ok) throw new Error("Acesso negado.");
+    if (data.userId === context.userId && !data.ativo) {
+      throw new Error("Você não pode desativar a si mesmo.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ ativo: data.ativo })
+      .eq("id", data.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
