@@ -18,6 +18,7 @@ import { Route as AuthenticatedOperacionalRouteImport } from './routes/_authenti
 import { Route as AuthenticatedExtensaoRouteImport } from './routes/_authenticated/extensao'
 import { Route as AuthenticatedDesktopRouteImport } from './routes/_authenticated/desktop'
 import { Route as AuthenticatedChangePasswordRouteImport } from './routes/_authenticated/change-password'
+import { Route as AuthenticatedCategoriasRouteImport } from './routes/_authenticated/categorias'
 import { Route as AuthenticatedAtividadesRouteImport } from './routes/_authenticated/atividades'
 import { Route as AuthenticatedAprovacoesRouteImport } from './routes/_authenticated/aprovacoes'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -70,6 +71,11 @@ const AuthenticatedChangePasswordRoute =
     path: '/change-password',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCategoriasRoute = AuthenticatedCategoriasRouteImport.update({
+  id: '/categorias',
+  path: '/categorias',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAtividadesRoute = AuthenticatedAtividadesRouteImport.update({
   id: '/atividades',
   path: '/atividades',
@@ -104,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRoute
   '/aprovacoes': typeof AuthenticatedAprovacoesRoute
   '/atividades': typeof AuthenticatedAtividadesRoute
+  '/categorias': typeof AuthenticatedCategoriasRoute
   '/change-password': typeof AuthenticatedChangePasswordRoute
   '/desktop': typeof AuthenticatedDesktopRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRoute
   '/aprovacoes': typeof AuthenticatedAprovacoesRoute
   '/atividades': typeof AuthenticatedAtividadesRoute
+  '/categorias': typeof AuthenticatedCategoriasRoute
   '/change-password': typeof AuthenticatedChangePasswordRoute
   '/desktop': typeof AuthenticatedDesktopRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/aprovacoes': typeof AuthenticatedAprovacoesRoute
   '/_authenticated/atividades': typeof AuthenticatedAtividadesRoute
+  '/_authenticated/categorias': typeof AuthenticatedCategoriasRoute
   '/_authenticated/change-password': typeof AuthenticatedChangePasswordRoute
   '/_authenticated/desktop': typeof AuthenticatedDesktopRoute
   '/_authenticated/extensao': typeof AuthenticatedExtensaoRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/aprovacoes'
     | '/atividades'
+    | '/categorias'
     | '/change-password'
     | '/desktop'
     | '/extensao'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/aprovacoes'
     | '/atividades'
+    | '/categorias'
     | '/change-password'
     | '/desktop'
     | '/extensao'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/aprovacoes'
     | '/_authenticated/atividades'
+    | '/_authenticated/categorias'
     | '/_authenticated/change-password'
     | '/_authenticated/desktop'
     | '/_authenticated/extensao'
@@ -266,6 +278,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChangePasswordRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/categorias': {
+      id: '/_authenticated/categorias'
+      path: '/categorias'
+      fullPath: '/categorias'
+      preLoaderRoute: typeof AuthenticatedCategoriasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/atividades': {
       id: '/_authenticated/atividades'
       path: '/atividades'
@@ -308,6 +327,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAprovacoesRoute: typeof AuthenticatedAprovacoesRoute
   AuthenticatedAtividadesRoute: typeof AuthenticatedAtividadesRoute
+  AuthenticatedCategoriasRoute: typeof AuthenticatedCategoriasRoute
   AuthenticatedChangePasswordRoute: typeof AuthenticatedChangePasswordRoute
   AuthenticatedDesktopRoute: typeof AuthenticatedDesktopRoute
   AuthenticatedExtensaoRoute: typeof AuthenticatedExtensaoRoute
@@ -321,6 +341,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAprovacoesRoute: AuthenticatedAprovacoesRoute,
   AuthenticatedAtividadesRoute: AuthenticatedAtividadesRoute,
+  AuthenticatedCategoriasRoute: AuthenticatedCategoriasRoute,
   AuthenticatedChangePasswordRoute: AuthenticatedChangePasswordRoute,
   AuthenticatedDesktopRoute: AuthenticatedDesktopRoute,
   AuthenticatedExtensaoRoute: AuthenticatedExtensaoRoute,

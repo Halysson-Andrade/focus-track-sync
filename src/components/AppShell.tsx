@@ -14,6 +14,7 @@ import {
   Monitor,
   Timer,
   ClipboardCheck,
+  Tags,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -24,7 +25,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ExtensionOnboarding } from "@/components/ExtensionOnboarding";
 
-const nav = [
+const nav: {
+  to: string;
+  label: string;
+  icon: typeof Activity;
+  admin?: boolean;
+  super?: boolean;
+}[] = [
   { to: "/", label: "Dashboard", icon: Activity },
   { to: "/atividades", label: "Atividades", icon: Timer },
   { to: "/operacional", label: "Operacional", icon: Eye },
@@ -33,11 +40,12 @@ const nav = [
   { to: "/aprovacoes", label: "Aprovações", icon: ClipboardCheck, admin: true },
   { to: "/relatorios", label: "Relatórios", icon: FileText, admin: true },
   { to: "/ranking", label: "Ranking", icon: Trophy, admin: true },
+  { to: "/categorias", label: "Categorias", icon: Tags, super: true },
   { to: "/admin", label: "Usuários", icon: Users, admin: true },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, profile, isAdmin } = useAuth();
+  const { user, profile, isAdmin, isSuperadmin } = useAuth();
   const router = useRouter();
   const location = useLocation();
   const [dark, setDark] = useState(false);
@@ -156,7 +164,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         >
           {nav
-            .filter((n) => !n.admin || isAdmin)
+            .filter((n) => (!n.admin || isAdmin) && (!n.super || isSuperadmin))
             .map((item) => (
               <Link
                 key={item.to}

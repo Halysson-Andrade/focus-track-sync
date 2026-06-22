@@ -828,6 +828,7 @@ export type Database = {
       }
       is_active: { Args: { _user_id: string }; Returns: boolean }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
+      itens_categorizacao: { Args: { p_dias: number }; Returns: Json }
       office_detail: { Args: { p_since: string }; Returns: Json }
       office_overview: { Args: { p_since: string }; Returns: Json }
       parar_atividade: {
