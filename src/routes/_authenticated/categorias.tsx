@@ -2,9 +2,16 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { buildCategoriaIndex, type CategoriaRow } from "@/lib/categorias";
+import {
+  buildCategoriaIndex,
+  catalogoPorGrupo,
+  CATEGORIAS_CATALOGO,
+  type CategoriaRow,
+} from "@/lib/categorias";
 import { isChromeProcess } from "@/lib/activity-config";
 import { formatSeconds, formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,13 +34,77 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Globe, Monitor, Search, Pencil, Trash2, Tags, CheckCircle2, Clock } from "lucide-react";
+import {
+  Globe,
+  Monitor,
+  Search,
+  Pencil,
+  Trash2,
+  Tags,
+  Tag,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/categorias")({
   head: () => ({ meta: [{ title: "Categorias" }] }),
   component: CategoriasPage,
 });
+
+// Paleta de chips agrupados por tema: 1 clique preenche categoria + produtiva.
+function CategoriaPalette({
+  onPick,
+  align = "end",
+}: {
+  onPick: (categoria: string, produtiva: boolean) => void;
+  align?: "start" | "center" | "end";
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-9 w-9 shrink-0"
+          title="Escolher categoria do catálogo"
+        >
+          <Tag className="h-4 w-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align={align} className="w-72 space-y-3">
+        {catalogoPorGrupo().map((g) => (
+          <div key={g.grupo} className="space-y-1.5">
+            <div className="text-xs font-semibold text-muted-foreground">{g.grupo}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {g.itens.map((c) => (
+                <button
+                  key={c.categoria}
+                  type="button"
+                  onClick={() => {
+                    onPick(c.categoria, c.produtiva);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-accent",
+                    c.produtiva
+                      ? "border-success/40 text-success"
+                      : "border-muted-foreground/30 text-muted-foreground",
+                  )}
+                >
+                  {c.categoria}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 type ItemTipo = "dominio" | "processo";
 
@@ -209,8 +280,15 @@ function CategoriasPage() {
       .sort((a, b) => b.segundos - a.segundos || a.categoria.localeCompare(b.categoria));
   }, [regras, tempoPorCategoria, busca]);
 
+  // Sugestões do datalist: catálogo + categorias já cadastradas (dedup).
   const categoriasExistentes = useMemo(
-    () => Array.from(new Set(regras.map((r) => r.categoria))).sort(),
+    () =>
+      Array.from(
+        new Set([
+          ...CATEGORIAS_CATALOGO.map((c) => c.categoria),
+          ...regras.map((r) => r.categoria),
+        ]),
+      ).sort(),
     [regras],
   );
 
@@ -427,15 +505,32 @@ function CategoriasPage() {
                           {formatDate(it.ultima_vez)}
                         </div>
                       </div>
+                      {it.tipo === "dominio" && (
+                        <a
+                          href={`https://${it.identificador}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title={`Abrir ${it.identificador}`}
+                          className="shrink-0 text-muted-foreground hover:text-foreground"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      )}
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <Input
-                        list="categorias-existentes"
-                        value={draft.categoria}
-                        onChange={(e) => setDraft(key, { categoria: e.target.value })}
-                        placeholder="Categoria…"
-                        className="h-9 sm:w-44"
-                      />
+                      <div className="flex items-center gap-2">
+                        <CategoriaPalette
+                          onPick={(categoria, produtiva) => setDraft(key, { categoria, produtiva })}
+                        />
+                        <Input
+                          list="categorias-existentes"
+                          value={draft.categoria}
+                          onChange={(e) => setDraft(key, { categoria: e.target.value })}
+                          placeholder="Categoria…"
+                          className="h-9 flex-1 sm:w-44"
+                        />
+                      </div>
                       <label className="flex items-center gap-2 text-xs">
                         <Switch
                           checked={draft.produtiva}
@@ -499,6 +594,17 @@ function CategoriasPage() {
                         <Monitor className="h-4 w-4 shrink-0 text-primary" />
                       )}
                       <span className="min-w-0 flex-1 truncate">{r.identificador}</span>
+                      {r.tipo === "dominio" && (
+                        <a
+                          href={`https://${r.identificador}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={`Abrir ${r.identificador}`}
+                          className="shrink-0 text-muted-foreground hover:text-foreground"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      )}
                       <Badge variant="outline" className="hidden sm:inline-flex">
                         {r.tipo}
                       </Badge>
@@ -540,13 +646,22 @@ function CategoriasPage() {
       {selecionados.size > 0 && (
         <div className="sticky bottom-4 z-20 mx-auto flex flex-col gap-2 rounded-xl border bg-card p-3 shadow-lg sm:flex-row sm:items-center">
           <span className="text-sm font-medium">{selecionados.size} selecionado(s)</span>
-          <Input
-            list="categorias-existentes"
-            value={loteCategoria}
-            onChange={(e) => setLoteCategoria(e.target.value)}
-            placeholder="Categoria para todos…"
-            className="h-9 flex-1 sm:w-48"
-          />
+          <div className="flex flex-1 items-center gap-2">
+            <CategoriaPalette
+              align="start"
+              onPick={(categoria, produtiva) => {
+                setLoteCategoria(categoria);
+                setLoteProdutiva(produtiva);
+              }}
+            />
+            <Input
+              list="categorias-existentes"
+              value={loteCategoria}
+              onChange={(e) => setLoteCategoria(e.target.value)}
+              placeholder="Categoria para todos…"
+              className="h-9 flex-1 sm:w-48"
+            />
+          </div>
           <label className="flex items-center gap-2 text-xs">
             <Switch checked={loteProdutiva} onCheckedChange={setLoteProdutiva} />
             <span className={loteProdutiva ? "text-success" : "text-muted-foreground"}>
@@ -578,11 +693,17 @@ function CategoriasPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Categoria</Label>
-                <Input
-                  list="categorias-existentes"
-                  value={editForm.categoria}
-                  onChange={(e) => setEditForm((f) => ({ ...f, categoria: e.target.value }))}
-                />
+                <div className="flex items-center gap-2">
+                  <CategoriaPalette
+                    onPick={(categoria, produtiva) => setEditForm({ categoria, produtiva })}
+                  />
+                  <Input
+                    list="categorias-existentes"
+                    value={editForm.categoria}
+                    onChange={(e) => setEditForm((f) => ({ ...f, categoria: e.target.value }))}
+                    className="flex-1"
+                  />
+                </div>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <Switch
