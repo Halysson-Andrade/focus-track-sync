@@ -6,6 +6,12 @@ export function formatDuration(minutes: number): string {
   return `${h}h ${m.toString().padStart(2, "0")}min`;
 }
 
+/** Duração curta a partir de SEGUNDOS: "45s" abaixo de 1 min, senão usa formatDuration. */
+export function formatSeconds(s: number): string {
+  if (!s || s < 60) return `${Math.round(s || 0)}s`;
+  return formatDuration(s / 60);
+}
+
 /** "agora" / "há N min" / "há Nh" a partir de um intervalo em ms. */
 export function formatAgo(ageMs: number): string {
   const min = Math.floor(ageMs / 60_000);

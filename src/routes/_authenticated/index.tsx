@@ -58,6 +58,7 @@ import {
   AJUSTE_STATUS_LABEL,
 } from "@/lib/format";
 import { tempoTrabalhado, isChromeProcess } from "@/lib/activity-config";
+import { buildCategoriaIndex } from "@/lib/categorias";
 import { ocioReconciliadoSeg } from "@/lib/ocio";
 import { aplicarAjustes, type SegmentoEfetivo, type AjusteJornada } from "@/lib/jornada-efetiva";
 import { SolicitarAjusteDialog } from "@/components/jornada/SolicitarAjusteDialog";
@@ -299,13 +300,23 @@ function Dashboard() {
       });
   }, [isAdmin]);
 
-  // Classificação por categoria (global; admin gerencia no Supabase).
+  // Classificação por categoria (global; gerenciada em /categorias pelo superadmin).
+  // Realtime: ao categorizar um app/site lá, o card "Tempo por categoria" reflete na hora.
   useEffect(() => {
-    supabase
-      .from("categoria_atividade")
-      .select("tipo, identificador, categoria, produtiva")
-      .eq("ativo", true)
-      .then(({ data }) => setCategorias((data ?? []) as CategoriaRow[]));
+    const load = () =>
+      supabase
+        .from("categoria_atividade")
+        .select("tipo, identificador, categoria, produtiva")
+        .eq("ativo", true)
+        .then(({ data }) => setCategorias((data ?? []) as CategoriaRow[]));
+    load();
+    const channel = supabase
+      .channel("dashboard-categorias")
+      .on("postgres_changes", { event: "*", schema: "public", table: "categoria_atividade" }, load)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Visão Geral (admin): busca registros + ócio de TODOS no dia selecionado.
@@ -674,20 +685,7 @@ function Dashboard() {
   // a partir da classificação `categoria_atividade` (domínio/processo → categoria).
   // Sites/apps sem classificação caem em "Não categorizado" (não somem).
   const categoriaStats = useMemo(() => {
-    const domainCat = new Map<string, { categoria: string; produtiva: boolean }>();
-    const procCat = new Map<string, { categoria: string; produtiva: boolean }>();
-    categorias.forEach((c) => {
-      const key = c.identificador.toLowerCase();
-      const val = { categoria: c.categoria, produtiva: c.produtiva };
-      if (c.tipo === "dominio") domainCat.set(key, val);
-      else if (c.tipo === "processo") procCat.set(key, val);
-    });
-    const lookupDomain = (domain: string) => {
-      const d = (domain || "").toLowerCase();
-      if (domainCat.has(d)) return domainCat.get(d);
-      for (const [id, val] of domainCat) if (d === id || d.endsWith("." + id)) return val;
-      return undefined;
-    };
+    const { matchDomain, matchProcess } = buildCategoriaIndex(categorias);
     const agg = new Map<string, { categoria: string; produtiva: boolean; segundos: number }>();
     const add = (categoria: string, produtiva: boolean, seg: number) => {
       if (!seg || seg <= 0) return;
@@ -696,14 +694,12 @@ function Dashboard() {
       else agg.set(categoria, { categoria, produtiva, segundos: seg });
     };
     siteStats.forEach((s) => {
-      const hit = lookupDomain(s.domain);
+      const hit = matchDomain(s.domain);
       if (hit) add(hit.categoria, hit.produtiva, s.trabalhado);
       else add("Não categorizado", false, s.trabalhado);
     });
     appStats.forEach((a) => {
-      const hit =
-        procCat.get((a.process_name || "").toLowerCase()) ??
-        procCat.get((a.app || "").toLowerCase());
+      const hit = matchProcess(a.process_name, a.app);
       if (hit) add(hit.categoria, hit.produtiva, a.trabalhado);
       else add("Não categorizado", false, a.trabalhado);
     });
@@ -1607,10 +1603,22 @@ function Dashboard() {
               {categoriaStats.arr.map((c) => {
                 const pct =
                   categoriaStats.total > 0 ? (c.segundos / categoriaStats.total) * 100 : 0;
+                const naoCategorizado = c.categoria === "Não categorizado";
                 return (
                   <li key={c.categoria}>
                     <div className="mb-0.5 flex items-center justify-between text-xs">
-                      <span className="font-medium">{c.categoria}</span>
+                      {naoCategorizado && isSuperadmin ? (
+                        <button
+                          type="button"
+                          onClick={() => router.navigate({ to: "/categorias" })}
+                          className="font-medium text-primary underline-offset-2 hover:underline"
+                          title="Abrir Central de Categorização"
+                        >
+                          {c.categoria} →
+                        </button>
+                      ) : (
+                        <span className="font-medium">{c.categoria}</span>
+                      )}
                       <span className="text-muted-foreground">
                         {formatSeconds(c.segundos)} · {Math.round(pct)}%
                       </span>
