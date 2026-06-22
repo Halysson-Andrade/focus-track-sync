@@ -86,6 +86,40 @@ export interface UserSnapshot {
   /** Versão do cliente reportada no último heartbeat (null = desconhecida). */
   extVersion: string | null;
   desktopVersion: string | null;
+  /** `true` quando a versão do cliente está abaixo da MAIOR versão vista entre os
+   *  colaboradores carregados (precisa atualizar). `null`/desconhecida ⇒ false. */
+  extOutdated: boolean;
+  desktopOutdated: boolean;
+}
+
+/**
+ * Compara versões "x.y.z" componente a componente (numérico; faltantes = 0).
+ * Retorna -1 se a<b, 0 se iguais, 1 se a>b. `null`/vazia ordena ANTES de qualquer
+ * versão conhecida (é tratada como a menor). Tolerante a sufixos não-numéricos
+ * (ex.: "1.6.2-beta" → componente vira 0 no trecho não numérico).
+ */
+export function compareVersions(a: string | null, b: string | null): number {
+  if (!a && !b) return 0;
+  if (!a) return -1;
+  if (!b) return 1;
+  const pa = a.split(".");
+  const pb = b.split(".");
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const na = parseInt(pa[i] ?? "0", 10) || 0;
+    const nb = parseInt(pb[i] ?? "0", 10) || 0;
+    if (na !== nb) return na < nb ? -1 : 1;
+  }
+  return 0;
+}
+
+/** Maior versão (não-nula) de uma lista; `null` se nenhuma conhecida. */
+function maxVersion(versions: (string | null)[]): string | null {
+  let max: string | null = null;
+  for (const v of versions) {
+    if (v && compareVersions(v, max) > 0) max = v;
+  }
+  return max;
 }
 
 function durSec(n: NavRow, nowTs: number): number {
@@ -188,7 +222,7 @@ export function buildSnapshots(
       extVersionByUser.set(pr.usuario_id, pr.versao ?? null);
     }
   }
-  return profiles.map((p) => {
+  const snapshots = profiles.map((p) => {
     const myReg = registros.filter((r) => r.usuario_id === p.id);
     // Pega o registro ABERTO mais recente (por inicio). Robusto contra possíveis
     // múltiplos registros sem `fim` (ex.: stale ATIVO não fechado + PAUSA atual).
@@ -301,8 +335,26 @@ export function buildSnapshots(
       lastDesktopApp,
       extVersion: extVersionByUser.get(p.id) ?? null,
       desktopVersion: desktopVersionByUser.get(p.id) ?? null,
+      extOutdated: false,
+      desktopOutdated: false,
     };
   });
+
+  // "Maior versão vista" como referência de atualização (sem config externa): um
+  // cliente é "desatualizado" se sua versão é conhecida E estritamente menor que a
+  // maior versão observada entre todos os colaboradores carregados. Versão
+  // desconhecida (sem heartbeat) NÃO conta como desatualizada.
+  const maxExt = maxVersion(snapshots.map((s) => s.extVersion));
+  const maxDesktop = maxVersion(snapshots.map((s) => s.desktopVersion));
+  for (const s of snapshots) {
+    s.extOutdated =
+      s.extVersion != null && maxExt != null && compareVersions(s.extVersion, maxExt) < 0;
+    s.desktopOutdated =
+      s.desktopVersion != null &&
+      maxDesktop != null &&
+      compareVersions(s.desktopVersion, maxDesktop) < 0;
+  }
+  return snapshots;
 }
 
 /** Estatísticas agregadas da equipe (reuso do cálculo do painel). */

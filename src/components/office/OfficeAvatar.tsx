@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Chrome, Monitor, LogOut } from "lucide-react";
+import { Chrome, Monitor, LogOut, ArrowUpCircle } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatAgo, formatDuration, formatHM, STATUS_COLOR } from "@/lib/format";
@@ -377,6 +377,7 @@ export function OfficeAvatar({
                 icon={<Chrome className="h-3 w-3" />}
                 name="Extensão"
                 version={s.extVersion}
+                outdated={s.extOutdated}
                 active={s.extActive}
                 title={s.lastUrl?.title}
                 sub={s.lastUrl?.domain}
@@ -386,6 +387,7 @@ export function OfficeAvatar({
                 icon={<Monitor className="h-3 w-3" />}
                 name="App desktop"
                 version={s.desktopVersion}
+                outdated={s.desktopOutdated}
                 active={s.desktopActive}
                 title={s.lastDesktopApp?.label}
               />
@@ -478,6 +480,7 @@ function SourceLine({
   icon,
   name,
   version,
+  outdated = false,
   active,
   title,
   sub,
@@ -486,6 +489,8 @@ function SourceLine({
   icon: React.ReactNode;
   name: string;
   version?: string | null;
+  /** Versão abaixo da maior vista → exibe selo "atualização disponível". */
+  outdated?: boolean;
   active: boolean;
   title?: string | null;
   sub?: string | null;
@@ -495,9 +500,21 @@ function SourceLine({
     <div className="mb-1.5 flex items-start gap-2 last:mb-0">
       <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-medium">{name}</span>
           {version && <span className="text-[10px] text-muted-foreground/70">v{version}</span>}
+          {outdated && version && (
+            <span
+              className="inline-flex items-center gap-0.5 rounded px-1 text-[9px] font-medium uppercase tracking-wide"
+              style={{
+                color: "var(--color-warning)",
+                background: "color-mix(in oklch, var(--color-warning) 15%, transparent)",
+              }}
+              title="Versão abaixo da mais recente em uso — atualização recomendada"
+            >
+              <ArrowUpCircle className="h-2.5 w-2.5" /> atualizar
+            </span>
+          )}
           <span
             className="h-1.5 w-1.5 rounded-full"
             style={{
