@@ -793,10 +793,6 @@ export type Database = {
         Args: { p_timeout_min?: number }
         Returns: number
       }
-      espelho_ponto: {
-        Args: { p_ate: string; p_de: string; p_usuario: string }
-        Returns: Json
-      }
       enviar_notificacao: {
         Args: { p_conteudo: string; p_destinatario: string }
         Returns: {
@@ -819,6 +815,10 @@ export type Database = {
       enviar_notificacao_geral: {
         Args: { p_conteudo: string }
         Returns: number
+      }
+      espelho_ponto: {
+        Args: { p_ate: string; p_de: string; p_usuario: string }
+        Returns: Json
       }
       fechar_apontamento_aberto: {
         Args: { p_fim: string; p_uid: string }
