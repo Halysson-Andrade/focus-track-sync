@@ -272,33 +272,6 @@ export type Database = {
         }
         Relationships: []
       }
-      categoria_catalogo: {
-        Row: {
-          ativo: boolean
-          created_at: string
-          grupo: string
-          id: string
-          nome: string
-          produtiva: boolean
-        }
-        Insert: {
-          ativo?: boolean
-          created_at?: string
-          grupo?: string
-          id?: string
-          nome: string
-          produtiva?: boolean
-        }
-        Update: {
-          ativo?: boolean
-          created_at?: string
-          grupo?: string
-          id?: string
-          nome?: string
-          produtiva?: boolean
-        }
-        Relationships: []
-      }
       eventos_ociosidade: {
         Row: {
           created_at: string
