@@ -793,6 +793,10 @@ export type Database = {
         Args: { p_timeout_min?: number }
         Returns: number
       }
+      espelho_ponto: {
+        Args: { p_ate: string; p_de: string; p_usuario: string }
+        Returns: Json
+      }
       enviar_notificacao: {
         Args: { p_conteudo: string; p_destinatario: string }
         Returns: {
