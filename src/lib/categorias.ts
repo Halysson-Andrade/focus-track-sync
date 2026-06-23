@@ -47,6 +47,27 @@ export function catalogoPorGrupo(): { grupo: string; itens: CategoriaCatalogo[] 
   }));
 }
 
+/**
+ * Agrupa itens por `grupo`, com os temas conhecidos (CATEGORIA_GRUPOS) primeiro,
+ * na sua ordem, e os demais grupos em ordem alfabética ao final. Grupos vazios
+ * são omitidos.
+ */
+export function agruparPorGrupo<T extends { grupo: string }>(
+  itens: T[],
+): { grupo: string; itens: T[] }[] {
+  const ordem = CATEGORIA_GRUPOS as readonly string[];
+  const grupos = Array.from(new Set(itens.map((i) => i.grupo)));
+  grupos.sort((a, b) => {
+    const ia = ordem.indexOf(a);
+    const ib = ordem.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+  return grupos.map((grupo) => ({ grupo, itens: itens.filter((i) => i.grupo === grupo) }));
+}
+
 /** Produtiva sugerida para uma categoria do catálogo (default true se desconhecida). */
 export function produtivaSugerida(categoria: string): boolean {
   const hit = CATEGORIAS_CATALOGO.find(
