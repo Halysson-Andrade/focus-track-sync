@@ -15,6 +15,7 @@ import {
   Timer,
   ClipboardCheck,
   Tags,
+  CalendarClock,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -39,6 +40,7 @@ const nav: {
   { to: "/desktop", label: "App Desktop", icon: Monitor },
   { to: "/aprovacoes", label: "Aprovações", icon: ClipboardCheck, admin: true },
   { to: "/relatorios", label: "Relatórios", icon: FileText, admin: true },
+  { to: "/espelho-ponto", label: "Espelho de Ponto", icon: CalendarClock, super: true },
   { to: "/ranking", label: "Ranking", icon: Trophy, admin: true },
   { to: "/categorias", label: "Categorias", icon: Tags, super: true },
   { to: "/admin", label: "Usuários", icon: Users, admin: true },
@@ -184,10 +186,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
         </nav>
         <div
-          className={cn(
-            "shrink-0 border-t border-sidebar-border",
-            collapsed ? "p-2" : "px-3 py-2",
-          )}
+          className={cn("shrink-0 border-t border-sidebar-border", collapsed ? "p-2" : "px-3 py-2")}
         >
           {!collapsed && (
             <div className="mb-2 text-xs leading-tight">

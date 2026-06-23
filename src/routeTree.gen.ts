@@ -16,6 +16,7 @@ import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authentic
 import { Route as AuthenticatedRankingRouteImport } from './routes/_authenticated/ranking'
 import { Route as AuthenticatedOperacionalRouteImport } from './routes/_authenticated/operacional'
 import { Route as AuthenticatedExtensaoRouteImport } from './routes/_authenticated/extensao'
+import { Route as AuthenticatedEspelhoPontoRouteImport } from './routes/_authenticated/espelho-ponto'
 import { Route as AuthenticatedDesktopRouteImport } from './routes/_authenticated/desktop'
 import { Route as AuthenticatedChangePasswordRouteImport } from './routes/_authenticated/change-password'
 import { Route as AuthenticatedCategoriasRouteImport } from './routes/_authenticated/categorias'
@@ -60,6 +61,12 @@ const AuthenticatedExtensaoRoute = AuthenticatedExtensaoRouteImport.update({
   path: '/extensao',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedEspelhoPontoRoute =
+  AuthenticatedEspelhoPontoRouteImport.update({
+    id: '/espelho-ponto',
+    path: '/espelho-ponto',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDesktopRoute = AuthenticatedDesktopRouteImport.update({
   id: '/desktop',
   path: '/desktop',
@@ -113,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/categorias': typeof AuthenticatedCategoriasRoute
   '/change-password': typeof AuthenticatedChangePasswordRoute
   '/desktop': typeof AuthenticatedDesktopRoute
+  '/espelho-ponto': typeof AuthenticatedEspelhoPontoRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
   '/operacional': typeof AuthenticatedOperacionalRoute
   '/ranking': typeof AuthenticatedRankingRoute
@@ -128,6 +136,7 @@ export interface FileRoutesByTo {
   '/categorias': typeof AuthenticatedCategoriasRoute
   '/change-password': typeof AuthenticatedChangePasswordRoute
   '/desktop': typeof AuthenticatedDesktopRoute
+  '/espelho-ponto': typeof AuthenticatedEspelhoPontoRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
   '/operacional': typeof AuthenticatedOperacionalRoute
   '/ranking': typeof AuthenticatedRankingRoute
@@ -146,6 +155,7 @@ export interface FileRoutesById {
   '/_authenticated/categorias': typeof AuthenticatedCategoriasRoute
   '/_authenticated/change-password': typeof AuthenticatedChangePasswordRoute
   '/_authenticated/desktop': typeof AuthenticatedDesktopRoute
+  '/_authenticated/espelho-ponto': typeof AuthenticatedEspelhoPontoRoute
   '/_authenticated/extensao': typeof AuthenticatedExtensaoRoute
   '/_authenticated/operacional': typeof AuthenticatedOperacionalRoute
   '/_authenticated/ranking': typeof AuthenticatedRankingRoute
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/categorias'
     | '/change-password'
     | '/desktop'
+    | '/espelho-ponto'
     | '/extensao'
     | '/operacional'
     | '/ranking'
@@ -180,6 +191,7 @@ export interface FileRouteTypes {
     | '/categorias'
     | '/change-password'
     | '/desktop'
+    | '/espelho-ponto'
     | '/extensao'
     | '/operacional'
     | '/ranking'
@@ -197,6 +209,7 @@ export interface FileRouteTypes {
     | '/_authenticated/categorias'
     | '/_authenticated/change-password'
     | '/_authenticated/desktop'
+    | '/_authenticated/espelho-ponto'
     | '/_authenticated/extensao'
     | '/_authenticated/operacional'
     | '/_authenticated/ranking'
@@ -262,6 +275,13 @@ declare module '@tanstack/react-router' {
       path: '/extensao'
       fullPath: '/extensao'
       preLoaderRoute: typeof AuthenticatedExtensaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/espelho-ponto': {
+      id: '/_authenticated/espelho-ponto'
+      path: '/espelho-ponto'
+      fullPath: '/espelho-ponto'
+      preLoaderRoute: typeof AuthenticatedEspelhoPontoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/desktop': {
@@ -330,6 +350,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCategoriasRoute: typeof AuthenticatedCategoriasRoute
   AuthenticatedChangePasswordRoute: typeof AuthenticatedChangePasswordRoute
   AuthenticatedDesktopRoute: typeof AuthenticatedDesktopRoute
+  AuthenticatedEspelhoPontoRoute: typeof AuthenticatedEspelhoPontoRoute
   AuthenticatedExtensaoRoute: typeof AuthenticatedExtensaoRoute
   AuthenticatedOperacionalRoute: typeof AuthenticatedOperacionalRoute
   AuthenticatedRankingRoute: typeof AuthenticatedRankingRoute
@@ -344,6 +365,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCategoriasRoute: AuthenticatedCategoriasRoute,
   AuthenticatedChangePasswordRoute: AuthenticatedChangePasswordRoute,
   AuthenticatedDesktopRoute: AuthenticatedDesktopRoute,
+  AuthenticatedEspelhoPontoRoute: AuthenticatedEspelhoPontoRoute,
   AuthenticatedExtensaoRoute: AuthenticatedExtensaoRoute,
   AuthenticatedOperacionalRoute: AuthenticatedOperacionalRoute,
   AuthenticatedRankingRoute: AuthenticatedRankingRoute,
@@ -363,3 +385,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
