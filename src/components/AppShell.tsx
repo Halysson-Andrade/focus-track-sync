@@ -40,7 +40,7 @@ const nav: {
   { to: "/desktop", label: "App Desktop", icon: Monitor },
   { to: "/aprovacoes", label: "Aprovações", icon: ClipboardCheck, admin: true },
   { to: "/relatorios", label: "Relatórios", icon: FileText, admin: true },
-  { to: "/espelho-ponto", label: "Espelho de Ponto", icon: CalendarClock, super: true },
+  { to: "/espelho-ponto", label: "Espelho de Ponto", icon: CalendarClock },
   { to: "/ranking", label: "Ranking", icon: Trophy, admin: true },
   { to: "/categorias", label: "Categorias", icon: Tags, super: true },
   { to: "/admin", label: "Usuários", icon: Users, admin: true },

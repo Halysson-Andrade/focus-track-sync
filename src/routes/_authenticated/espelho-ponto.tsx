@@ -1,6 +1,7 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { DEPARTAMENTOS } from "@/components/office/office-config";
 import {
   montarEspelho,
@@ -32,18 +33,11 @@ import {
 import { FileText, Users, Clock } from "lucide-react";
 import { toast } from "sonner";
 
+// Acesso por papel: a página é acessível a qualquer autenticado (o pai
+// `_authenticated` já garante login). A RPC `espelho_ponto` é a trava real —
+// superadmin vê todos, admin vê a própria área (same_area), usuário vê só a si.
 export const Route = createFileRoute("/_authenticated/espelho-ponto")({
   head: () => ({ meta: [{ title: "Espelho de Ponto" }] }),
-  beforeLoad: async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw redirect({ to: "/auth" });
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userData.user.id);
-    const isSuperadmin = !!roles?.some((r) => r.role === "superadmin");
-    if (!isSuperadmin) throw redirect({ to: "/" });
-  },
   component: EspelhoPontoPage,
 });
 
@@ -65,6 +59,11 @@ function pertenceAoSetor(dep: string | null, setor: { value: string; label: stri
 }
 
 function EspelhoPontoPage() {
+  const { user, profile, isAdmin, isSuperadmin, loading: authLoading } = useAuth();
+  // admin "puro" = gerente de área (não superadmin): escopo limitado ao próprio setor.
+  const adminPuro = isAdmin && !isSuperadmin;
+  const myDept = (profile?.departamento ?? "").trim().toLowerCase();
+
   const today = new Date();
   const ago = new Date();
   ago.setDate(today.getDate() - 30);
@@ -79,13 +78,8 @@ function EspelhoPontoPage() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // Colaboradores ativos + regras de categoria ativas (paridade com o dashboard).
+  // Regras de categoria ativas (paridade com o dashboard) — para todos os papéis.
   useEffect(() => {
-    supabase
-      .from("profiles")
-      .select("id, nome, cargo, departamento, email, ativo")
-      .order("nome")
-      .then(({ data }) => setPerfis(((data ?? []) as Perfil[]).filter((p) => p.ativo !== false)));
     supabase
       .from("categoria_atividade")
       .select("tipo, identificador, categoria, produtiva, ativo")
@@ -94,17 +88,43 @@ function EspelhoPontoPage() {
       );
   }, []);
 
-  const usuariosDoSetor = useMemo(() => {
-    if (setor === "all") return perfis;
-    const s = DEPARTAMENTOS.find((d) => d.value === setor);
-    if (!s) return perfis;
-    return perfis.filter((p) => pertenceAoSetor(p.departamento, s));
-  }, [perfis, setor]);
-
-  // Mantém a seleção válida quando o setor muda.
+  // Lista de colaboradores só importa para admin/superadmin (usuário vê só a si).
   useEffect(() => {
-    if (usuarioId && !usuariosDoSetor.some((u) => u.id === usuarioId)) setUsuarioId("");
-  }, [usuariosDoSetor, usuarioId]);
+    if (!isAdmin) return;
+    supabase
+      .from("profiles")
+      .select("id, nome, cargo, departamento, email, ativo")
+      .order("nome")
+      .then(({ data }) => setPerfis(((data ?? []) as Perfil[]).filter((p) => p.ativo !== false)));
+  }, [isAdmin]);
+
+  // Usuário comum: alvo fixo é ele mesmo.
+  useEffect(() => {
+    if (!authLoading && !isAdmin && user) setUsuarioId(user.id);
+  }, [authLoading, isAdmin, user]);
+
+  // Universo visível por papel: superadmin = todos; admin = própria área; user = só ele.
+  const baseUsers = useMemo(() => {
+    if (isSuperadmin) return perfis;
+    if (adminPuro) {
+      if (!myDept) return user ? perfis.filter((p) => p.id === user.id) : [];
+      return perfis.filter((p) => (p.departamento ?? "").trim().toLowerCase() === myDept);
+    }
+    return [];
+  }, [isSuperadmin, adminPuro, perfis, myDept, user]);
+
+  // Superadmin pode refinar por setor; admin já está restrito à própria área.
+  const usuariosDoSetor = useMemo(() => {
+    if (!isSuperadmin || setor === "all") return baseUsers;
+    const s = DEPARTAMENTOS.find((d) => d.value === setor);
+    if (!s) return baseUsers;
+    return baseUsers.filter((p) => pertenceAoSetor(p.departamento, s));
+  }, [isSuperadmin, baseUsers, setor]);
+
+  // Mantém a seleção válida quando o setor/escopo muda (só p/ admin+).
+  useEffect(() => {
+    if (isAdmin && usuarioId && !usuariosDoSetor.some((u) => u.id === usuarioId)) setUsuarioId("");
+  }, [isAdmin, usuariosDoSetor, usuarioId]);
 
   const carregarEspelho = async (uid: string): Promise<EspelhoData | null> => {
     const { data, error } = await supabase.rpc("espelho_ponto", {
@@ -149,8 +169,11 @@ function EspelhoPontoPage() {
     }
     setExporting(false);
     if (espelhos.length === 0) return;
-    const nomeSetor =
-      setor === "all" ? "todos" : (DEPARTAMENTOS.find((d) => d.value === setor)?.value ?? setor);
+    const nomeSetor = adminPuro
+      ? myDept || "minha-equipe"
+      : setor === "all"
+        ? "todos"
+        : (DEPARTAMENTOS.find((d) => d.value === setor)?.value ?? setor);
     gerarEspelhoPDF(espelhos, `espelho-setor-${nomeSetor}-${de}-a-${ate}.pdf`);
     toast.success(`PDF gerado com ${espelhos.length} colaborador(es).`);
   };
@@ -171,8 +194,11 @@ function EspelhoPontoPage() {
           <FileText className="h-6 w-6" /> Espelho de Ponto
         </h1>
         <p className="text-sm text-muted-foreground">
-          Folha de frequência por colaborador com marcações, KPIs do período e abonos/edições.
-          Exportação restrita ao superadmin.
+          {isSuperadmin
+            ? "Folha de frequência de qualquer colaborador, com marcações, KPIs do período e abonos/edições."
+            : adminPuro
+              ? "Folha de frequência da sua equipe (mesmo setor), com marcações, KPIs do período e abonos/edições."
+              : "Seu espelho de ponto: marcações, KPIs do período e abonos/edições."}
         </p>
       </div>
 
@@ -181,37 +207,47 @@ function EspelhoPontoPage() {
           <CardTitle>Filtros</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-5">
-          <div className="space-y-2">
-            <Label>Setor</Label>
-            <Select value={setor} onValueChange={setSetor}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os setores</SelectItem>
-                {DEPARTAMENTOS.map((d) => (
-                  <SelectItem key={d.value} value={d.value}>
-                    {d.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Colaborador</Label>
-            <Select value={usuarioId} onValueChange={setUsuarioId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione…" />
-              </SelectTrigger>
-              <SelectContent>
-                {usuariosDoSetor.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.nome ?? u.email ?? u.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {isSuperadmin && (
+            <div className="space-y-2">
+              <Label>Setor</Label>
+              <Select value={setor} onValueChange={setSetor}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os setores</SelectItem>
+                  {DEPARTAMENTOS.map((d) => (
+                    <SelectItem key={d.value} value={d.value}>
+                      {d.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {isAdmin && (
+            <div className="space-y-2">
+              <Label>Colaborador</Label>
+              <Select value={usuarioId} onValueChange={setUsuarioId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {usuariosDoSetor.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.nome ?? u.email ?? u.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {!isAdmin && (
+            <div className="space-y-2">
+              <Label>Colaborador</Label>
+              <Input value={profile?.nome ?? user?.email ?? "Você"} disabled readOnly />
+            </div>
+          )}
           <div className="space-y-2">
             <Label>De</Label>
             <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} />
@@ -231,14 +267,18 @@ function EspelhoPontoPage() {
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={exportarIndividual} disabled={exporting || !usuarioId}>
           <FileText className="mr-2 h-4 w-4" />
-          Exportar PDF (colaborador)
+          {isAdmin ? "Exportar PDF (colaborador)" : "Exportar meu espelho"}
         </Button>
-        <Button variant="outline" onClick={exportarSetor} disabled={exporting}>
-          <Users className="mr-2 h-4 w-4" />
-          {exporting
-            ? "Gerando…"
-            : `Exportar todos ${setor === "all" ? "(todos os setores)" : "do setor"} (${usuariosDoSetor.length})`}
-        </Button>
+        {isAdmin && (
+          <Button variant="outline" onClick={exportarSetor} disabled={exporting}>
+            <Users className="mr-2 h-4 w-4" />
+            {exporting
+              ? "Gerando…"
+              : adminPuro
+                ? `Exportar toda a minha equipe (${usuariosDoSetor.length})`
+                : `Exportar todos ${setor === "all" ? "(todos os setores)" : "do setor"} (${usuariosDoSetor.length})`}
+          </Button>
+        )}
       </div>
 
       {/* ---- Preview ---- */}
