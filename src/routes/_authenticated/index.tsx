@@ -63,6 +63,8 @@ import { ocioReconciliadoSeg } from "@/lib/ocio";
 import {
   aplicarAjustes,
   resolverJornada,
+  atribuirDiaJornada,
+  janelaDiaJornada,
   type SegmentoEfetivo,
   type AjusteJornada,
 } from "@/lib/jornada-efetiva";
@@ -376,21 +378,33 @@ function Dashboard() {
       setDayRecords([]);
       return;
     }
+    // Janela AMPLIADA [D-1, D+2) para reconstruir jornadas que cruzam a meia-noite;
+    // depois filtra para a jornada cujo dia é o dia selecionado (vira-noite).
+    const wStart = new Date(selectedDate);
+    wStart.setHours(0, 0, 0, 0);
+    wStart.setDate(wStart.getDate() - 1);
+    const wEnd = new Date(selectedDate);
+    wEnd.setHours(0, 0, 0, 0);
+    wEnd.setDate(wEnd.getDate() + 2);
     supabase
       .from("registros_atividade")
       .select("*")
       .eq("usuario_id", effectiveUserId)
-      .gte("inicio", dayRange.start)
-      .lt("inicio", dayRange.end)
+      .gte("inicio", wStart.toISOString())
+      .lt("inicio", wEnd.toISOString())
       .order("inicio", { ascending: true })
-      .then(({ data }) => setDayRecords((data ?? []) as Registro[]));
+      .then(({ data }) => {
+        const recs = (data ?? []) as Registro[];
+        const diaDe = atribuirDiaJornada(recs);
+        setDayRecords(recs.filter((r) => diaDe.get(r.id) === dayKey));
+      });
     // when looking at today (own/other), also poll
   }, [
     effectiveUserId,
     viewingOther,
     isToday,
-    dayRange.start,
-    dayRange.end,
+    selectedDate,
+    dayKey,
     isToday ? now.getMinutes() : 0,
   ]);
 
@@ -502,13 +516,16 @@ function Dashboard() {
       .gte("inicio", since.toISOString())
       .order("inicio", { ascending: true })
       .then(({ data }) => {
+        // Agrupa por DIA DA JORNADA (vira-noite): o rabo pós-meia-noite fica no dia
+        // que começou, em vez de virar um novo dia por diaLocal(inicio).
+        const recs = (data ?? []) as Registro[];
+        const diaDe = atribuirDiaJornada(recs);
         const map = new Map<string, Registro[]>();
-        (data ?? []).forEach((r) => {
-          const d = new Date(r.inicio);
-          d.setHours(0, 0, 0, 0);
-          const key = d.toISOString();
+        recs.forEach((r) => {
+          const diaISO = diaDe.get(r.id) ?? "";
+          const key = new Date(diaISO + "T00:00:00").toISOString();
           if (!map.has(key)) map.set(key, []);
-          map.get(key)!.push(r as Registro);
+          map.get(key)!.push(r);
         });
         const arr = Array.from(map.entries())
           .map(([k, records]) => ({ date: new Date(k), records }))
@@ -581,13 +598,12 @@ function Dashboard() {
   // Totais do dia a partir da timeline DISJUNTA (cada instante conta uma vez; almoço
   // que indevidamente cai sob um ATIVO é recortado) e com aberto contado até AGORA.
   const totals = useMemo(() => {
-    const ds = new Date(selectedDate);
-    ds.setHours(0, 0, 0, 0);
-    const diaStart = ds.getTime();
-    const diaEnd = diaStart + 24 * 3600_000 - 1;
+    // Janela do dia da jornada: estende além da meia-noite se a sessão cruzou (o tail
+    // já vem filtrado para este dia em dayRecords).
+    const { diaStart, diaEnd } = janelaDiaJornada(effectiveRecords, dayKey, now.getTime());
     const { totais } = resolverJornada(effectiveRecords, diaStart, diaEnd, now.getTime());
     return { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0, ABONO: 0, ...totais };
-  }, [effectiveRecords, selectedDate, now]);
+  }, [effectiveRecords, dayKey, now]);
 
   const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
 
@@ -1802,9 +1818,12 @@ function Dashboard() {
                 const dayKeyIso = day.date.toISOString().slice(0, 10);
                 const dayAjustes = history30Ajustes.filter((a) => a.dia === dayKeyIso);
                 const dayIdleEvents = history30IdleEvents.get(dayKeyIso) ?? [];
-                const diaStart = day.date.getTime();
-                const diaEnd = diaStart + 24 * 3600_000 - 1;
-                const cap = Math.min(now.getTime(), diaEnd);
+                // Janela do dia da jornada (estende além da meia-noite se a sessão cruzou).
+                const { diaStart, diaEnd, cap } = janelaDiaJornada(
+                  day.records,
+                  dayKeyIso,
+                  now.getTime(),
+                );
                 const effective = aplicarAjustes(day.records, dayAjustes, day.date, cap);
 
                 // Mesma resolução do dia selecionado: timeline disjunta + aberto até AGORA

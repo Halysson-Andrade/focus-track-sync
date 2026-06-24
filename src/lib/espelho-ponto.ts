@@ -10,6 +10,9 @@
 import {
   aplicarAjustes,
   resolverJornada,
+  atribuirDiaJornada,
+  janelaDiaJornada,
+  diaLocal,
   STATUS_ABONO,
   type RegistroBase,
   type AjusteJornada,
@@ -122,21 +125,13 @@ export type CategoriaRegra = {
   produtiva: boolean;
 };
 
-// --- Helpers de agrupamento por dia (chave = data LOCAL de `inicio`) ---
-
-/** "YYYY-MM-DD" no fuso local de um timestamp ISO. */
-function diaLocal(iso: string): string {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
+// --- Helpers de agrupamento por DIA DA JORNADA (vira-noite: pertence ao dia que começou) ---
 
 export function agruparPorDia(registros: RegistroBase[]): Map<string, RegistroBase[]> {
+  const diaDe = atribuirDiaJornada(registros);
   const m = new Map<string, RegistroBase[]>();
   for (const r of registros) {
-    const k = diaLocal(r.inicio);
+    const k = diaDe.get(r.id) ?? diaLocal(r.inicio);
     const arr = m.get(k) ?? [];
     arr.push(r);
     m.set(k, arr);
@@ -144,12 +139,31 @@ export function agruparPorDia(registros: RegistroBase[]): Map<string, RegistroBa
   return m;
 }
 
-function agruparEventosPorDia(eventos: Intervalo[]): Map<string, Intervalo[]> {
+/** Atribui cada evento de ócio ao dia da jornada cuja JANELA [start, fim] contém seu
+ *  `inicio` (janelas derivadas dos registros já agrupados); fallback = dia local. */
+function agruparEventosPorDia(
+  eventos: Intervalo[],
+  registrosPorDia: Map<string, RegistroBase[]>,
+  nowTs: number,
+): Map<string, Intervalo[]> {
+  const janelas = Array.from(registrosPorDia.entries()).map(([dia, regs]) => {
+    let start = Infinity;
+    let end = -Infinity;
+    for (const r of regs) {
+      const s = new Date(r.inicio).getTime();
+      const e = r.fim ? new Date(r.fim).getTime() : nowTs;
+      if (s < start) start = s;
+      if (e > end) end = e;
+    }
+    return { dia, start, end };
+  });
   const m = new Map<string, Intervalo[]>();
-  for (const e of eventos) {
-    const k = diaLocal(e.inicio);
+  for (const ev of eventos) {
+    const t = new Date(ev.inicio).getTime();
+    const hit = janelas.find((j) => t >= j.start && t <= j.end);
+    const k = hit ? hit.dia : diaLocal(ev.inicio);
     const arr = m.get(k) ?? [];
-    arr.push(e);
+    arr.push(ev);
     m.set(k, arr);
   }
   return m;
@@ -184,6 +198,16 @@ export function derivarMarcacoes(segs: SegmentoTimeline[], emAndamento: boolean)
   return { entrada, almocoInicio, almocoFim, saida, extras };
 }
 
+/** Sufixo " +N" quando o horário ISO cai N dias civis DEPOIS do dia da linha (vira-noite);
+ *  "" no mesmo dia. Ex.: jornada de 15/06 que termina 16/06 08:46 → "08:46 +1". */
+export function sufixoVirada(iso: string | null | undefined, diaBaseISO: string): string {
+  if (!iso) return "";
+  const base = new Date(diaBaseISO + "T00:00:00").getTime();
+  const alvo = new Date(diaLocal(iso) + "T00:00:00").getTime();
+  const diff = Math.round((alvo - base) / (24 * 3600_000));
+  return diff > 0 ? ` +${diff}` : "";
+}
+
 // --- Montagem de um dia (overlay + totais + ociosidade) ---
 
 export function montarDiaEspelho(
@@ -193,11 +217,10 @@ export function montarDiaEspelho(
   eventos: Intervalo[],
   nowTs: number,
 ): DiaEspelho {
-  const diaStart = new Date(diaISO + "T00:00:00").getTime();
-  const diaEnd = new Date(diaISO + "T23:59:59.999").getTime();
+  // Janela do dia da jornada: fim estende-se além da meia-noite se a sessão cruzou
+  // (o rabo pós-meia-noite pertence a este dia). Aberto conta até AGORA (não infla hoje).
+  const { diaStart, diaEnd, cap } = janelaDiaJornada(registros, diaISO, nowTs);
   const dia = new Date(diaStart);
-  // Aberto conta até AGORA (não até o fim do dia) — evita inflar a jornada de hoje.
-  const cap = Math.min(nowTs, diaEnd);
 
   // aplicarAjustes só lê um subconjunto dos campos de AjusteJornada (id, status,
   // tipo, inicio, fim, status_alvo); o cast é seguro estruturalmente.
@@ -243,7 +266,7 @@ export function montarEspelho(
   nowTs: number = Date.now(),
 ): EspelhoData {
   const registrosPorDia = agruparPorDia(payload.registros);
-  const eventosPorDia = agruparEventosPorDia(payload.eventos);
+  const eventosPorDia = agruparEventosPorDia(payload.eventos, registrosPorDia, nowTs);
 
   // Decisão de produto: intervalo livre → apenas dias COM registro viram linha.
   const diasISO = Array.from(registrosPorDia.keys()).sort();
