@@ -15,7 +15,7 @@ import {
   AJUSTE_TIPO_LABEL,
   AJUSTE_STATUS_LABEL,
 } from "./format";
-import type { EspelhoData } from "./espelho-ponto";
+import { sufixoVirada, type EspelhoData } from "./espelho-ponto";
 
 const MARGIN = 14;
 const AZUL: [number, number, number] = [30, 64, 175];
@@ -107,7 +107,7 @@ function renderEspelho(doc: jsPDF, e: EspelhoData): void {
         fmtHora(d.marcacoes.entrada),
         fmtHora(d.marcacoes.almocoInicio),
         fmtHora(d.marcacoes.almocoFim),
-        fmtHora(d.marcacoes.saida),
+        fmtHora(d.marcacoes.saida) + sufixoVirada(d.marcacoes.saida, d.dia),
         formatDuration(d.ativoMin),
         obs.join(" · "),
       ];

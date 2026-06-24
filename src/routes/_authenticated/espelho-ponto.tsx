@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { DEPARTAMENTOS } from "@/components/office/office-config";
 import {
   montarEspelho,
+  sufixoVirada,
   type EspelhoPayload,
   type EspelhoData,
   type CategoriaRegra,
@@ -367,7 +368,10 @@ function EspelhoPontoPage() {
                               {d.marcacoes.almocoFim ? formatHM(d.marcacoes.almocoFim) : "—"}
                             </TableCell>
                             <TableCell className="font-mono text-xs">
-                              {d.marcacoes.saida ? formatHM(d.marcacoes.saida) : "em andamento"}
+                              {d.marcacoes.saida
+                                ? formatHM(d.marcacoes.saida) +
+                                  sufixoVirada(d.marcacoes.saida, d.dia)
+                                : "em andamento"}
                             </TableCell>
                             <TableCell>{formatDuration(d.ativoMin)}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">

@@ -49,6 +49,70 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): b
   return aStart < bEnd && bStart < aEnd;
 }
 
+// --- Atribuição ao "dia da jornada" (vira-noite: a jornada pertence ao dia que começou) ---
+
+/** "YYYY-MM-DD" no fuso LOCAL de um timestamp ISO. */
+export function diaLocal(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+/** Gap acima do qual consideramos que houve um intervalo "foi pra casa" → nova jornada.
+ *  Como os registros são contíguos (abrir_registro fecha o anterior), gaps só surgem
+ *  quando o tracking parou. Uma sessão que cruza a meia-noite tem gap ≈ 0 e fica no
+ *  mesmo dia; descanso noturno (8h+) ou volta no dia seguinte ultrapassa o limite. */
+export const GAP_NOVA_JORNADA_MS = 4 * 3600_000;
+
+/**
+ * Atribui cada registro ao DIA DA JORNADA (data local do INÍCIO da cadeia contígua):
+ * uma nova jornada começa no primeiro registro, após um `ENCERRADO`, ou quando o gap
+ * desde o fim anterior passa de `GAP_NOVA_JORNADA_MS`. Registros contíguos carregam o
+ * dia através da meia-noite — assim o rabo pós-meia-noite NÃO vira um novo dia.
+ */
+export function atribuirDiaJornada(registros: RegistroBase[]): Map<string, string> {
+  const ord = [...registros].sort(
+    (a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime(),
+  );
+  const map = new Map<string, string>();
+  let diaAtual: string | null = null;
+  let prevEnd = -Infinity;
+  let prevEncerrado = false;
+  for (const r of ord) {
+    const ini = new Date(r.inicio).getTime();
+    const novaJornada = diaAtual === null || prevEncerrado || ini - prevEnd > GAP_NOVA_JORNADA_MS;
+    if (novaJornada) diaAtual = diaLocal(r.inicio);
+    map.set(r.id, diaAtual as string);
+    const fim = r.fim ? new Date(r.fim).getTime() : ini;
+    prevEnd = Math.max(prevEnd, fim);
+    prevEncerrado = r.status === "ENCERRADO";
+  }
+  return map;
+}
+
+/**
+ * Janela do dia da jornada: início = 00:00 local de `diaJornadaISO`; fim = o MAIOR entre
+ * o fim do dia civil (23:59:59.999) e o maior `fim` dos registros (aberto → `nowTs`) —
+ * para que o rabo que cruzou a meia-noite NÃO seja recortado por `resolverJornada`.
+ */
+export function janelaDiaJornada(
+  registros: RegistroBase[],
+  diaJornadaISO: string,
+  nowTs: number,
+): { diaStart: number; diaEnd: number; cap: number } {
+  const diaStart = new Date(diaJornadaISO + "T00:00:00").getTime();
+  const fimCivil = diaStart + 24 * 3600_000 - 1;
+  let maxFim = fimCivil;
+  for (const r of registros) {
+    const fim = r.fim ? new Date(r.fim).getTime() : nowTs;
+    if (fim > maxFim) maxFim = fim;
+  }
+  const diaEnd = maxFim;
+  return { diaStart, diaEnd, cap: Math.min(nowTs, diaEnd) };
+}
+
 /** Janela [inicioTs, fimTs] do ajuste; usa período explícito ou a jornada padrão do dia. */
 function janelaAjuste(a: AjusteJornada, dia: Date): [number, number] | null {
   if (a.inicio && a.fim) {
