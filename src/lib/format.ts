@@ -28,7 +28,15 @@ export function formatHM(date: Date | string | null | undefined): string {
 
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
-  const d = typeof date === "string" ? new Date(date) : date;
+  let d: Date;
+  if (typeof date === "string") {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    // Data pura (coluna DATE / chave de dia) → meia-noite LOCAL, não UTC. Sem isso,
+    // `new Date("2026-06-23")` vira meia-noite UTC e cai no dia anterior em fusos < 0.
+    d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(date);
+  } else {
+    d = date;
+  }
   return d.toLocaleDateString("pt-BR");
 }
 
