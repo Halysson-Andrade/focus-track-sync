@@ -135,7 +135,9 @@ export function aplicarAjustes(
   return segs;
 }
 
-/** Totais por status (minutos) a partir dos segmentos efetivos, incluindo ABONO. */
+/** Totais por status (minutos) a partir dos segmentos efetivos, incluindo ABONO.
+ *  Soma CRUA por status (sem recorte ao dia nem resolução de sobreposição). Para a
+ *  jornada do dia, prefira `resolverJornada`, que recorta e resolve overlaps. */
 export function totaisPorStatus(
   segs: SegmentoEfetivo[],
   agoraTs: number = Date.now(),
@@ -150,4 +152,127 @@ export function totaisPorStatus(
     t[seg.status] = (t[seg.status] ?? 0) + dur;
   }
   return t;
+}
+
+// --- Jornada resolvida: timeline DISJUNTA por status + totais (fonte única) ---
+
+/** Faixa da timeline disjunta (ms), com a procedência do segmento que a venceu. */
+export type SegmentoTimeline = {
+  inicio: number; // ms
+  fim: number; // ms
+  status: string;
+  origemId: string;
+  editado: boolean;
+  tipoAjuste?: AjusteJornada["tipo"];
+  ajusteId?: string;
+};
+
+export type JornadaResolvida = {
+  /** Disjunta, ordenada, dentro de [diaStart, min(now, diaEnd)]. */
+  timeline: SegmentoTimeline[];
+  /** Minutos por status, somados sobre a timeline (cada instante conta UMA vez). */
+  totais: Record<string, number>;
+};
+
+type SegNorm = {
+  s: number;
+  e: number;
+  startOrig: number; // `inicio` ORIGINAL (não clampado) — chave do desempate
+  status: string;
+  origemId: string;
+  editado: boolean;
+  tipoAjuste?: AjusteJornada["tipo"];
+  ajusteId?: string;
+};
+
+/**
+ * Resolve a jornada de UM dia: recorta cada segmento à janela [diaStart, min(now, diaEnd)],
+ * fecha abertos em min(now, diaEnd) e resolve SOBREPOSIÇÃO por LATEST-START-WINS — o
+ * registro de `inicio` mais recente domina o instante, reproduzindo o invariante do
+ * `abrir_registro` (abrir um status fecha o anterior). Devolve uma timeline disjunta e os
+ * totais por status. É no-op em dias "limpos" (sem sobreposição) a menos do clamp do aberto.
+ */
+export function resolverJornada(
+  segs: SegmentoEfetivo[],
+  diaStart: number,
+  diaEnd: number,
+  nowTs: number,
+): JornadaResolvida {
+  const cap = Math.min(nowTs, diaEnd);
+
+  const norm: SegNorm[] = [];
+  for (const seg of segs) {
+    const ini = new Date(seg.inicio).getTime();
+    const rawEnd = seg.fim
+      ? new Date(seg.fim).getTime()
+      : seg.duracao_minutos != null
+        ? ini + seg.duracao_minutos * 60000
+        : cap;
+    const s = Math.max(diaStart, ini);
+    const e = Math.min(rawEnd, cap);
+    if (e <= s) continue;
+    norm.push({
+      s,
+      e,
+      startOrig: ini,
+      status: seg.status,
+      origemId: seg.id,
+      editado: !!seg.editado,
+      tipoAjuste: seg.tipoAjuste,
+      ajusteId: seg.ajusteId,
+    });
+  }
+  if (norm.length === 0) return { timeline: [], totais: {} };
+
+  // Fronteiras (todas as bordas distintas) → fatias [b_i, b_{i+1}).
+  const bset = new Set<number>();
+  for (const n of norm) {
+    bset.add(n.s);
+    bset.add(n.e);
+  }
+  const bounds = Array.from(bset).sort((a, b) => a - b);
+
+  const timeline: SegmentoTimeline[] = [];
+  for (let i = 0; i < bounds.length - 1; i++) {
+    const a = bounds[i];
+    const b = bounds[i + 1];
+    if (b <= a) continue;
+
+    // Vencedor da fatia: cobre [a,b) com o MAIOR startOrig; desempate estável por origemId.
+    let win: SegNorm | null = null;
+    for (const n of norm) {
+      if (n.s <= a && n.e >= b) {
+        if (
+          win === null ||
+          n.startOrig > win.startOrig ||
+          (n.startOrig === win.startOrig && n.origemId > win.origemId)
+        ) {
+          win = n;
+        }
+      }
+    }
+    if (!win) continue; // fatia sem cobertura (buraco) — não emite
+
+    // Coalesce com a faixa anterior se mesmo status+origem e contígua.
+    const last = timeline[timeline.length - 1];
+    if (last && last.fim === a && last.status === win.status && last.origemId === win.origemId) {
+      last.fim = b;
+    } else {
+      timeline.push({
+        inicio: a,
+        fim: b,
+        status: win.status,
+        origemId: win.origemId,
+        editado: win.editado,
+        tipoAjuste: win.tipoAjuste,
+        ajusteId: win.ajusteId,
+      });
+    }
+  }
+
+  const totais: Record<string, number> = {};
+  for (const seg of timeline) {
+    totais[seg.status] = (totais[seg.status] ?? 0) + (seg.fim - seg.inicio) / 60000;
+  }
+  return { timeline, totais };
 }

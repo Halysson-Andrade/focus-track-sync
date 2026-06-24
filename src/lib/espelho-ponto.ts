@@ -9,11 +9,11 @@
 
 import {
   aplicarAjustes,
-  totaisPorStatus,
+  resolverJornada,
   STATUS_ABONO,
   type RegistroBase,
-  type SegmentoEfetivo,
   type AjusteJornada,
+  type SegmentoTimeline,
 } from "./jornada-efetiva";
 import { ocioReconciliadoSeg, type Intervalo } from "./ocio";
 import { buildCategoriaIndex } from "./categorias";
@@ -157,38 +157,28 @@ function agruparEventosPorDia(eventos: Intervalo[]): Map<string, Intervalo[]> {
 
 // --- Derivação das marcações de um dia (a partir dos segmentos efetivos) ---
 
-export function derivarMarcacoes(segs: SegmentoEfetivo[]): Marcacoes {
+export function derivarMarcacoes(segs: SegmentoTimeline[], emAndamento: boolean): Marcacoes {
   if (segs.length === 0) {
     return { entrada: null, almocoInicio: null, almocoFim: null, saida: null, extras: [] };
   }
-  const ord = [...segs].sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime());
-  const entrada = ord[0].inicio;
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const ord = [...segs].sort((a, b) => a.inicio - b.inicio);
+  const entrada = iso(ord[0].inicio);
 
-  // Saída = maior `fim` do dia; se algum segmento está aberto, a jornada está em andamento.
+  // Saída = maior `fim` do dia (a timeline já fecha abertos em `now`); se a jornada do dia
+  // está em andamento (hoje, com registro aberto), fica "em andamento" (null).
   let saidaTs = -Infinity;
-  let saida: string | null = null;
-  let aberto = false;
-  for (const s of ord) {
-    if (!s.fim) {
-      aberto = true;
-      continue;
-    }
-    const e = new Date(s.fim).getTime();
-    if (e > saidaTs) {
-      saidaTs = e;
-      saida = s.fim;
-    }
-  }
-  if (aberto) saida = null;
+  for (const s of ord) if (s.fim > saidaTs) saidaTs = s.fim;
+  const saida = emAndamento ? null : iso(saidaTs);
 
   const almocos = ord.filter((s) => s.status === "ALMOCO");
-  const almocoInicio = almocos[0]?.inicio ?? null;
-  const almocoFim = almocos[0]?.fim ?? null;
+  const almocoInicio = almocos[0] ? iso(almocos[0].inicio) : null;
+  const almocoFim = almocos[0] ? iso(almocos[0].fim) : null;
 
   const extras = [...almocos.slice(1), ...ord.filter((s) => s.status === "PAUSA")].map((s) => ({
     status: s.status,
-    inicio: s.inicio,
-    fim: s.fim,
+    inicio: iso(s.inicio),
+    fim: iso(s.fim),
   }));
 
   return { entrada, almocoInicio, almocoFim, saida, extras };
@@ -201,36 +191,44 @@ export function montarDiaEspelho(
   registros: RegistroBase[],
   ajustes: AjusteEspelho[],
   eventos: Intervalo[],
+  nowTs: number,
 ): DiaEspelho {
-  const dia = new Date(diaISO + "T00:00:00");
-  const fimDiaTs = new Date(diaISO + "T23:59:59").getTime();
+  const diaStart = new Date(diaISO + "T00:00:00").getTime();
+  const diaEnd = new Date(diaISO + "T23:59:59.999").getTime();
+  const dia = new Date(diaStart);
+  // Aberto conta até AGORA (não até o fim do dia) — evita inflar a jornada de hoje.
+  const cap = Math.min(nowTs, diaEnd);
 
   // aplicarAjustes só lê um subconjunto dos campos de AjusteJornada (id, status,
   // tipo, inicio, fim, status_alvo); o cast é seguro estruturalmente.
-  const segs = aplicarAjustes(registros, ajustes as AjusteJornada[], dia, fimDiaTs);
-  const totais = totaisPorStatus(segs, fimDiaTs);
+  const segs = aplicarAjustes(registros, ajustes as AjusteJornada[], dia, cap);
+  // Timeline DISJUNTA + totais (cada instante conta uma vez; sobreposição resolvida).
+  const { timeline, totais } = resolverJornada(segs, diaStart, diaEnd, nowTs);
+
+  // "Em andamento" = há registro aberto E o dia é hoje (no fuso local).
+  const emAndamento =
+    segs.some((s) => !s.fim) && diaISO === diaLocal(new Date(nowTs).toISOString());
 
   // Ócio reconciliado contra as janelas ATIVO BRUTAS (mesma semântica do dashboard).
   const ativosRaw: Intervalo[] = registros
     .filter((r) => r.status === "ATIVO")
     .map((r) => ({ inicio: r.inicio, fim: r.fim }));
-  const ocioMin = ocioReconciliadoSeg(eventos, ativosRaw, fimDiaTs) / 60;
+  const ocioMin = ocioReconciliadoSeg(eventos, ativosRaw, cap) / 60;
 
-  const editados = segs.filter((s) => s.editado);
   const tiposAjuste = Array.from(
     new Set(ajustes.filter((a) => a.status === "aprovada").map((a) => a.tipo as string)),
   );
 
   return {
     dia: diaISO,
-    marcacoes: derivarMarcacoes(segs),
+    marcacoes: derivarMarcacoes(timeline, emAndamento),
     ativoMin: totais["ATIVO"] ?? 0,
     pausaMin: totais["PAUSA"] ?? 0,
     almocoMin: totais["ALMOCO"] ?? 0,
     inativoMin: totais["INATIVO"] ?? 0,
     abonoMin: totais[STATUS_ABONO] ?? 0,
     ocioMin,
-    editado: editados.length > 0,
+    editado: timeline.some((s) => s.editado),
     tiposAjuste,
   };
 }
@@ -242,6 +240,7 @@ export function montarEspelho(
   de: string,
   ate: string,
   categoriaRegras: CategoriaRegra[] = [],
+  nowTs: number = Date.now(),
 ): EspelhoData {
   const registrosPorDia = agruparPorDia(payload.registros);
   const eventosPorDia = agruparEventosPorDia(payload.eventos);
@@ -255,6 +254,7 @@ export function montarEspelho(
       registrosPorDia.get(d) ?? [],
       payload.ajustes.filter((a) => a.dia === d),
       eventosPorDia.get(d) ?? [],
+      nowTs,
     ),
   );
 
