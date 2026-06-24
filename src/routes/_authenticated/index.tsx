@@ -60,7 +60,12 @@ import {
 import { tempoTrabalhado, isChromeProcess } from "@/lib/activity-config";
 import { buildCategoriaIndex } from "@/lib/categorias";
 import { ocioReconciliadoSeg } from "@/lib/ocio";
-import { aplicarAjustes, type SegmentoEfetivo, type AjusteJornada } from "@/lib/jornada-efetiva";
+import {
+  aplicarAjustes,
+  resolverJornada,
+  type SegmentoEfetivo,
+  type AjusteJornada,
+} from "@/lib/jornada-efetiva";
 import { SolicitarAjusteDialog } from "@/components/jornada/SolicitarAjusteDialog";
 import {
   ResponsiveContainer,
@@ -573,19 +578,16 @@ function Dashboard() {
     [todayRecords, ajustes, selectedDate, now],
   );
 
+  // Totais do dia a partir da timeline DISJUNTA (cada instante conta uma vez; almoço
+  // que indevidamente cai sob um ATIVO é recortado) e com aberto contado até AGORA.
   const totals = useMemo(() => {
-    const t = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0, ABONO: 0 };
-    const nowTs = Date.now();
-    effectiveRecords.forEach((r) => {
-      const dur =
-        r.duracao_minutos ??
-        (r.fim
-          ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000
-          : (nowTs - new Date(r.inicio).getTime()) / 60000);
-      if (r.status in t) t[r.status as keyof typeof t] += dur;
-    });
-    return t;
-  }, [effectiveRecords, now]);
+    const ds = new Date(selectedDate);
+    ds.setHours(0, 0, 0, 0);
+    const diaStart = ds.getTime();
+    const diaEnd = diaStart + 24 * 3600_000 - 1;
+    const { totais } = resolverJornada(effectiveRecords, diaStart, diaEnd, now.getTime());
+    return { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0, ABONO: 0, ...totais };
+  }, [effectiveRecords, selectedDate, now]);
 
   const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
 
@@ -1800,17 +1802,15 @@ function Dashboard() {
                 const dayKeyIso = day.date.toISOString().slice(0, 10);
                 const dayAjustes = history30Ajustes.filter((a) => a.dia === dayKeyIso);
                 const dayIdleEvents = history30IdleEvents.get(dayKeyIso) ?? [];
-                const effective = aplicarAjustes(day.records, dayAjustes, day.date);
+                const diaStart = day.date.getTime();
+                const diaEnd = diaStart + 24 * 3600_000 - 1;
+                const cap = Math.min(now.getTime(), diaEnd);
+                const effective = aplicarAjustes(day.records, dayAjustes, day.date, cap);
 
-                const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0 };
-                effective.forEach((r) => {
-                  const dur =
-                    r.duracao_minutos ??
-                    (r.fim
-                      ? (new Date(r.fim).getTime() - new Date(r.inicio).getTime()) / 60000
-                      : 0);
-                  if (r.status in totals) totals[r.status as keyof typeof totals] += dur;
-                });
+                // Mesma resolução do dia selecionado: timeline disjunta + aberto até AGORA
+                // (o dia corrente deixa de contar 0 ou de inflar até a meia-noite).
+                const { totais } = resolverJornada(effective, diaStart, diaEnd, now.getTime());
+                const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0, ...totais };
                 const isSelected = day.date.getTime() === selectedDate.getTime();
                 return (
                   <div
