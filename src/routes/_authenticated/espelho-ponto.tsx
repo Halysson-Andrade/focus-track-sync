@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import type { Tables } from "@/integrations/supabase/types";
 import { DEPARTAMENTOS } from "@/components/office/office-config";
 import {
   montarEspelho,
@@ -10,6 +11,14 @@ import {
   type EspelhoData,
   type CategoriaRegra,
 } from "@/lib/espelho-ponto";
+import {
+  calcularJornadaPeriodo,
+  rowToJornada,
+  situacaoDia,
+  type JornadaPadrao,
+  type CalcPeriodo,
+  type Feriado,
+} from "@/lib/jornada-padrao";
 import { gerarEspelhoPDF } from "@/lib/espelho-pdf";
 import { formatDate, formatDuration, formatHM, AJUSTE_TIPO_LABEL } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,8 +85,72 @@ function EspelhoPontoPage() {
   const [de, setDe] = useState(ago.toISOString().slice(0, 10));
   const [ate, setAte] = useState(today.toISOString().slice(0, 10));
   const [preview, setPreview] = useState<EspelhoData | null>(null);
+  const [previewUid, setPreviewUid] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  // Jornada padrão (só superadmin vê o cálculo por ora): modelos, vínculos e feriados.
+  // Leituras tolerantes a tabelas inexistentes (pré-deploy): erro → lista vazia.
+  const [modelos, setModelos] = useState<Tables<"jornada_padrao">[]>([]);
+  const [vinculos, setVinculos] = useState<{ usuario_id: string; jornada_padrao_id: string }[]>([]);
+  const [feriados, setFeriados] = useState<Feriado[]>([]);
+
+  useEffect(() => {
+    if (!isSuperadmin) return;
+    supabase
+      .from("jornada_padrao")
+      .select("*")
+      .then(({ data }) => setModelos((data ?? []) as Tables<"jornada_padrao">[]));
+    supabase
+      .from("jornada_usuario")
+      .select("usuario_id, jornada_padrao_id")
+      .then(({ data }) =>
+        setVinculos((data ?? []) as { usuario_id: string; jornada_padrao_id: string }[]),
+      );
+    supabase
+      .from("feriados")
+      .select("data, ativo")
+      .then(({ data }) =>
+        setFeriados(
+          ((data ?? []) as { data: string; ativo: boolean }[])
+            .filter((f) => f.ativo)
+            .map((f) => ({ data: f.data })),
+        ),
+      );
+  }, [isSuperadmin]);
+
+  const modeloById = useMemo(() => new Map(modelos.map((m) => [m.id, m])), [modelos]);
+  const vinculoMap = useMemo(
+    () => new Map(vinculos.map((v) => [v.usuario_id, v.jornada_padrao_id])),
+    [vinculos],
+  );
+  const modeloPadrao = useMemo(() => modelos.find((m) => m.padrao_sistema), [modelos]);
+
+  // Resolve a jornada efetiva do colaborador: vínculo → modelo; senão padrão do sistema.
+  const resolverJornada = useCallback(
+    (uid: string): JornadaPadrao | null => {
+      const id = vinculoMap.get(uid);
+      const row = (id && modeloById.get(id)) || modeloPadrao;
+      return row ? rowToJornada(row) : null;
+    },
+    [vinculoMap, modeloById, modeloPadrao],
+  );
+
+  const calcDe = useCallback(
+    (e: EspelhoData, uid: string): CalcPeriodo | null => {
+      if (!isSuperadmin) return null;
+      const j = resolverJornada(uid);
+      if (!j) return null;
+      return calcularJornadaPeriodo(e.dias, e.periodo.de, e.periodo.ate, j, feriados);
+    },
+    [isSuperadmin, resolverJornada, feriados],
+  );
+
+  // Cálculo do preview na tela (do colaborador efetivamente visualizado).
+  const calc = useMemo(
+    () => (preview && previewUid ? calcDe(preview, previewUid) : null),
+    [preview, previewUid, calcDe],
+  );
 
   // Regras de categoria ativas (paridade com o dashboard) — para todos os papéis.
   useEffect(() => {
@@ -145,7 +218,10 @@ function EspelhoPontoPage() {
     setLoading(true);
     const e = await carregarEspelho(usuarioId);
     setLoading(false);
-    if (e) setPreview(e);
+    if (e) {
+      setPreview(e);
+      setPreviewUid(usuarioId);
+    }
   };
 
   const exportarIndividual = async () => {
@@ -155,7 +231,7 @@ function EspelhoPontoPage() {
     setExporting(false);
     if (!e) return;
     const nome = (e.perfil?.nome ?? "colaborador").replace(/\s+/g, "-").toLowerCase();
-    gerarEspelhoPDF([e], `espelho-${nome}-${de}-a-${ate}.pdf`);
+    gerarEspelhoPDF([e], `espelho-${nome}-${de}-a-${ate}.pdf`, [calcDe(e, usuarioId)]);
   };
 
   const exportarSetor = async () => {
@@ -163,10 +239,14 @@ function EspelhoPontoPage() {
     if (alvos.length === 0) return toast.error("Nenhum colaborador no setor.");
     setExporting(true);
     const espelhos: EspelhoData[] = [];
+    const calculos: (CalcPeriodo | null)[] = [];
     for (let i = 0; i < alvos.length; i++) {
       toast.message(`Gerando ${i + 1}/${alvos.length}…`, { description: alvos[i].nome ?? "" });
       const e = await carregarEspelho(alvos[i].id);
-      if (e) espelhos.push(e);
+      if (e) {
+        espelhos.push(e);
+        calculos.push(calcDe(e, alvos[i].id));
+      }
     }
     setExporting(false);
     if (espelhos.length === 0) return;
@@ -175,7 +255,7 @@ function EspelhoPontoPage() {
       : setor === "all"
         ? "todos"
         : (DEPARTAMENTOS.find((d) => d.value === setor)?.value ?? setor);
-    gerarEspelhoPDF(espelhos, `espelho-setor-${nomeSetor}-${de}-a-${ate}.pdf`);
+    gerarEspelhoPDF(espelhos, `espelho-setor-${nomeSetor}-${de}-a-${ate}.pdf`, calculos);
     toast.success(`PDF gerado com ${espelhos.length} colaborador(es).`);
   };
 
@@ -320,43 +400,82 @@ function EspelhoPontoPage() {
             </CardContent>
           </Card>
 
+          {/* Apuração de jornada (vs horário padrão) — só superadmin por ora. */}
+          {calc && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Clock className="h-4 w-4" /> Apuração de jornada
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Previsto vs. realizado (marcações). Saldo, HE, pendentes, faltas e adicional
+                  noturno.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {(
+                    [
+                      ["Previsto", formatDuration(calc.totais.previstoMin)],
+                      ["Realizado", formatDuration(calc.totais.realizadoMin)],
+                      [
+                        "Saldo",
+                        `${calc.totais.saldoMin < 0 ? "−" : "+"}${formatDuration(Math.abs(calc.totais.saldoMin))}`,
+                      ],
+                      ["Horas extras", formatDuration(calc.totais.extraMin)],
+                      ["Pendentes", formatDuration(calc.totais.pendenteMin)],
+                      ["Faltas", `${calc.totais.faltas} dia(s)`],
+                      ["Noturno", formatDuration(calc.totais.noturnoMin)],
+                      ["Feriados trab.", `${calc.totais.feriadosTrabalhados}`],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <div key={label} className="rounded-lg border p-3">
+                      <div className="text-xs text-muted-foreground">{label}</div>
+                      <div className="text-lg font-semibold">{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <Clock className="h-4 w-4" /> Registro diário ({preview.dias.length})
+                <Clock className="h-4 w-4" />{" "}
+                {calc
+                  ? `Apuração diária (${calc.linhas.length})`
+                  : `Registro diário (${preview.dias.length})`}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Dia</TableHead>
-                      <TableHead>Entrada</TableHead>
-                      <TableHead>Saída Almoço</TableHead>
-                      <TableHead>Volta Almoço</TableHead>
-                      <TableHead>Saída</TableHead>
-                      <TableHead>Trabalhado</TableHead>
-                      <TableHead>Obs.</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {preview.dias.length === 0 ? (
+                {calc ? (
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground">
-                          Nenhum registro no período.
-                        </TableCell>
+                        <TableHead>Dia</TableHead>
+                        <TableHead>Entrada</TableHead>
+                        <TableHead>S. Almoço</TableHead>
+                        <TableHead>V. Almoço</TableHead>
+                        <TableHead>Saída</TableHead>
+                        <TableHead>Previsto</TableHead>
+                        <TableHead>Realizado</TableHead>
+                        <TableHead>Saldo</TableHead>
+                        <TableHead>Noturno</TableHead>
+                        <TableHead>Situação</TableHead>
                       </TableRow>
-                    ) : (
-                      preview.dias.map((d) => {
-                        const obs: string[] = [];
-                        if (d.tiposAjuste.length)
-                          obs.push(d.tiposAjuste.map((t) => AJUSTE_TIPO_LABEL[t] ?? t).join(", "));
-                        if (d.marcacoes.extras.length)
-                          obs.push(`+${d.marcacoes.extras.length} interv.`);
-                        if (d.ocioMin > 0) obs.push(`ócio ${formatDuration(d.ocioMin)}`);
+                    </TableHeader>
+                    <TableBody>
+                      {calc.linhas.map((d) => {
+                        const c = d.calc;
                         return (
-                          <TableRow key={d.dia} className={d.editado ? "bg-primary/5" : undefined}>
+                          <TableRow
+                            key={d.dia}
+                            className={
+                              c.falta ? "bg-destructive/5" : d.editado ? "bg-primary/5" : undefined
+                            }
+                          >
                             <TableCell>{formatDate(d.dia)}</TableCell>
                             <TableCell className="font-mono text-xs">
                               {d.marcacoes.entrada ? formatHM(d.marcacoes.entrada) : "—"}
@@ -371,18 +490,102 @@ function EspelhoPontoPage() {
                               {d.marcacoes.saida
                                 ? formatHM(d.marcacoes.saida) +
                                   sufixoVirada(d.marcacoes.saida, d.dia)
-                                : "em andamento"}
+                                : c.aberto
+                                  ? "em andamento"
+                                  : "—"}
                             </TableCell>
-                            <TableCell>{formatDuration(d.ativoMin)}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {obs.join(" · ")}
+                            <TableCell>
+                              {c.previstoMin ? formatDuration(c.previstoMin) : "—"}
                             </TableCell>
+                            <TableCell>
+                              {c.realizadoMin ? formatDuration(c.realizadoMin) : "—"}
+                            </TableCell>
+                            <TableCell
+                              className={
+                                c.saldoMin < 0
+                                  ? "text-destructive"
+                                  : c.saldoMin > 0
+                                    ? "text-success"
+                                    : undefined
+                              }
+                            >
+                              {c.realizadoMin || c.previstoMin
+                                ? `${c.saldoMin < 0 ? "−" : "+"}${formatDuration(Math.abs(c.saldoMin))}`
+                                : "—"}
+                            </TableCell>
+                            <TableCell>
+                              {c.noturnoMin ? formatDuration(c.noturnoMin) : "—"}
+                            </TableCell>
+                            <TableCell className="text-xs">{situacaoDia(c)}</TableCell>
                           </TableRow>
                         );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
+                      })}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Dia</TableHead>
+                        <TableHead>Entrada</TableHead>
+                        <TableHead>Saída Almoço</TableHead>
+                        <TableHead>Volta Almoço</TableHead>
+                        <TableHead>Saída</TableHead>
+                        <TableHead>Trabalhado</TableHead>
+                        <TableHead>Obs.</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {preview.dias.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground">
+                            Nenhum registro no período.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        preview.dias.map((d) => {
+                          const obs: string[] = [];
+                          if (d.tiposAjuste.length)
+                            obs.push(
+                              d.tiposAjuste.map((t) => AJUSTE_TIPO_LABEL[t] ?? t).join(", "),
+                            );
+                          if (d.marcacoes.extras.length)
+                            obs.push(`+${d.marcacoes.extras.length} interv.`);
+                          if (d.ocioMin > 0) obs.push(`ócio ${formatDuration(d.ocioMin)}`);
+                          return (
+                            <TableRow
+                              key={d.dia}
+                              className={d.editado ? "bg-primary/5" : undefined}
+                            >
+                              <TableCell>{formatDate(d.dia)}</TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {d.marcacoes.entrada ? formatHM(d.marcacoes.entrada) : "—"}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {d.marcacoes.almocoInicio
+                                  ? formatHM(d.marcacoes.almocoInicio)
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {d.marcacoes.almocoFim ? formatHM(d.marcacoes.almocoFim) : "—"}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {d.marcacoes.saida
+                                  ? formatHM(d.marcacoes.saida) +
+                                    sufixoVirada(d.marcacoes.saida, d.dia)
+                                  : "em andamento"}
+                              </TableCell>
+                              <TableCell>{formatDuration(d.ativoMin)}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {obs.join(" · ")}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
               </div>
             </CardContent>
           </Card>

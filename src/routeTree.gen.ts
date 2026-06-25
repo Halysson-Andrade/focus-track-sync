@@ -15,6 +15,7 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedRankingRouteImport } from './routes/_authenticated/ranking'
 import { Route as AuthenticatedOperacionalRouteImport } from './routes/_authenticated/operacional'
+import { Route as AuthenticatedJornadaPadraoRouteImport } from './routes/_authenticated/jornada-padrao'
 import { Route as AuthenticatedExtensaoRouteImport } from './routes/_authenticated/extensao'
 import { Route as AuthenticatedEspelhoPontoRouteImport } from './routes/_authenticated/espelho-ponto'
 import { Route as AuthenticatedDesktopRouteImport } from './routes/_authenticated/desktop'
@@ -54,6 +55,12 @@ const AuthenticatedOperacionalRoute =
   AuthenticatedOperacionalRouteImport.update({
     id: '/operacional',
     path: '/operacional',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedJornadaPadraoRoute =
+  AuthenticatedJornadaPadraoRouteImport.update({
+    id: '/jornada-padrao',
+    path: '/jornada-padrao',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedExtensaoRoute = AuthenticatedExtensaoRouteImport.update({
@@ -122,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/desktop': typeof AuthenticatedDesktopRoute
   '/espelho-ponto': typeof AuthenticatedEspelhoPontoRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
+  '/jornada-padrao': typeof AuthenticatedJornadaPadraoRoute
   '/operacional': typeof AuthenticatedOperacionalRoute
   '/ranking': typeof AuthenticatedRankingRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -138,6 +146,7 @@ export interface FileRoutesByTo {
   '/desktop': typeof AuthenticatedDesktopRoute
   '/espelho-ponto': typeof AuthenticatedEspelhoPontoRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
+  '/jornada-padrao': typeof AuthenticatedJornadaPadraoRoute
   '/operacional': typeof AuthenticatedOperacionalRoute
   '/ranking': typeof AuthenticatedRankingRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -157,6 +166,7 @@ export interface FileRoutesById {
   '/_authenticated/desktop': typeof AuthenticatedDesktopRoute
   '/_authenticated/espelho-ponto': typeof AuthenticatedEspelhoPontoRoute
   '/_authenticated/extensao': typeof AuthenticatedExtensaoRoute
+  '/_authenticated/jornada-padrao': typeof AuthenticatedJornadaPadraoRoute
   '/_authenticated/operacional': typeof AuthenticatedOperacionalRoute
   '/_authenticated/ranking': typeof AuthenticatedRankingRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/desktop'
     | '/espelho-ponto'
     | '/extensao'
+    | '/jornada-padrao'
     | '/operacional'
     | '/ranking'
     | '/relatorios'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/desktop'
     | '/espelho-ponto'
     | '/extensao'
+    | '/jornada-padrao'
     | '/operacional'
     | '/ranking'
     | '/relatorios'
@@ -211,6 +223,7 @@ export interface FileRouteTypes {
     | '/_authenticated/desktop'
     | '/_authenticated/espelho-ponto'
     | '/_authenticated/extensao'
+    | '/_authenticated/jornada-padrao'
     | '/_authenticated/operacional'
     | '/_authenticated/ranking'
     | '/_authenticated/relatorios'
@@ -268,6 +281,13 @@ declare module '@tanstack/react-router' {
       path: '/operacional'
       fullPath: '/operacional'
       preLoaderRoute: typeof AuthenticatedOperacionalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/jornada-padrao': {
+      id: '/_authenticated/jornada-padrao'
+      path: '/jornada-padrao'
+      fullPath: '/jornada-padrao'
+      preLoaderRoute: typeof AuthenticatedJornadaPadraoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/extensao': {
@@ -352,6 +372,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDesktopRoute: typeof AuthenticatedDesktopRoute
   AuthenticatedEspelhoPontoRoute: typeof AuthenticatedEspelhoPontoRoute
   AuthenticatedExtensaoRoute: typeof AuthenticatedExtensaoRoute
+  AuthenticatedJornadaPadraoRoute: typeof AuthenticatedJornadaPadraoRoute
   AuthenticatedOperacionalRoute: typeof AuthenticatedOperacionalRoute
   AuthenticatedRankingRoute: typeof AuthenticatedRankingRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -367,6 +388,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDesktopRoute: AuthenticatedDesktopRoute,
   AuthenticatedEspelhoPontoRoute: AuthenticatedEspelhoPontoRoute,
   AuthenticatedExtensaoRoute: AuthenticatedExtensaoRoute,
+  AuthenticatedJornadaPadraoRoute: AuthenticatedJornadaPadraoRoute,
   AuthenticatedOperacionalRoute: AuthenticatedOperacionalRoute,
   AuthenticatedRankingRoute: AuthenticatedRankingRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
@@ -385,3 +407,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

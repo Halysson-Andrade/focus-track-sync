@@ -16,6 +16,7 @@ import {
   ClipboardCheck,
   Tags,
   CalendarClock,
+  Clock,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -43,6 +44,7 @@ const nav: {
   { to: "/espelho-ponto", label: "Espelho de Ponto", icon: CalendarClock },
   { to: "/ranking", label: "Ranking", icon: Trophy, admin: true },
   { to: "/categorias", label: "Categorias", icon: Tags, super: true },
+  { to: "/jornada-padrao", label: "Horário Padrão", icon: Clock, super: true },
   { to: "/admin", label: "Usuários", icon: Users, admin: true },
 ];
 
