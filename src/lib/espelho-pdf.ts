@@ -16,6 +16,7 @@ import {
   AJUSTE_STATUS_LABEL,
 } from "./format";
 import { sufixoVirada, type EspelhoData } from "./espelho-ponto";
+import { situacaoDia, type CalcPeriodo } from "./jornada-padrao";
 
 const MARGIN = 14;
 const AZUL: [number, number, number] = [30, 64, 175];
@@ -28,8 +29,10 @@ function fmtSeg(seg: number): string {
   return formatDuration(seg / 60);
 }
 
+const sinalDur = (min: number) => `${min < 0 ? "−" : "+"}${formatDuration(Math.abs(min))}`;
+
 /** Renderiza um espelho a partir de `startY`; devolve o Y final (após as tabelas). */
-function renderEspelho(doc: jsPDF, e: EspelhoData): void {
+function renderEspelho(doc: jsPDF, e: EspelhoData, calc?: CalcPeriodo | null): void {
   const pageW = doc.internal.pageSize.getWidth();
   let y = MARGIN;
 
@@ -88,40 +91,111 @@ function renderEspelho(doc: jsPDF, e: EspelhoData): void {
   });
   y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
 
-  // ---- Tabela diária de marcações ----
+  // ---- Apuração de jornada (vs horário padrão), quando disponível ----
+  if (calc) {
+    const t = calc.totais;
+    autoTable(doc, {
+      startY: y,
+      head: [["Previsto", "Realizado", "Saldo", "Horas extras", "Pendentes", "Faltas", "Noturno"]],
+      body: [
+        [
+          formatDuration(t.previstoMin),
+          formatDuration(t.realizadoMin),
+          sinalDur(t.saldoMin),
+          formatDuration(t.extraMin),
+          formatDuration(t.pendenteMin),
+          `${t.faltas} dia(s)`,
+          formatDuration(t.noturnoMin),
+        ],
+      ],
+      styles: { fontSize: 8, halign: "center" },
+      headStyles: { fillColor: AZUL, halign: "center" },
+      margin: { left: MARGIN, right: MARGIN },
+    });
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+  }
+
+  // ---- Tabela diária ----
   doc.setFontSize(11);
-  doc.text("Registro diário", MARGIN, y);
+  doc.text(calc ? "Apuração diária" : "Registro diário", MARGIN, y);
   y += 2;
-  autoTable(doc, {
-    startY: y,
-    head: [["Dia", "Entrada", "Saída Almoço", "Volta Almoço", "Saída", "Trabalhado", "Obs."]],
-    body: e.dias.map((d) => {
-      const obs: string[] = [];
-      if (d.tiposAjuste.length) {
-        obs.push(d.tiposAjuste.map((t) => AJUSTE_TIPO_LABEL[t] ?? t).join(", "));
-      }
-      if (d.marcacoes.extras.length) obs.push(`+${d.marcacoes.extras.length} intervalo(s)`);
-      if (d.ocioMin > 0) obs.push(`ócio ${formatDuration(d.ocioMin)}`);
-      return [
-        formatDate(d.dia),
-        fmtHora(d.marcacoes.entrada),
-        fmtHora(d.marcacoes.almocoInicio),
-        fmtHora(d.marcacoes.almocoFim),
-        fmtHora(d.marcacoes.saida) + sufixoVirada(d.marcacoes.saida, d.dia),
-        formatDuration(d.ativoMin),
-        obs.join(" · "),
-      ];
-    }),
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: AZUL },
-    margin: { left: MARGIN, right: MARGIN },
-    didParseCell: (data) => {
-      // Realça dias com ajuste aplicado (overlay) na coluna de observações.
-      if (data.section === "body" && e.dias[data.row.index]?.editado) {
-        data.cell.styles.fillColor = [243, 240, 255];
-      }
-    },
-  });
+  if (calc) {
+    autoTable(doc, {
+      startY: y,
+      head: [
+        [
+          "Dia",
+          "Entrada",
+          "S.Almoço",
+          "V.Almoço",
+          "Saída",
+          "Previsto",
+          "Realiz.",
+          "Saldo",
+          "Not.",
+          "Situação",
+        ],
+      ],
+      body: calc.linhas.map((d) => {
+        const c = d.calc;
+        return [
+          formatDate(d.dia),
+          fmtHora(d.marcacoes.entrada),
+          fmtHora(d.marcacoes.almocoInicio),
+          fmtHora(d.marcacoes.almocoFim),
+          d.marcacoes.saida
+            ? fmtHora(d.marcacoes.saida) + sufixoVirada(d.marcacoes.saida, d.dia)
+            : c.aberto
+              ? "em and."
+              : "—",
+          c.previstoMin ? formatDuration(c.previstoMin) : "—",
+          c.realizadoMin ? formatDuration(c.realizadoMin) : "—",
+          c.realizadoMin || c.previstoMin ? sinalDur(c.saldoMin) : "—",
+          c.noturnoMin ? formatDuration(c.noturnoMin) : "—",
+          situacaoDia(c),
+        ];
+      }),
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: AZUL },
+      margin: { left: MARGIN, right: MARGIN },
+      didParseCell: (data) => {
+        if (data.section !== "body") return;
+        const c = calc.linhas[data.row.index]?.calc;
+        if (c?.falta) data.cell.styles.fillColor = [254, 235, 235];
+        else if (calc.linhas[data.row.index]?.editado) data.cell.styles.fillColor = [243, 240, 255];
+      },
+    });
+  } else {
+    autoTable(doc, {
+      startY: y,
+      head: [["Dia", "Entrada", "Saída Almoço", "Volta Almoço", "Saída", "Trabalhado", "Obs."]],
+      body: e.dias.map((d) => {
+        const obs: string[] = [];
+        if (d.tiposAjuste.length) {
+          obs.push(d.tiposAjuste.map((t) => AJUSTE_TIPO_LABEL[t] ?? t).join(", "));
+        }
+        if (d.marcacoes.extras.length) obs.push(`+${d.marcacoes.extras.length} intervalo(s)`);
+        if (d.ocioMin > 0) obs.push(`ócio ${formatDuration(d.ocioMin)}`);
+        return [
+          formatDate(d.dia),
+          fmtHora(d.marcacoes.entrada),
+          fmtHora(d.marcacoes.almocoInicio),
+          fmtHora(d.marcacoes.almocoFim),
+          fmtHora(d.marcacoes.saida) + sufixoVirada(d.marcacoes.saida, d.dia),
+          formatDuration(d.ativoMin),
+          obs.join(" · "),
+        ];
+      }),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: AZUL },
+      margin: { left: MARGIN, right: MARGIN },
+      didParseCell: (data) => {
+        if (data.section === "body" && e.dias[data.row.index]?.editado) {
+          data.cell.styles.fillColor = [243, 240, 255];
+        }
+      },
+    });
+  }
   y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
 
   // ---- Abonos e edições (com os dois motivos) ----
@@ -202,12 +276,17 @@ function renderEspelho(doc: jsPDF, e: EspelhoData): void {
   }
 }
 
-/** Gera (e baixa) um PDF com um espelho por usuário (1 página cada). */
-export function gerarEspelhoPDF(espelhos: EspelhoData[], filename = "espelho-de-ponto.pdf") {
+/** Gera (e baixa) um PDF com um espelho por usuário (1 página cada). `calculos` é
+ *  paralelo a `espelhos` (apuração de jornada por usuário; opcional). */
+export function gerarEspelhoPDF(
+  espelhos: EspelhoData[],
+  filename = "espelho-de-ponto.pdf",
+  calculos?: (CalcPeriodo | null)[],
+) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   espelhos.forEach((e, i) => {
     if (i > 0) doc.addPage();
-    renderEspelho(doc, e);
+    renderEspelho(doc, e, calculos?.[i] ?? null);
   });
   doc.save(filename);
 }
