@@ -326,6 +326,116 @@ export type Database = {
         }
         Relationships: []
       }
+      feriados: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          data: string
+          descricao?: string
+          id?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      jornada_padrao: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          dia_dom: Database["public"]["Enums"]["dia_tipo"]
+          dia_qua: Database["public"]["Enums"]["dia_tipo"]
+          dia_qui: Database["public"]["Enums"]["dia_tipo"]
+          dia_sab: Database["public"]["Enums"]["dia_tipo"]
+          dia_seg: Database["public"]["Enums"]["dia_tipo"]
+          dia_sex: Database["public"]["Enums"]["dia_tipo"]
+          dia_ter: Database["public"]["Enums"]["dia_tipo"]
+          hora_almoco_fim: string | null
+          hora_almoco_inicio: string | null
+          hora_entrada: string
+          hora_saida: string
+          id: string
+          nome: string
+          padrao_sistema: boolean
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          dia_dom?: Database["public"]["Enums"]["dia_tipo"]
+          dia_qua?: Database["public"]["Enums"]["dia_tipo"]
+          dia_qui?: Database["public"]["Enums"]["dia_tipo"]
+          dia_sab?: Database["public"]["Enums"]["dia_tipo"]
+          dia_seg?: Database["public"]["Enums"]["dia_tipo"]
+          dia_sex?: Database["public"]["Enums"]["dia_tipo"]
+          dia_ter?: Database["public"]["Enums"]["dia_tipo"]
+          hora_almoco_fim?: string | null
+          hora_almoco_inicio?: string | null
+          hora_entrada: string
+          hora_saida: string
+          id?: string
+          nome: string
+          padrao_sistema?: boolean
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          dia_dom?: Database["public"]["Enums"]["dia_tipo"]
+          dia_qua?: Database["public"]["Enums"]["dia_tipo"]
+          dia_qui?: Database["public"]["Enums"]["dia_tipo"]
+          dia_sab?: Database["public"]["Enums"]["dia_tipo"]
+          dia_seg?: Database["public"]["Enums"]["dia_tipo"]
+          dia_sex?: Database["public"]["Enums"]["dia_tipo"]
+          dia_ter?: Database["public"]["Enums"]["dia_tipo"]
+          hora_almoco_fim?: string | null
+          hora_almoco_inicio?: string | null
+          hora_entrada?: string
+          hora_saida?: string
+          id?: string
+          nome?: string
+          padrao_sistema?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      jornada_usuario: {
+        Row: {
+          jornada_padrao_id: string
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          jornada_padrao_id: string
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          jornada_padrao_id?: string
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jornada_usuario_jornada_padrao_id_fkey"
+            columns: ["jornada_padrao_id"]
+            isOneToOne: false
+            referencedRelation: "jornada_padrao"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monitor_idle_whitelist: {
         Row: {
           ativo: boolean
@@ -929,6 +1039,7 @@ export type Database = {
       ajuste_status: "pendente" | "aprovada" | "rejeitada"
       ajuste_tipo: "ajuste_periodo" | "atestado" | "abono"
       app_role: "admin" | "user" | "superadmin"
+      dia_tipo: "trabalho" | "compensado" | "dsr" | "folga"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1060,6 +1171,7 @@ export const Constants = {
       ajuste_status: ["pendente", "aprovada", "rejeitada"],
       ajuste_tipo: ["ajuste_periodo", "atestado", "abono"],
       app_role: ["admin", "user", "superadmin"],
+      dia_tipo: ["trabalho", "compensado", "dsr", "folga"],
     },
   },
 } as const
