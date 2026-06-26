@@ -89,14 +89,14 @@ function EspelhoPontoPage() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // Jornada padrão (só superadmin vê o cálculo por ora): modelos, vínculos e feriados.
+  // Jornada padrão (apuração liberada para admin+superadmin): modelos, vínculos e feriados.
   // Leituras tolerantes a tabelas inexistentes (pré-deploy): erro → lista vazia.
   const [modelos, setModelos] = useState<Tables<"jornada_padrao">[]>([]);
   const [vinculos, setVinculos] = useState<{ usuario_id: string; jornada_padrao_id: string }[]>([]);
   const [feriados, setFeriados] = useState<Feriado[]>([]);
 
   useEffect(() => {
-    if (!isSuperadmin) return;
+    if (!isAdmin) return;
     supabase
       .from("jornada_padrao")
       .select("*")
@@ -117,7 +117,7 @@ function EspelhoPontoPage() {
             .map((f) => ({ data: f.data })),
         ),
       );
-  }, [isSuperadmin]);
+  }, [isAdmin]);
 
   const modeloById = useMemo(() => new Map(modelos.map((m) => [m.id, m])), [modelos]);
   const vinculoMap = useMemo(
@@ -138,12 +138,12 @@ function EspelhoPontoPage() {
 
   const calcDe = useCallback(
     (e: EspelhoData, uid: string): CalcPeriodo | null => {
-      if (!isSuperadmin) return null;
+      if (!isAdmin) return null;
       const j = resolverJornada(uid);
       if (!j) return null;
       return calcularJornadaPeriodo(e.dias, e.periodo.de, e.periodo.ate, j, feriados);
     },
-    [isSuperadmin, resolverJornada, feriados],
+    [isAdmin, resolverJornada, feriados],
   );
 
   // Cálculo do preview na tela (do colaborador efetivamente visualizado).
@@ -461,6 +461,7 @@ function EspelhoPontoPage() {
                         <TableHead>Saída</TableHead>
                         <TableHead>Previsto</TableHead>
                         <TableHead>Realizado</TableHead>
+                        <TableHead>Ocioso</TableHead>
                         <TableHead>Saldo</TableHead>
                         <TableHead>Noturno</TableHead>
                         <TableHead>Situação</TableHead>
@@ -499,6 +500,9 @@ function EspelhoPontoPage() {
                             </TableCell>
                             <TableCell>
                               {c.realizadoMin ? formatDuration(c.realizadoMin) : "—"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {d.ocioMin ? formatDuration(d.ocioMin) : "—"}
                             </TableCell>
                             <TableCell
                               className={
