@@ -252,8 +252,14 @@ export function montarEspelho(
   const registrosPorDia = agruparPorDia(payload.registros);
   const eventosPorDia = agruparEventosPorDia(payload.eventos, registrosPorDia, nowTs);
 
-  // Decisão de produto: intervalo livre → apenas dias COM registro viram linha.
-  const diasISO = Array.from(registrosPorDia.keys()).sort();
+  // Vira linha todo dia COM registro OU com ajuste APROVADO — um abono/atestado de
+  // dia inteiro pode existir sem nenhuma marcação; sem isso o dia cairia como falta.
+  const diasISO = Array.from(
+    new Set<string>([
+      ...registrosPorDia.keys(),
+      ...payload.ajustes.filter((a) => a.status === "aprovada").map((a) => a.dia),
+    ]),
+  ).sort();
 
   const dias: DiaEspelho[] = diasISO.map((d) =>
     montarDiaEspelho(
