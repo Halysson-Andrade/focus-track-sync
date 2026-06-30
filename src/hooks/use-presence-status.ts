@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePresencaDesktop } from "@/hooks/use-presenca-desktop";
 
 // Janela "online": agente reportou-se nos últimos N ms.
 // Mais curta que a janela de presença/idle pra refletir status atual em tempo real.
@@ -29,6 +30,10 @@ export function usePresenceStatus(userId: string | undefined) {
   const [lastDesktop, setLastDesktop] = useState<number>(0);
   const lastExtRef = useRef(0);
 
+  // Desktop: poll CONSOLIDADO de `presenca_desktop` (compartilhado com
+  // use-current-session via singleton ref-contado).
+  const desktopPresenca = usePresencaDesktop(userId);
+
   // Extensão: escuta heartbeats via postMessage (mesma origem)
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
@@ -43,27 +48,10 @@ export function usePresenceStatus(userId: string | undefined) {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  // Desktop: polling em `presenca_desktop`
+  // Reflete o timestamp do poll consolidado no estado local.
   useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-    const check = async () => {
-      const { data } = await supabase
-        .from("presenca_desktop")
-        .select("ultimo_visto, ultimo_ativo")
-        .eq("usuario_id", userId)
-        .maybeSingle();
-      if (cancelled) return;
-      const ts = desktopTs(data);
-      if (ts) setLastDesktop(ts);
-    };
-    check();
-    const i = window.setInterval(check, 15_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(i);
-    };
-  }, [userId]);
+    if (desktopPresenca.ts) setLastDesktop(desktopPresenca.ts);
+  }, [desktopPresenca.ts]);
 
   // Recalcula online/offline a cada 5s baseado nas janelas
   useEffect(() => {

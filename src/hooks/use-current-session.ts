@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePresencaDesktop } from "@/hooks/use-presenca-desktop";
 import { toast } from "sonner";
 import {
   INACTIVITY_LIMIT_MS,
@@ -135,32 +136,19 @@ export function useCurrentSession(userId: string | undefined) {
     };
   }, [userId, refresh]);
 
-  // Poll de presença do app desktop. Se houve atividade recente em um app
-  // nativo, conta como atividade do usuário (evita falso INATIVO) — espelhando
-  // o heartbeat da extensão, porém lido do banco (processo separado).
+  // Presença do app desktop via poll CONSOLIDADO (compartilhado com
+  // use-presence-status). Se houve atividade recente em um app nativo, conta
+  // como atividade do usuário (evita falso INATIVO) — espelhando o heartbeat da
+  // extensão, porém lido do banco (processo separado).
+  const desktop = usePresencaDesktop(userId);
   useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-    const check = async () => {
-      const { data } = await supabase
-        .from("presenca_desktop")
-        .select("ultimo_ativo")
-        .eq("usuario_id", userId)
-        .maybeSingle();
-      if (cancelled || !data?.ultimo_ativo) return;
-      const age = Date.now() - new Date(data.ultimo_ativo).getTime();
-      if (age < EXT_PRESENCE_WINDOW_MS) {
-        lastActivityRef.current = Date.now();
-        lastDesktopHeartbeatRef.current = Date.now();
-      }
-    };
-    check();
-    const i = window.setInterval(check, 30000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(i);
-    };
-  }, [userId]);
+    if (!desktop.ultimoAtivo) return;
+    const age = Date.now() - desktop.ultimoAtivo;
+    if (age < EXT_PRESENCE_WINDOW_MS) {
+      lastActivityRef.current = Date.now();
+      lastDesktopHeartbeatRef.current = Date.now();
+    }
+  }, [desktop.ultimoAtivo]);
 
   // Heartbeat do próprio app web -> presenca_web. Rede de segurança para que o
   // auto-encerramento server-side não feche por engano um usuário SÓ-web (sem
