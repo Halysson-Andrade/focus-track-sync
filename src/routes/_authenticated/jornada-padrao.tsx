@@ -69,6 +69,7 @@ type ModeloForm = {
   hora_almoco_inicio: string;
   hora_almoco_fim: string;
   hora_saida: string;
+  tolerancia_min: number;
   dias: Record<(typeof DIAS)[number]["key"], DiaTipo>;
   padrao_sistema: boolean;
   ativo: boolean;
@@ -80,6 +81,7 @@ const FORM_VAZIO: ModeloForm = {
   hora_almoco_inicio: "12:00",
   hora_almoco_fim: "13:30",
   hora_saida: "17:48",
+  tolerancia_min: 15,
   dias: {
     dia_dom: "dsr",
     dia_seg: "trabalho",
@@ -165,6 +167,7 @@ function JornadaPadraoPage() {
       hora_almoco_inicio: hhmm(m.hora_almoco_inicio),
       hora_almoco_fim: hhmm(m.hora_almoco_fim),
       hora_saida: hhmm(m.hora_saida),
+      tolerancia_min: m.tolerancia_min ?? 15,
       dias: {
         dia_dom: m.dia_dom,
         dia_seg: m.dia_seg,
@@ -198,13 +201,23 @@ function JornadaPadraoPage() {
       hora_almoco_inicio: form.hora_almoco_inicio || null,
       hora_almoco_fim: form.hora_almoco_fim || null,
       hora_saida: form.hora_saida,
+      tolerancia_min: Number.isFinite(form.tolerancia_min) ? Math.max(0, form.tolerancia_min) : 15,
       ...form.dias,
       padrao_sistema: form.padrao_sistema,
       ativo: form.ativo,
     };
-    const { error } = modeloDialog?.id
-      ? await supabase.from("jornada_padrao").update(payload).eq("id", modeloDialog.id)
-      : await supabase.from("jornada_padrao").insert(payload);
+    const trySave = (p: typeof payload | Omit<typeof payload, "tolerancia_min">) =>
+      modeloDialog?.id
+        ? supabase.from("jornada_padrao").update(p).eq("id", modeloDialog.id)
+        : supabase.from("jornada_padrao").insert(p);
+    let { error } = await trySave(payload);
+    // Pré-deploy: se a coluna `tolerancia_min` ainda não existe, salva sem ela
+    // (o cálculo cai no default de 15min até a migration ir ao banco).
+    if (error && (error.code === "PGRST204" || /tolerancia_min/i.test(error.message ?? ""))) {
+      const semTol = { ...payload } as Partial<typeof payload>;
+      delete semTol.tolerancia_min;
+      ({ error } = await trySave(semTol as Omit<typeof payload, "tolerancia_min">));
+    }
     setSalvando(false);
     if (error) return toast.error("Falha ao salvar", { description: error.message });
     setModeloDialog(null);
@@ -512,6 +525,20 @@ function JornadaPadraoPage() {
                   />
                 </div>
               ))}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tolerância (min)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.tolerancia_min}
+                onChange={(e) => setForm((f) => ({ ...f, tolerancia_min: Number(e.target.value) }))}
+                className="w-full sm:w-44"
+              />
+              <p className="text-xs text-muted-foreground">
+                Saldo do dia dentro de ±tolerância não vira pendente nem hora extra. Acima, conta
+                integralmente.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Tipo de cada dia da semana</Label>

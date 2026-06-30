@@ -25,6 +25,8 @@ export type JornadaPadrao = {
   horaSaida: string;
   /** índice 0=dom … 6=sáb (JS getDay). */
   dias: [DiaTipo, DiaTipo, DiaTipo, DiaTipo, DiaTipo, DiaTipo, DiaTipo];
+  /** Margem (min) por dia: saldo dentro de ±tolerância não vira pendente/HE. Default 15. */
+  toleranciaMin?: number;
 };
 
 export type Feriado = { data: string }; // "YYYY-MM-DD"
@@ -33,9 +35,10 @@ export type DiaCalculo = {
   tipoDia: DiaTipoCalc;
   previstoMin: number;
   realizadoMin: number;
+  abonoMin: number; // tempo abonado (atestado/abono) creditado na jornada
   almocoPrevistoMin: number;
   almocoRealizadoMin: number;
-  saldoMin: number; // realizado − previsto
+  saldoMin: number; // (realizado + abono creditado) − previsto, já com tolerância
   pendenteMin: number;
   extraMin: number; // HE
   noturnoMin: number;
@@ -50,6 +53,7 @@ export type CalcPeriodo = { linhas: LinhaCalculo[]; totais: TotaisJornada };
 export type TotaisJornada = {
   previstoMin: number;
   realizadoMin: number;
+  abonoMin: number;
   saldoMin: number;
   pendenteMin: number;
   extraMin: number;
@@ -77,6 +81,7 @@ export function rowToJornada(r: JornadaPadraoRow): JornadaPadrao {
     horaAlmocoFim: r.hora_almoco_fim,
     horaSaida: r.hora_saida,
     dias: [r.dia_dom, r.dia_seg, r.dia_ter, r.dia_qua, r.dia_qui, r.dia_sex, r.dia_sab],
+    toleranciaMin: r.tolerancia_min ?? 15,
   };
 }
 
@@ -146,29 +151,16 @@ export function tipoDoDia(diaISO: string, j: JornadaPadrao, feriados: Set<string
   return j.dias[weekday(diaISO)];
 }
 
-// --- Realizado (das marcações) ---
+// --- Noturno (das marcações) ---
 
-function realizadoTrabalho(marc: Marcacoes): {
-  min: number;
-  aberto: boolean;
-  almocoMin: number;
-  noturnoMin: number;
-} {
+/** Minutos noturnos (22h–05h) dos blocos de presença do dia (manhã+tarde, ou bloco
+ *  único sem almoço). É tempo-do-dia — independe da base usada para o realizado. */
+function noturnoDasMarcacoes(marc: Marcacoes): number {
   const ent = ms(marc.entrada);
   const sai = ms(marc.saida);
   const ai = ms(marc.almocoInicio);
   const af = ms(marc.almocoFim);
-  const almocoMin = ai != null && af != null && af > ai ? (af - ai) / 60000 : 0;
-
-  if (ent == null) return { min: 0, aberto: marc.saida == null, almocoMin: 0, noturnoMin: 0 };
-
-  // Jornada aberta (hoje, sem saída): presença parcial só até o início do almoço, se houver.
-  if (sai == null) {
-    const parcial = ai != null && ai > ent ? (ai - ent) / 60000 : 0;
-    return { min: parcial, aberto: true, almocoMin, noturnoMin: 0 };
-  }
-
-  // Blocos de presença para o noturno (manhã + tarde, ou bloco único sem almoço).
+  if (ent == null || sai == null) return 0;
   const blocos: [number, number][] =
     ai != null && af != null && af > ai
       ? [
@@ -176,30 +168,38 @@ function realizadoTrabalho(marc: Marcacoes): {
           [af, sai],
         ]
       : [[ent, sai]];
-  const noturno = blocos.reduce((acc, [s, e]) => acc + noturnoIntervalo(s, e), 0);
-
-  const min = Math.max(0, (sai - ent) / 60000 - almocoMin);
-  return { min, aberto: false, almocoMin, noturnoMin: noturno };
+  return blocos.reduce((acc, [s, e]) => acc + noturnoIntervalo(s, e), 0);
 }
 
 // --- Cálculo de um dia ---
 
 export function calcDia(d: DiaEspelho, j: JornadaPadrao, feriados: Set<string>): DiaCalculo {
   const tipoDia = tipoDoDia(d.dia, j, feriados);
-  const { min: realizadoMin, aberto, almocoMin, noturnoMin } = realizadoTrabalho(d.marcacoes);
-  const almocoPrevistoMin = previstoAlmocoMin(j);
+  const tol = Math.max(0, j.toleranciaMin ?? 15);
 
-  // compensado / dsr / folga / feriado: sem previsto; tudo trabalhado é HE; nunca falta.
+  // Realizado = PRESENÇA − ALMOÇO: tempo entre entrada e saída descontando os almoços
+  // (pausas e ocioso à mesa contam como trabalhado; abono entra separado). Vem dos totais
+  // da timeline DISJUNTA do dia — bate com os KPIs e com as marcações exibidas.
+  const realizadoMin = d.ativoMin + d.pausaMin + d.inativoMin;
+  const abonoMin = d.abonoMin;
+  const almocoRealizadoMin = d.almocoMin;
+  const almocoPrevistoMin = previstoAlmocoMin(j);
+  const noturnoMin = noturnoDasMarcacoes(d.marcacoes);
+  const aberto = d.marcacoes.entrada != null && d.marcacoes.saida == null;
+
+  // compensado / dsr / folga / feriado: sem previsto; trabalhado é HE (com tolerância); nunca falta.
   if (tipoDia !== "trabalho") {
+    const extra = realizadoMin > tol ? realizadoMin : 0;
     return {
       tipoDia,
       previstoMin: 0,
       realizadoMin,
+      abonoMin,
       almocoPrevistoMin,
-      almocoRealizadoMin: almocoMin,
-      saldoMin: realizadoMin,
+      almocoRealizadoMin,
+      saldoMin: extra,
       pendenteMin: 0,
-      extraMin: realizadoMin,
+      extraMin: extra,
       noturnoMin,
       falta: false,
       aberto,
@@ -207,18 +207,23 @@ export function calcDia(d: DiaEspelho, j: JornadaPadrao, feriados: Set<string>):
   }
 
   const previstoMin = previstoTrabalhoMin(j);
-  const saldoMin = realizadoMin - previstoMin;
+  // Abono credita a jornada, mas só cobre a LACUNA do previsto — nunca vira HE.
+  const abonoCredit = Math.min(abonoMin, Math.max(0, previstoMin - realizadoMin));
+  const saldoMin = realizadoMin + abonoCredit - previstoMin;
+  // Tolerância tudo-ou-nada, simétrica: |saldo| ≤ tol → zera pendente E HE.
+  const dentroTol = Math.abs(saldoMin) <= tol;
   return {
     tipoDia,
     previstoMin,
     realizadoMin,
+    abonoMin,
     almocoPrevistoMin,
-    almocoRealizadoMin: almocoMin,
+    almocoRealizadoMin,
     saldoMin,
-    pendenteMin: Math.max(0, -saldoMin),
-    extraMin: Math.max(0, saldoMin),
+    pendenteMin: dentroTol ? 0 : Math.max(0, -saldoMin),
+    extraMin: dentroTol ? 0 : Math.max(0, saldoMin),
     noturnoMin,
-    falta: realizadoMin === 0 && !aberto, // dia útil sem presença
+    falta: realizadoMin === 0 && abonoMin === 0 && !aberto, // dia útil sem presença nem abono
     aberto,
   };
 }
@@ -227,8 +232,9 @@ export function calcDia(d: DiaEspelho, j: JornadaPadrao, feriados: Set<string>):
 export function situacaoDia(c: DiaCalculo): string {
   if (c.aberto) return "Em andamento";
   if (c.tipoDia !== "trabalho") {
-    return c.realizadoMin > 0 ? `${DIA_TIPO_LABEL[c.tipoDia]} (HE)` : DIA_TIPO_LABEL[c.tipoDia];
+    return c.extraMin > 0 ? `${DIA_TIPO_LABEL[c.tipoDia]} (HE)` : DIA_TIPO_LABEL[c.tipoDia];
   }
+  if (c.realizadoMin === 0 && c.abonoMin > 0) return "Abonado";
   if (c.falta) return "Falta";
   if (c.extraMin > 0) return "HE";
   if (c.pendenteMin > 0) return "Pendente";
@@ -293,6 +299,7 @@ export function calcularJornadaPeriodo(
   const totais: TotaisJornada = {
     previstoMin: 0,
     realizadoMin: 0,
+    abonoMin: 0,
     saldoMin: 0,
     pendenteMin: 0,
     extraMin: 0,
@@ -305,13 +312,15 @@ export function calcularJornadaPeriodo(
     const c = l.calc;
     totais.previstoMin += c.previstoMin;
     totais.realizadoMin += c.realizadoMin;
-    totais.pendenteMin += c.pendenteMin;
-    totais.extraMin += c.extraMin;
+    totais.abonoMin += c.abonoMin;
+    totais.pendenteMin += c.pendenteMin; // já tolerado por dia
+    totais.extraMin += c.extraMin; // já tolerado por dia
     totais.noturnoMin += c.noturnoMin;
     if (c.tipoDia === "trabalho") totais.diasUteis += 1;
     if (c.falta) totais.faltas += 1;
     if (c.tipoDia === "feriado" && c.realizadoMin > 0) totais.feriadosTrabalhados += 1;
   }
-  totais.saldoMin = totais.realizadoMin - totais.previstoMin;
+  // Saldo coerente com a tolerância por dia (não recalcula de realizado−previsto cru).
+  totais.saldoMin = totais.extraMin - totais.pendenteMin;
   return { linhas, totais };
 }

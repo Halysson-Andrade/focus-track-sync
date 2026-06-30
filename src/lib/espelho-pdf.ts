@@ -25,15 +25,10 @@ function fmtHora(iso: string | null): string {
   return iso ? formatHM(iso) : "—";
 }
 
-function fmtSeg(seg: number): string {
-  return formatDuration(seg / 60);
-}
-
 const sinalDur = (min: number) => `${min < 0 ? "−" : "+"}${formatDuration(Math.abs(min))}`;
 
 /** Renderiza um espelho a partir de `startY`; devolve o Y final (após as tabelas). */
 function renderEspelho(doc: jsPDF, e: EspelhoData, calc?: CalcPeriodo | null): void {
-  const pageW = doc.internal.pageSize.getWidth();
   let y = MARGIN;
 
   // ---- Cabeçalho ----
@@ -232,49 +227,6 @@ function renderEspelho(doc: jsPDF, e: EspelhoData, calc?: CalcPeriodo | null): v
       margin: { left: MARGIN, right: MARGIN },
     });
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
-  }
-
-  // ---- Top apps / sites / categorias (lado a lado em duas colunas) ----
-  const half = (pageW - MARGIN * 2 - 4) / 2;
-
-  if (e.apps.length || e.sites.length) {
-    const yStart = y;
-    if (e.apps.length) {
-      autoTable(doc, {
-        startY: yStart,
-        head: [["Top aplicativos", "Total", "Efetivo"]],
-        body: e.apps.slice(0, 10).map((a) => [a.label, fmtSeg(a.totalSeg), fmtSeg(a.efetivoSeg)]),
-        styles: { fontSize: 7 },
-        headStyles: { fillColor: AZUL },
-        margin: { left: MARGIN, right: MARGIN },
-        tableWidth: half,
-      });
-    }
-    if (e.sites.length) {
-      autoTable(doc, {
-        startY: yStart,
-        head: [["Top sites", "Total", "Efetivo"]],
-        body: e.sites.slice(0, 10).map((s) => [s.label, fmtSeg(s.totalSeg), fmtSeg(s.efetivoSeg)]),
-        styles: { fontSize: 7 },
-        headStyles: { fillColor: AZUL },
-        margin: { left: MARGIN + half + 4, right: MARGIN },
-        tableWidth: half,
-      });
-    }
-    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
-  }
-
-  if (e.categorias.length) {
-    autoTable(doc, {
-      startY: y,
-      head: [["Categoria", "Tipo", "Tempo"]],
-      body: e.categorias
-        .slice(0, 12)
-        .map((c) => [c.categoria, c.produtiva ? "Produtiva" : "Improdutiva", fmtSeg(c.segundos)]),
-      styles: { fontSize: 7 },
-      headStyles: { fillColor: AZUL },
-      margin: { left: MARGIN, right: MARGIN },
-    });
   }
 }
 

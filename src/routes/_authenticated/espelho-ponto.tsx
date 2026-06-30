@@ -9,7 +9,6 @@ import {
   sufixoVirada,
   type EspelhoPayload,
   type EspelhoData,
-  type CategoriaRegra,
 } from "@/lib/espelho-ponto";
 import {
   calcularJornadaPeriodo,
@@ -20,7 +19,13 @@ import {
   type Feriado,
 } from "@/lib/jornada-padrao";
 import { gerarEspelhoPDF } from "@/lib/espelho-pdf";
-import { formatDate, formatDuration, formatHM, AJUSTE_TIPO_LABEL } from "@/lib/format";
+import {
+  formatDate,
+  formatDuration,
+  formatHM,
+  AJUSTE_TIPO_LABEL,
+  AJUSTE_STATUS_LABEL,
+} from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,7 +84,6 @@ function EspelhoPontoPage() {
   ago.setDate(today.getDate() - 30);
 
   const [perfis, setPerfis] = useState<Perfil[]>([]);
-  const [regras, setRegras] = useState<CategoriaRegra[]>([]);
   const [setor, setSetor] = useState<string>("all");
   const [usuarioId, setUsuarioId] = useState<string>("");
   const [de, setDe] = useState(ago.toISOString().slice(0, 10));
@@ -152,16 +156,6 @@ function EspelhoPontoPage() {
     [preview, previewUid, calcDe],
   );
 
-  // Regras de categoria ativas (paridade com o dashboard) — para todos os papéis.
-  useEffect(() => {
-    supabase
-      .from("categoria_atividade")
-      .select("tipo, identificador, categoria, produtiva, ativo")
-      .then(({ data }) =>
-        setRegras(((data ?? []) as (CategoriaRegra & { ativo: boolean })[]).filter((r) => r.ativo)),
-      );
-  }, []);
-
   // Lista de colaboradores só importa para admin/superadmin (usuário vê só a si).
   useEffect(() => {
     if (!isAdmin) return;
@@ -210,7 +204,7 @@ function EspelhoPontoPage() {
       toast.error("Falha ao carregar espelho", { description: error.message });
       return null;
     }
-    return montarEspelho(data as unknown as EspelhoPayload, de, ate, regras);
+    return montarEspelho(data as unknown as EspelhoPayload, de, ate);
   };
 
   const visualizar = async () => {
@@ -593,6 +587,59 @@ function EspelhoPontoPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* ---- Abonos e edições (lançamentos do período) ---- */}
+          {preview.abonos.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <FileText className="h-4 w-4" /> Abonos e edições ({preview.abonos.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Dia</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Período</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Justificativa</TableHead>
+                        <TableHead>Decisão</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {preview.abonos.map((a, i) => {
+                        const periodo =
+                          a.inicio && a.fim
+                            ? `${formatHM(a.inicio)}–${formatHM(a.fim)}`
+                            : "Dia inteiro";
+                        const decisao = [
+                          a.justificativaDecisao ?? "",
+                          a.decididoPorNome ? `(${a.decididoPorNome})` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ");
+                        return (
+                          <TableRow key={`${a.dia}-${a.tipo}-${i}`}>
+                            <TableCell>{formatDate(a.dia)}</TableCell>
+                            <TableCell>{AJUSTE_TIPO_LABEL[a.tipo] ?? a.tipo}</TableCell>
+                            <TableCell className="font-mono text-xs">{periodo}</TableCell>
+                            <TableCell>{AJUSTE_STATUS_LABEL[a.status] ?? a.status}</TableCell>
+                            <TableCell className="text-xs">{a.justificativa || "—"}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {decisao || "—"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>

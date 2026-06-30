@@ -19,8 +19,6 @@ import {
   type SegmentoTimeline,
 } from "./jornada-efetiva";
 import { ocioReconciliadoSeg, type Intervalo } from "./ocio";
-import { buildCategoriaIndex } from "./categorias";
-import { isChromeProcess } from "./activity-config";
 
 // --- Tipos do payload cru (espelho exatamente o que a RPC devolve) ---
 
@@ -94,9 +92,6 @@ export type AbonoLinha = {
   decididoEm: string | null;
 };
 
-export type ItemUso = { label: string; totalSeg: number; efetivoSeg: number };
-export type ItemCategoria = { categoria: string; produtiva: boolean; segundos: number };
-
 export type EspelhoData = {
   perfil: EspelhoPayload["perfil"];
   periodo: { de: string; ate: string };
@@ -113,16 +108,6 @@ export type EspelhoData = {
     diasComRegistro: number;
   };
   abonos: AbonoLinha[];
-  apps: ItemUso[];
-  sites: ItemUso[];
-  categorias: ItemCategoria[];
-};
-
-export type CategoriaRegra = {
-  tipo: string;
-  identificador: string;
-  categoria: string;
-  produtiva: boolean;
 };
 
 // --- Helpers de agrupamento por DIA DA JORNADA (vira-noite: pertence ao dia que começou) ---
@@ -262,7 +247,6 @@ export function montarEspelho(
   payload: EspelhoPayload,
   de: string,
   ate: string,
-  categoriaRegras: CategoriaRegra[] = [],
   nowTs: number = Date.now(),
 ): EspelhoData {
   const registrosPorDia = agruparPorDia(payload.registros);
@@ -300,56 +284,6 @@ export function montarEspelho(
     decididoEm: a.decidido_em,
   }));
 
-  // Top apps/sites: tempo total e efetivo (total − inativo), ordenados por total.
-  const apps: ItemUso[] = payload.apps
-    .filter((a) => !isChromeProcess(a.process_name) && !isChromeProcess(a.app_label))
-    .map((a) => ({
-      label: a.app_label && a.app_label !== a.process_name ? a.app_label : a.process_name,
-      totalSeg: Number(a.segundos_totais) || 0,
-      efetivoSeg: Math.max(
-        0,
-        (Number(a.segundos_totais) || 0) - (Number(a.segundos_inativos) || 0),
-      ),
-    }))
-    .sort((x, y) => y.totalSeg - x.totalSeg);
-
-  const sites: ItemUso[] = payload.sites
-    .map((s) => ({
-      label: s.domain,
-      totalSeg: Number(s.segundos_totais) || 0,
-      efetivoSeg: Math.max(
-        0,
-        (Number(s.segundos_totais) || 0) - (Number(s.segundos_inativos) || 0),
-      ),
-    }))
-    .sort((x, y) => y.totalSeg - x.totalSeg);
-
-  // Categorias: resolve via as mesmas regras do dashboard (sobre o tempo efetivo).
-  // A página passa apenas regras ATIVAS (paridade com o dashboard).
-  const idx = buildCategoriaIndex(categoriaRegras);
-  const catMap = new Map<string, ItemCategoria>();
-  const addCat = (categoria: string, produtiva: boolean, seg: number) => {
-    const cur = catMap.get(categoria) ?? { categoria, produtiva, segundos: 0 };
-    cur.segundos += seg;
-    catMap.set(categoria, cur);
-  };
-  payload.sites.forEach((s) => {
-    const hit = idx.matchDomain(s.domain);
-    if (hit) {
-      const ef = Math.max(0, (Number(s.segundos_totais) || 0) - (Number(s.segundos_inativos) || 0));
-      addCat(hit.categoria, hit.produtiva, ef);
-    }
-  });
-  payload.apps.forEach((a) => {
-    if (isChromeProcess(a.process_name) || isChromeProcess(a.app_label)) return;
-    const hit = idx.matchProcess(a.process_name, a.app_label);
-    if (hit) {
-      const ef = Math.max(0, (Number(a.segundos_totais) || 0) - (Number(a.segundos_inativos) || 0));
-      addCat(hit.categoria, hit.produtiva, ef);
-    }
-  });
-  const categorias = Array.from(catMap.values()).sort((x, y) => y.segundos - x.segundos);
-
   return {
     perfil: payload.perfil,
     periodo: { de, ate },
@@ -366,8 +300,5 @@ export function montarEspelho(
       diasComRegistro: dias.length,
     },
     abonos,
-    apps,
-    sites,
-    categorias,
   };
 }
