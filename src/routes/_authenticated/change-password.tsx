@@ -2,6 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { clearMustChangeCache } from "@/lib/auth-gate-cache";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,8 @@ function ChangePasswordPage() {
       if (error) throw error;
       if (user?.id) {
         await supabase.from("profiles").update({ must_change_password: false }).eq("id", user.id);
+        // Invalida o cache do gate para que o beforeLoad reavalie (agora false).
+        clearMustChangeCache(user.id);
       }
       toast.success("Senha alterada com sucesso.");
       // Hard reload: força o `beforeLoad` do layout _authenticated a reconsultar
