@@ -170,15 +170,18 @@ export function derivarMarcacoes(segs: SegmentoTimeline[], emAndamento: boolean)
   for (const s of ord) if (s.fim > saidaTs) saidaTs = s.fim;
   const saida = emAndamento ? null : iso(saidaTs);
 
+  // Janela de almoço = início do PRIMEIRO ao fim do ÚLTIMO segmento ALMOCO do dia.
+  // O tracking pode fragmentar o almoço (slivers de ATIVO no meio), e pegar só o primeiro
+  // segmento mostrava uma fatia de segundos (ex.: "12:01–12:01"), parecendo que não houve
+  // almoço. O envelope reflete a saída/volta reais; o total descontado no Realizado segue
+  // vindo do ALMOCO somado da timeline (não do span aqui).
   const almocos = ord.filter((s) => s.status === "ALMOCO");
-  const almocoInicio = almocos[0] ? iso(almocos[0].inicio) : null;
-  const almocoFim = almocos[0] ? iso(almocos[0].fim) : null;
+  const almocoInicio = almocos.length ? iso(Math.min(...almocos.map((s) => s.inicio))) : null;
+  const almocoFim = almocos.length ? iso(Math.max(...almocos.map((s) => s.fim))) : null;
 
-  const extras = [...almocos.slice(1), ...ord.filter((s) => s.status === "PAUSA")].map((s) => ({
-    status: s.status,
-    inicio: iso(s.inicio),
-    fim: iso(s.fim),
-  }));
+  const extras = ord
+    .filter((s) => s.status === "PAUSA")
+    .map((s) => ({ status: s.status, inicio: iso(s.inicio), fim: iso(s.fim) }));
 
   return { entrada, almocoInicio, almocoFim, saida, extras };
 }
