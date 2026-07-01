@@ -62,25 +62,25 @@ export interface Room {
 // Coordenadas casam com src/assets/office-map.jpg.
 export const ROOMS: Record<RoomId, Room> = {
   // ===== Fileira 1 (rows 0-16, +2) — SAC/Comercial/Jurídico/Financeiro/Reunião =====
-  recepcao:   { id: "recepcao",   label: "SAC / Recepção",  emoji: "🛎️", x:  0, y:  0, w: 12, h: 16, tint: "var(--color-info)",    leaderSeat: { cx:  2.5, cy:  3.5 }, capacity:  5 },
-  comercial:  { id: "comercial",  label: "Comercial",       emoji: "💼", x: 12, y:  0, w: 10, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 14.5, cy:  3.5 }, capacity:  1 },
-  juridico:   { id: "juridico",   label: "Jurídico",        emoji: "⚖️", x: 22, y:  0, w:  9, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 24.5, cy:  3.5 }, capacity:  1 },
-  financeiro: { id: "financeiro", label: "Financeiro",      emoji: "💰", x: 31, y:  0, w: 11, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 33.5, cy:  3.5 }, capacity:  4 },
+  recepcao:   { id: "recepcao",   label: "SAC / Recepção",  emoji: "🛎️", x:  0, y:  0, w: 12, h: 16, tint: "var(--color-info)",    leaderSeat: { cx:  3.0, cy:  5.0 }, capacity:  5 },
+  comercial:  { id: "comercial",  label: "Comercial",       emoji: "💼", x: 12, y:  0, w: 10, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 15.0, cy:  5.0 }, capacity:  1 },
+  juridico:   { id: "juridico",   label: "Jurídico",        emoji: "⚖️", x: 22, y:  0, w:  9, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 25.0, cy:  5.0 }, capacity:  1 },
+  financeiro: { id: "financeiro", label: "Financeiro",      emoji: "💰", x: 31, y:  0, w: 11, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 34.0, cy:  5.0 }, capacity:  4 },
   reuniao:    { id: "reuniao",    label: "Sala de Reunião", emoji: "📊", x: 42, y:  0, w:  6, h: 16, tint: "var(--color-accent)" },
 
   // ===== Fileira 2 (rows 16-28, +2) — Produção e Refeitório enormes =====
-  producao:   { id: "producao",   label: "Produção de Eventos", emoji: "🎪", x:  0, y: 16, w: 24, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  2.5, cy: 18.5 }, capacity: 20 },
+  producao:   { id: "producao",   label: "Produção de Eventos", emoji: "🎪", x:  0, y: 16, w: 24, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  3.0, cy: 20.5 }, capacity: 20 },
   copa:       { id: "copa",       label: "Copa / Refeitório",   emoji: "🍽️", x: 24, y: 16, w: 24, h: 12, tint: "var(--color-info)" },
 
   // ===== Fileira 3 (rows 28-40, +3) — Espera / TI / Almoxarifado / Marketing / Descanso =====
   espera:        { id: "espera",        label: "Espera",       emoji: "🪑", x:  0, y: 28, w:  5, h: 12, tint: "var(--color-muted-foreground)" },
-  ti:            { id: "ti",            label: "TI",           emoji: "🖥️", x:  5, y: 28, w: 20, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  7.5, cy: 30.5 }, capacity: 6 },
+  ti:            { id: "ti",            label: "TI",           emoji: "🖥️", x:  5, y: 28, w: 20, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  8.0, cy: 32.5 }, capacity: 6 },
   almoxarifado:  { id: "almoxarifado",  label: "Almoxarifado", emoji: "📦", x: 25, y: 28, w:  6, h: 12, tint: "var(--color-success)" },
-  marketing:     { id: "marketing",     label: "Marketing",    emoji: "📣", x: 31, y: 28, w:  7, h: 12, tint: "var(--color-success)", leaderSeat: { cx: 33.0, cy: 30.5 }, capacity: 3 },
+  marketing:     { id: "marketing",     label: "Marketing",    emoji: "📣", x: 31, y: 28, w:  7, h: 12, tint: "var(--color-success)", leaderSeat: { cx: 33.5, cy: 32.5 }, capacity: 3 },
   descanso:      { id: "descanso",      label: "Descanso",     emoji: "☕", x: 38, y: 28, w: 10, h: 12, tint: "var(--color-warning)" },
 
   // ===== Fileira 4 (rows 40-48) — Diretoria (andar executivo, full-width) =====
-  diretoria:   { id: "diretoria",   label: "Diretoria", emoji: "🏛️", x:  0, y: 40, w: 48, h: 8, tint: "var(--color-primary)", leaderSeat: { cx:  3.0, cy: 42.5 } },
+  diretoria:   { id: "diretoria",   label: "Diretoria", emoji: "🏛️", x:  0, y: 40, w: 48, h: 8, tint: "var(--color-primary)", leaderSeat: { cx:  4.0, cy: 44.0 } },
 
   // ===== Áreas externas =====
   estacionamento: { id: "estacionamento", label: "Estacionamento",          emoji: "🅿️", x: 0, y: 48, w: 48, h: 4, tint: "var(--color-muted-foreground)" },
