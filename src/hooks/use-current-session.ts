@@ -150,14 +150,13 @@ export function useCurrentSession(userId: string | undefined) {
     }
   }, [desktop.ultimoAtivo]);
 
-  // Heartbeat do próprio app web -> presenca_web. Rede de segurança para que o
-  // auto-encerramento server-side não feche por engano um usuário SÓ-web (sem
-  // extensão/desktop) que está ativo mas sem navegação interna recente. Só
-  // pulsa quando a sessão está ATIVA e houve input REAL recente (< 2x a
-  // cadência). NÃO é lido de volta pela detecção de INATIVO (acima lemos apenas
-  // presenca_desktop) — evita auto-alimentação que impediria o INATIVO.
+  // Heartbeat do próprio app web -> presenca_web. Marca o usuário logado no
+  // navegador como ONLINE mesmo antes de "Iniciar expediente" (fica em Espera
+  // no /operacional). Só depende do userId + input REAL recente (< 2x a
+  // cadência). Auto-encerramento server-side e detecção local de INATIVO NÃO
+  // leem `presenca_web` — não há auto-alimentação.
   useEffect(() => {
-    if (!userId || current?.status !== "ATIVO") return;
+    if (!userId) return;
     let cancelled = false;
     const beat = async () => {
       if (cancelled) return;
@@ -175,7 +174,7 @@ export function useCurrentSession(userId: string | undefined) {
       cancelled = true;
       window.clearInterval(i);
     };
-  }, [userId, current?.status]);
+  }, [userId]);
 
   // Ask notification permission once
   useEffect(() => {
