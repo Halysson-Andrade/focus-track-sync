@@ -160,9 +160,11 @@ export function VirtualOffice({
             />
           ))}
 
+          {/* Mesas fixas por sala + mesa exclusiva do líder (destacada) */}
+          <DesksLayer />
+
           {/* Decorações da sala de descanso (sinuca, cafeteira, sofá) */}
           <RestRoomDecor />
-
 
           {/* Avatares */}
           {placed.map(({ snapshot, cell }) => (
