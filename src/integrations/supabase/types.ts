@@ -688,6 +688,7 @@ export type Database = {
           created_at: string
           departamento: string | null
           email: string
+          espelho_geral: boolean
           id: string
           must_change_password: boolean
           nome: string
@@ -699,6 +700,7 @@ export type Database = {
           created_at?: string
           departamento?: string | null
           email: string
+          espelho_geral?: boolean
           id: string
           must_change_password?: boolean
           nome: string
@@ -710,6 +712,7 @@ export type Database = {
           created_at?: string
           departamento?: string | null
           email?: string
+          espelho_geral?: boolean
           id?: string
           must_change_password?: boolean
           nome?: string
@@ -971,6 +974,7 @@ export type Database = {
         }
       }
       is_active: { Args: { _user_id: string }; Returns: boolean }
+      can_espelho_geral: { Args: { _user_id: string }; Returns: boolean }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       itens_categorizacao: { Args: { p_dias: number }; Returns: Json }
       office_detail: { Args: { p_since: string }; Returns: Json }

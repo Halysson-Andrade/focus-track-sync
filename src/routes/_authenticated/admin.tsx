@@ -3,7 +3,12 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
-import { adminCreateUser, adminDeleteUser, adminToggleActive, adminUpdateUser } from "@/lib/admin.functions";
+import {
+  adminCreateUser,
+  adminDeleteUser,
+  adminToggleActive,
+  adminUpdateUser,
+} from "@/lib/admin.functions";
 import { DEPARTAMENTOS } from "@/components/office/office-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +46,8 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminUsers,
 });
 
+type Perfil = "user" | "admin" | "superadmin";
+
 type AdminUser = {
   id: string;
   nome: string;
@@ -48,6 +55,7 @@ type AdminUser = {
   ativo: boolean;
   cargo: string | null;
   departamento: string | null;
+  espelho_geral: boolean;
   roles: string[];
 };
 
@@ -58,8 +66,14 @@ function deptLabel(value: string | null) {
   return DEPARTAMENTOS.find((d) => d.value === value.toLowerCase())?.label ?? value;
 }
 
+function perfilFromRoles(roles: string[]): Perfil {
+  if (roles.includes("superadmin")) return "superadmin";
+  if (roles.includes("admin")) return "admin";
+  return "user";
+}
+
 function AdminUsers() {
-  const { isAdmin, loading, user } = useAuth();
+  const { isAdmin, isSuperadmin, loading, user } = useAuth();
   const router = useRouter();
   const createFn = useServerFn(adminCreateUser);
   const deleteFn = useServerFn(adminDeleteUser);
@@ -71,7 +85,9 @@ function AdminUsers() {
     nome: "",
     email: "",
     password: "",
-    isAdmin: false,
+    departamento: NONE,
+    perfil: "user" as Perfil,
+    espelhoGeral: false,
   });
   const [busy, setBusy] = useState(false);
 
@@ -80,7 +96,8 @@ function AdminUsers() {
     nome: "",
     cargo: "",
     departamento: NONE,
-    isAdmin: false,
+    perfil: "user" as Perfil,
+    espelhoGeral: false,
   });
 
   useEffect(() => {
@@ -113,10 +130,26 @@ function AdminUsers() {
     e.preventDefault();
     setBusy(true);
     try {
-      await createFn({ data: form });
+      await createFn({
+        data: {
+          nome: form.nome,
+          email: form.email,
+          password: form.password,
+          departamento: form.departamento === NONE ? null : form.departamento,
+          perfil: form.perfil,
+          espelhoGeral: form.espelhoGeral,
+        },
+      });
       toast.success("Usuário criado");
       setOpen(false);
-      setForm({ nome: "", email: "", password: "", isAdmin: false });
+      setForm({
+        nome: "",
+        email: "",
+        password: "",
+        departamento: NONE,
+        perfil: "user",
+        espelhoGeral: false,
+      });
       load();
     } catch (err) {
       toast.error((err as Error).message ?? "Erro");
@@ -131,7 +164,8 @@ function AdminUsers() {
       nome: u.nome,
       cargo: u.cargo ?? "",
       departamento: u.departamento?.toLowerCase() ?? NONE,
-      isAdmin: u.roles.includes("admin"),
+      perfil: perfilFromRoles(u.roles),
+      espelhoGeral: !!u.espelho_geral,
     });
   };
 
@@ -145,9 +179,11 @@ function AdminUsers() {
           userId: editing.id,
           nome: editForm.nome,
           cargo: editForm.cargo.trim() || null,
-          departamento:
-            editForm.departamento === NONE ? null : editForm.departamento,
-          isAdmin: editForm.isAdmin,
+          departamento: editForm.departamento === NONE ? null : editForm.departamento,
+          perfil: editForm.perfil,
+          // Só superadmin gerencia a flag; para os demais, não envia o campo
+          // (o backend também rejeita, esta é a defesa da UI).
+          ...(isSuperadmin ? { espelhoGeral: editForm.espelhoGeral } : {}),
         },
       });
       toast.success("Usuário atualizado");
@@ -231,14 +267,56 @@ function AdminUsers() {
                   required
                 />
               </div>
-              <div className="flex items-center justify-between rounded-md border border-border p-3">
-                <Label htmlFor="isAdmin">Administrador</Label>
-                <Switch
-                  id="isAdmin"
-                  checked={form.isAdmin}
-                  onCheckedChange={(v) => setForm({ ...form, isAdmin: v })}
-                />
+              <div className="space-y-2">
+                <Label>Departamento / Área</Label>
+                <Select
+                  value={form.departamento}
+                  onValueChange={(v) => setForm({ ...form, departamento: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma área" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>Sem departamento</SelectItem>
+                    {DEPARTAMENTOS.map((d) => (
+                      <SelectItem key={d.value} value={d.value}>
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+              <div className="space-y-2">
+                <Label>Perfil</Label>
+                <Select
+                  value={form.perfil}
+                  onValueChange={(v) => setForm({ ...form, perfil: v as Perfil })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Usuário</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                    {isSuperadmin && <SelectItem value="superadmin">Super Admin</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+              {isSuperadmin && (
+                <div className="flex items-center justify-between rounded-md border border-border p-3">
+                  <div className="pr-3">
+                    <Label htmlFor="espelhoGeral">Espelho de Ponto geral</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Libera ver o espelho de todas as equipes (com HE), mesmo sem ser admin.
+                    </p>
+                  </div>
+                  <Switch
+                    id="espelhoGeral"
+                    checked={form.espelhoGeral}
+                    onCheckedChange={(v) => setForm({ ...form, espelhoGeral: v })}
+                  />
+                </div>
+              )}
               <DialogFooter>
                 <Button type="submit" disabled={busy}>
                   {busy ? "Criando..." : "Criar"}
@@ -272,9 +350,7 @@ function AdminUsers() {
                   <TableRow key={u.id}>
                     <TableCell className="font-medium">{u.nome}</TableCell>
                     <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {u.cargo ?? "—"}
-                    </TableCell>
+                    <TableCell className="text-muted-foreground">{u.cargo ?? "—"}</TableCell>
                     <TableCell>
                       {u.departamento ? (
                         <span className="rounded bg-muted px-2 py-0.5 text-xs">
@@ -285,12 +361,29 @@ function AdminUsers() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {u.roles.includes("admin") ? (
-                        <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-                          ADMIN
+                      {(() => {
+                        const p = perfilFromRoles(u.roles);
+                        if (p === "superadmin")
+                          return (
+                            <span className="rounded bg-primary/20 px-2 py-0.5 text-xs font-semibold text-primary">
+                              SUPER ADMIN
+                            </span>
+                          );
+                        if (p === "admin")
+                          return (
+                            <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                              ADMIN
+                            </span>
+                          );
+                        return <span className="text-xs text-muted-foreground">Usuário</span>;
+                      })()}
+                      {u.espelho_geral && (
+                        <span
+                          className="ml-1 rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                          title="Vê o Espelho de Ponto de todas as equipes"
+                        >
+                          Espelho geral
                         </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Usuário</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -336,9 +429,7 @@ function AdminUsers() {
                 <Label>Nome</Label>
                 <Input
                   value={editForm.nome}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, nome: e.target.value })
-                  }
+                  onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
                   required
                 />
               </div>
@@ -351,18 +442,14 @@ function AdminUsers() {
                 <Input
                   value={editForm.cargo}
                   placeholder="Ex.: Analista Pleno"
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, cargo: e.target.value })
-                  }
+                  onChange={(e) => setEditForm({ ...editForm, cargo: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Departamento / Área</Label>
                 <Select
                   value={editForm.departamento}
-                  onValueChange={(v) =>
-                    setEditForm({ ...editForm, departamento: v })
-                  }
+                  onValueChange={(v) => setEditForm({ ...editForm, departamento: v })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma área" />
@@ -380,28 +467,46 @@ function AdminUsers() {
                   Define em qual sala do mapa o avatar do colaborador aparece.
                 </p>
               </div>
-              <div className="flex items-center justify-between rounded-md border border-border p-3">
-                <div>
-                  <Label htmlFor="editIsAdmin">Administrador</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Admins ficam na sala de Liderança.
-                  </p>
-                </div>
-                <Switch
-                  id="editIsAdmin"
-                  checked={editForm.isAdmin}
-                  disabled={editing.id === user?.id}
-                  onCheckedChange={(v) =>
-                    setEditForm({ ...editForm, isAdmin: v })
+              <div className="space-y-2">
+                <Label>Perfil</Label>
+                <Select
+                  value={editForm.perfil}
+                  onValueChange={(v) => setEditForm({ ...editForm, perfil: v as Perfil })}
+                  // Trava: não altera o próprio perfil (anti-lockout) nem um
+                  // Super Admin quando quem edita não é Super Admin.
+                  disabled={
+                    editing.id === user?.id ||
+                    (editing.roles.includes("superadmin") && !isSuperadmin)
                   }
-                />
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setEditing(null)}
                 >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Usuário</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                    {isSuperadmin && <SelectItem value="superadmin">Super Admin</SelectItem>}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Admins ficam na sala de Liderança.</p>
+              </div>
+              {isSuperadmin && (
+                <div className="flex items-center justify-between rounded-md border border-border p-3">
+                  <div className="pr-3">
+                    <Label htmlFor="editEspelhoGeral">Espelho de Ponto geral</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Libera ver o espelho de todas as equipes (com HE), mesmo sem ser admin.
+                    </p>
+                  </div>
+                  <Switch
+                    id="editEspelhoGeral"
+                    checked={editForm.espelhoGeral}
+                    onCheckedChange={(v) => setEditForm({ ...editForm, espelhoGeral: v })}
+                  />
+                </div>
+              )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditing(null)}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={busy}>

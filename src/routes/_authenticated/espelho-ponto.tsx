@@ -75,6 +75,13 @@ function pertenceAoSetor(dep: string | null, setor: { value: string; label: stri
 
 function EspelhoPontoPage() {
   const { user, profile, isAdmin, isSuperadmin, loading: authLoading } = useAuth();
+  // Flag pontual: libera ver o espelho de todas as equipes (com HE), mesmo sem
+  // ser admin. Comporta-se como superadmin APENAS nesta tela.
+  const espelhoGeral = !!profile?.espelho_geral;
+  // Pode gerenciar espelhos além do próprio (listar colaboradores, apurar HE).
+  const podeGerenciar = isAdmin || espelhoGeral;
+  // Escopo global (todos os setores, com filtro por setor).
+  const verTodos = isSuperadmin || espelhoGeral;
   // admin "puro" = gerente de área (não superadmin): escopo limitado ao próprio setor.
   const adminPuro = isAdmin && !isSuperadmin;
   const myDept = (profile?.departamento ?? "").trim().toLowerCase();
@@ -100,7 +107,7 @@ function EspelhoPontoPage() {
   const [feriados, setFeriados] = useState<Feriado[]>([]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!podeGerenciar) return;
     supabase
       .from("jornada_padrao")
       .select("*")
@@ -121,7 +128,7 @@ function EspelhoPontoPage() {
             .map((f) => ({ data: f.data })),
         ),
       );
-  }, [isAdmin]);
+  }, [podeGerenciar]);
 
   const modeloById = useMemo(() => new Map(modelos.map((m) => [m.id, m])), [modelos]);
   const vinculoMap = useMemo(
@@ -142,12 +149,12 @@ function EspelhoPontoPage() {
 
   const calcDe = useCallback(
     (e: EspelhoData, uid: string): CalcPeriodo | null => {
-      if (!isAdmin) return null;
+      if (!podeGerenciar) return null;
       const j = resolverJornada(uid);
       if (!j) return null;
       return calcularJornadaPeriodo(e.dias, e.periodo.de, e.periodo.ate, j, feriados);
     },
-    [isAdmin, resolverJornada, feriados],
+    [podeGerenciar, resolverJornada, feriados],
   );
 
   // Cálculo do preview na tela (do colaborador efetivamente visualizado).
@@ -156,43 +163,45 @@ function EspelhoPontoPage() {
     [preview, previewUid, calcDe],
   );
 
-  // Lista de colaboradores só importa para admin/superadmin (usuário vê só a si).
+  // Lista de colaboradores só importa para quem gerencia (usuário vê só a si).
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!podeGerenciar) return;
     supabase
       .from("profiles")
       .select("id, nome, cargo, departamento, email, ativo")
       .order("nome")
       .then(({ data }) => setPerfis(((data ?? []) as Perfil[]).filter((p) => p.ativo !== false)));
-  }, [isAdmin]);
+  }, [podeGerenciar]);
 
   // Usuário comum: alvo fixo é ele mesmo.
   useEffect(() => {
-    if (!authLoading && !isAdmin && user) setUsuarioId(user.id);
-  }, [authLoading, isAdmin, user]);
+    if (!authLoading && !podeGerenciar && user) setUsuarioId(user.id);
+  }, [authLoading, podeGerenciar, user]);
 
-  // Universo visível por papel: superadmin = todos; admin = própria área; user = só ele.
+  // Universo visível: verTodos = todos (superadmin/flag); admin puro = própria
+  // área; user = só ele.
   const baseUsers = useMemo(() => {
-    if (isSuperadmin) return perfis;
+    if (verTodos) return perfis;
     if (adminPuro) {
       if (!myDept) return user ? perfis.filter((p) => p.id === user.id) : [];
       return perfis.filter((p) => (p.departamento ?? "").trim().toLowerCase() === myDept);
     }
     return [];
-  }, [isSuperadmin, adminPuro, perfis, myDept, user]);
+  }, [verTodos, adminPuro, perfis, myDept, user]);
 
-  // Superadmin pode refinar por setor; admin já está restrito à própria área.
+  // Quem vê todos pode refinar por setor; admin puro já está restrito à área.
   const usuariosDoSetor = useMemo(() => {
-    if (!isSuperadmin || setor === "all") return baseUsers;
+    if (!verTodos || setor === "all") return baseUsers;
     const s = DEPARTAMENTOS.find((d) => d.value === setor);
     if (!s) return baseUsers;
     return baseUsers.filter((p) => pertenceAoSetor(p.departamento, s));
-  }, [isSuperadmin, baseUsers, setor]);
+  }, [verTodos, baseUsers, setor]);
 
-  // Mantém a seleção válida quando o setor/escopo muda (só p/ admin+).
+  // Mantém a seleção válida quando o setor/escopo muda (só p/ quem gerencia).
   useEffect(() => {
-    if (isAdmin && usuarioId && !usuariosDoSetor.some((u) => u.id === usuarioId)) setUsuarioId("");
-  }, [isAdmin, usuariosDoSetor, usuarioId]);
+    if (podeGerenciar && usuarioId && !usuariosDoSetor.some((u) => u.id === usuarioId))
+      setUsuarioId("");
+  }, [podeGerenciar, usuariosDoSetor, usuarioId]);
 
   const carregarEspelho = async (uid: string): Promise<EspelhoData | null> => {
     const { data, error } = await supabase.rpc("espelho_ponto", {
@@ -269,7 +278,7 @@ function EspelhoPontoPage() {
           <FileText className="h-6 w-6" /> Espelho de Ponto
         </h1>
         <p className="text-sm text-muted-foreground">
-          {isSuperadmin
+          {verTodos
             ? "Folha de frequência de qualquer colaborador, com marcações, KPIs do período e abonos/edições."
             : adminPuro
               ? "Folha de frequência da sua equipe (mesmo setor), com marcações, KPIs do período e abonos/edições."
@@ -282,7 +291,7 @@ function EspelhoPontoPage() {
           <CardTitle>Filtros</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-5">
-          {isSuperadmin && (
+          {verTodos && (
             <div className="space-y-2">
               <Label>Setor</Label>
               <Select value={setor} onValueChange={setSetor}>
@@ -300,7 +309,7 @@ function EspelhoPontoPage() {
               </Select>
             </div>
           )}
-          {isAdmin && (
+          {podeGerenciar && (
             <div className="space-y-2">
               <Label>Colaborador</Label>
               <Select value={usuarioId} onValueChange={setUsuarioId}>
@@ -317,7 +326,7 @@ function EspelhoPontoPage() {
               </Select>
             </div>
           )}
-          {!isAdmin && (
+          {!podeGerenciar && (
             <div className="space-y-2">
               <Label>Colaborador</Label>
               <Input value={profile?.nome ?? user?.email ?? "Você"} disabled readOnly />
@@ -342,9 +351,9 @@ function EspelhoPontoPage() {
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={exportarIndividual} disabled={exporting || !usuarioId}>
           <FileText className="mr-2 h-4 w-4" />
-          {isAdmin ? "Exportar PDF (colaborador)" : "Exportar meu espelho"}
+          {podeGerenciar ? "Exportar PDF (colaborador)" : "Exportar meu espelho"}
         </Button>
-        {isAdmin && (
+        {podeGerenciar && (
           <Button variant="outline" onClick={exportarSetor} disabled={exporting}>
             <Users className="mr-2 h-4 w-4" />
             {exporting
