@@ -9,6 +9,7 @@ export interface Profile {
   email: string;
   ativo: boolean;
   departamento: string | null;
+  espelho_geral?: boolean;
 }
 
 export interface AuthState {
