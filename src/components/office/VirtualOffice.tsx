@@ -95,18 +95,20 @@ export function VirtualOffice({
         </button>
       </div>
 
-      {/* Palco do escritório — mapa pixel-art top-down (planta atualizada) */}
-      <div className="relative overflow-hidden rounded-2xl border-2 border-foreground/15 bg-black shadow-2xl">
+      {/* Palco do escritório — sem overflow-hidden para que os nomes dos avatares
+          externos (borda inferior) não sejam cortados pela moldura. */}
+      <div className="relative rounded-2xl border-2 border-foreground/15 bg-black pb-6 shadow-2xl">
         <div className="relative w-full" style={{ aspectRatio: `${WORLD.cols} / ${WORLD.rows}` }}>
-          {/* Mapa do escritório (background pixel-art) */}
+          {/* Mapa do escritório (background pixel-art) — arredonda o topo já que a moldura corta ali */}
           <img
             src={officeMap}
             alt=""
             aria-hidden
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full rounded-t-xl object-cover"
             style={{ imageRendering: "pixelated" }}
             loading="lazy"
           />
+
 
           {/* Vinheta sutil nas bordas para dar profundidade */}
           <div
@@ -346,11 +348,9 @@ function DesksLayer() {
                 <div
                   aria-hidden
                   title={`Mesa do líder — ${room.label}`}
-                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center rounded-[4px] border border-primary/60 bg-primary/15 shadow-md ring-1 ring-primary/40"
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-[4px] border border-primary/60 bg-primary/15 shadow-md ring-1 ring-primary/40"
                   style={{ left: `${p.x}%`, top: `${p.y}%`, width: 22, height: 16 }}
-                >
-                  <span className="text-[8px] leading-none">👑</span>
-                </div>
+                />
               );
             })()}
           </div>

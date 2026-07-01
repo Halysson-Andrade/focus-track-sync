@@ -216,13 +216,12 @@ export function roomForSnapshot(s: UserSnapshot): RoomId {
   // Offline = fora do prédio, independente de perfil.
   if (!s.isOnline) return "externa";
 
-  // Sala-base = setor do colaborador. Admins sem setor caem no SAC.
-  // Líderes (admins) ficam no próprio setor — ocupam a `leaderSeat` na hora
-  // de posicionar o avatar (ver placeAvatars).
-  const sectorRoom = deptRoom(s.profile.departamento) ?? (s.isAdmin ? "recepcao" : "espera");
+  // Logou mas ainda não iniciou expediente → sala de espera (para todos,
+  // inclusive admins). Mesma regra da versão original.
+  if (!s.currentSince) return "espera";
 
-  // Online mas sem expediente aberto — logou mas não iniciou jornada.
-  if (!s.currentSince) return s.isAdmin ? sectorRoom : "espera";
+  // Sala-base = setor do colaborador (fallback espera quando não cadastrado).
+  const sectorRoom = deptRoom(s.profile.departamento) ?? "espera";
 
   switch (s.currentStatus) {
     case "ATIVO":
