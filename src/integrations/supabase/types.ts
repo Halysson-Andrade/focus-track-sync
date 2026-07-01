@@ -874,6 +874,7 @@ export type Database = {
         }
       }
       agregar_dia: { Args: { p_dia: string }; Returns: undefined }
+      can_espelho_geral: { Args: { _user_id: string }; Returns: boolean }
       decidir_ajuste_jornada: {
         Args: { p_aprovar: boolean; p_id: string; p_justificativa: string }
         Returns: {
@@ -974,7 +975,6 @@ export type Database = {
         }
       }
       is_active: { Args: { _user_id: string }; Returns: boolean }
-      can_espelho_geral: { Args: { _user_id: string }; Returns: boolean }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       itens_categorizacao: { Args: { p_dias: number }; Returns: Json }
       office_detail: { Args: { p_since: string }; Returns: Json }
