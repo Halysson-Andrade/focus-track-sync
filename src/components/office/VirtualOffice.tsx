@@ -96,10 +96,12 @@ export function VirtualOffice({
       </div>
 
       {/* Palco do escritório — mapa pixel-art top-down (planta atualizada) */}
-      <div className="relative rounded-2xl border-2 border-foreground/15 bg-black shadow-2xl">
-        <div className="relative w-full overflow-hidden rounded-2xl" style={{ aspectRatio: `${WORLD.cols} / ${WORLD.rows}` }}>
-          {/* wrapper que permite que rótulos dos avatares externos escapem levemente da moldura */}
-          <div className="pointer-events-none absolute inset-x-0 -bottom-6 h-6" aria-hidden />
+      {/* Palco do escritório — overflow visível para que os nomes dos avatares
+          externos (borda inferior) não sejam cortados pela moldura. */}
+      <div className="relative rounded-2xl border-2 border-foreground/15 bg-black pb-6 shadow-2xl">
+        <div className="relative w-full" style={{ aspectRatio: `${WORLD.cols} / ${WORLD.rows}` }}>
+          {/* máscara arredondada só para o fundo (imagem + salas) */}
+          <div className="absolute inset-0 overflow-hidden rounded-t-2xl" aria-hidden />
           {/* Mapa do escritório (background pixel-art) */}
           <img
             src={officeMap}
