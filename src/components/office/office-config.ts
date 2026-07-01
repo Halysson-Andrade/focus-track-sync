@@ -308,9 +308,35 @@ export interface PlacedAvatar {
   cell: Cell;
 }
 
+// Cache de mesas estáticas por sala: preserva a MESMA disposição de mesas em
+// toda re-renderização (a pessoa senta sempre no mesmo lugar). Recalculado
+// apenas quando muda `capacity`/geometria da sala (na prática, nunca em runtime).
+const _desksCache = new Map<RoomId, Cell[]>();
+export function desksFor(room: Room): Cell[] {
+  if (!room.capacity || room.capacity <= 0) return [];
+  const cached = _desksCache.get(room.id);
+  if (cached) return cached;
+  let cells = packPositions(room, room.capacity);
+  // Se há mesa exclusiva do líder, remove mesas colidentes (dist < 2 células).
+  if (room.leaderSeat) {
+    const ls = room.leaderSeat;
+    cells = cells.filter((c) => Math.hypot(c.cx - ls.cx, c.cy - ls.cy) > 2);
+    // Repõe as mesas removidas pra manter capacity.
+    if (cells.length < room.capacity) {
+      const extras = packPositions(room, room.capacity + 4).filter(
+        (c) => Math.hypot(c.cx - ls.cx, c.cy - ls.cy) > 2,
+      );
+      cells = extras.slice(0, room.capacity);
+    }
+  }
+  _desksCache.set(room.id, cells);
+  return cells;
+}
+
 /**
- * Distribui todos os snapshots em suas salas-destino, com posições estáveis
- * (ordenadas por hash do id) para minimizar "saltos" entre re-renders.
+ * Distribui todos os snapshots em suas salas-destino. Cada avatar recebe uma
+ * MESA FIXA (mesmo slot em toda re-render) dentro da sala, resolvido por hash
+ * estável do id. Líder (admin) ocupa a `leaderSeat` exclusiva quando existir.
  */
 export function placeAvatars(snapshots: UserSnapshot[]): PlacedAvatar[] {
   const byRoom = new Map<RoomId, UserSnapshot[]>();
@@ -323,6 +349,7 @@ export function placeAvatars(snapshots: UserSnapshot[]): PlacedAvatar[] {
   const placed: PlacedAvatar[] = [];
   for (const [roomId, arr] of byRoom) {
     const room = ROOMS[roomId];
+
     // Separa o líder (admin) — se a sala tem `leaderSeat`, ele senta lá.
     // Só um líder por sala (o de menor hash, para ficar estável).
     let leader: UserSnapshot | null = null;
@@ -336,8 +363,43 @@ export function placeAvatars(snapshots: UserSnapshot[]): PlacedAvatar[] {
       }
     }
     rest.sort((a, b) => hashId(a.profile.id) - hashId(b.profile.id));
-    const cells = packPositions(room, rest.length);
-    rest.forEach((s, i) => placed.push({ snapshot: s, room: roomId, cell: cells[i] }));
+
+    const desks = desksFor(room);
+    if (desks.length > 0) {
+      // Mesas fixas: cada avatar tenta seu slot preferido (hash % nDesks) e
+      // faz probing linear se estiver ocupado. Overflow (mais gente que
+      // mesas) recorre a packPositions dinâmico no espaço restante.
+      const used = new Set<number>();
+      const seated: UserSnapshot[] = [];
+      const overflow: UserSnapshot[] = [];
+      for (const s of rest) {
+        let slot = hashId(s.profile.id) % desks.length;
+        let ok = false;
+        for (let k = 0; k < desks.length; k++) {
+          const t = (slot + k) % desks.length;
+          if (!used.has(t)) {
+            used.add(t);
+            placed.push({ snapshot: s, room: roomId, cell: desks[t] });
+            seated.push(s);
+            ok = true;
+            break;
+          }
+        }
+        if (!ok) overflow.push(s);
+      }
+      if (overflow.length > 0) {
+        const extra = packPositions(room, desks.length + overflow.length).slice(desks.length);
+        overflow.forEach((s, i) =>
+          placed.push({ snapshot: s, room: roomId, cell: extra[i] ?? desks[0] }),
+        );
+      }
+      // (seated só documenta lógica; sem uso adicional)
+      void seated;
+    } else {
+      const cells = packPositions(room, rest.length);
+      rest.forEach((s, i) => placed.push({ snapshot: s, room: roomId, cell: cells[i] }));
+    }
+
     if (leader && room.leaderSeat) {
       placed.push({ snapshot: leader, room: roomId, cell: room.leaderSeat });
     }
