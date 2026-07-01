@@ -688,6 +688,7 @@ export type Database = {
           created_at: string
           departamento: string | null
           email: string
+          espelho_geral: boolean
           id: string
           must_change_password: boolean
           nome: string
@@ -699,6 +700,7 @@ export type Database = {
           created_at?: string
           departamento?: string | null
           email: string
+          espelho_geral?: boolean
           id: string
           must_change_password?: boolean
           nome: string
@@ -710,6 +712,7 @@ export type Database = {
           created_at?: string
           departamento?: string | null
           email?: string
+          espelho_geral?: boolean
           id?: string
           must_change_password?: boolean
           nome?: string
@@ -871,6 +874,7 @@ export type Database = {
         }
       }
       agregar_dia: { Args: { p_dia: string }; Returns: undefined }
+      can_espelho_geral: { Args: { _user_id: string }; Returns: boolean }
       decidir_ajuste_jornada: {
         Args: { p_aprovar: boolean; p_id: string; p_justificativa: string }
         Returns: {
