@@ -1,0 +1,1 @@
+UPDATE public.profiles SET departamento = 'diretoria' WHERE id = '21907cdc-16db-424e-95c6-81c2ad6d72a9';
