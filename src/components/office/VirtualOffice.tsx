@@ -159,6 +159,10 @@ export function VirtualOffice({
             />
           ))}
 
+          {/* Decorações da sala de descanso (sinuca, cafeteira, sofá) */}
+          <RestRoomDecor />
+
+
           {/* Avatares */}
           {placed.map(({ snapshot, cell }) => (
             <AnimatedAvatar
@@ -270,5 +274,35 @@ function Legend() {
         </span>
       ))}
     </div>
+  );
+}
+
+/**
+ * Overlay decorativo da sala de Descanso: sinuca, cafeteira, sofá, pufe.
+ * Coordenadas em % (relativas ao palco). A sala fica em x=38..48, y=24..33.
+ */
+function RestRoomDecor() {
+  const items: Array<{ x: number; y: number; label: string; icon: string; size: number }> = [
+    { x: 40.5, y: 60.5, label: "Sinuca",      icon: "🎱", size: 18 },
+    { x: 45.0, y: 58.5, label: "Cafeteira",   icon: "☕", size: 14 },
+    { x: 46.5, y: 63.0, label: "Sofá",        icon: "🛋️", size: 16 },
+    { x: 41.0, y: 66.5, label: "Pufe",        icon: "🫧", size: 12 },
+  ];
+  // Converte célula → %: descanso.x=38 → 79.16%, y=24 → 50%, .. usamos posições
+  // absolutas já em % para simplicidade.
+  return (
+    <>
+      {items.map((d) => (
+        <div
+          key={d.label}
+          aria-hidden
+          title={d.label}
+          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none opacity-80 drop-shadow"
+          style={{ left: `${d.x}%`, top: `${d.y}%`, fontSize: d.size }}
+        >
+          {d.icon}
+        </div>
+      ))}
+    </>
   );
 }
