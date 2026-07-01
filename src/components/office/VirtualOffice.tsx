@@ -95,22 +95,20 @@ export function VirtualOffice({
         </button>
       </div>
 
-      {/* Palco do escritório — mapa pixel-art top-down (planta atualizada) */}
-      {/* Palco do escritório — overflow visível para que os nomes dos avatares
+      {/* Palco do escritório — sem overflow-hidden para que os nomes dos avatares
           externos (borda inferior) não sejam cortados pela moldura. */}
       <div className="relative rounded-2xl border-2 border-foreground/15 bg-black pb-6 shadow-2xl">
         <div className="relative w-full" style={{ aspectRatio: `${WORLD.cols} / ${WORLD.rows}` }}>
-          {/* máscara arredondada só para o fundo (imagem + salas) */}
-          <div className="absolute inset-0 overflow-hidden rounded-t-2xl" aria-hidden />
-          {/* Mapa do escritório (background pixel-art) */}
+          {/* Mapa do escritório (background pixel-art) — arredonda o topo já que a moldura corta ali */}
           <img
             src={officeMap}
             alt=""
             aria-hidden
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full rounded-t-xl object-cover"
             style={{ imageRendering: "pixelated" }}
             loading="lazy"
           />
+
 
           {/* Vinheta sutil nas bordas para dar profundidade */}
           <div
