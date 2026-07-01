@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { aStar, type WalkGrid } from "@/components/office/pathfinding";
-import type { Cell } from "@/components/office/office-config";
+import { roomAt, roomInnerBounds, type Cell } from "@/components/office/office-config";
 
 interface MoveState {
   cx: number;
