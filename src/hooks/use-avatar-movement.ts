@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { aStar, type WalkGrid } from "@/components/office/pathfinding";
-import type { Cell } from "@/components/office/office-config";
+import { roomAt, roomInnerBounds, type Cell } from "@/components/office/office-config";
 
 interface MoveState {
   cx: number;
@@ -107,8 +107,18 @@ export function useAvatarMovement(target: Cell, grid: WalkGrid, speed = 7): Move
       const t = setTimeout(() => {
         if (stop) return;
         if (pathRef.current.length === 0) {
-          const off = () => (Math.random() - 0.5) * 1.4;
-          const wander = { cx: target.cx + off(), cy: target.cy + off() };
+          // Wander pequeno e SEMPRE clamp aos limites internos da sala destino,
+          // pra não escorregar pra fora do setor.
+          const room = roomAt(target.cx, target.cy);
+          const off = () => (Math.random() - 0.5) * 0.6;
+          let wx = target.cx + off();
+          let wy = target.cy + off();
+          if (room) {
+            const b = roomInnerBounds(room);
+            wx = Math.min(b.x1, Math.max(b.x0, wx));
+            wy = Math.min(b.y1, Math.max(b.y0, wy));
+          }
+          const wander = { cx: wx, cy: wy };
           const path = aStar(grid, posRef.current, wander);
           const waypoints = path.slice(1);
           if (waypoints.length > 0) {

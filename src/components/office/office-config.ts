@@ -62,25 +62,25 @@ export interface Room {
 // Coordenadas casam com src/assets/office-map.jpg.
 export const ROOMS: Record<RoomId, Room> = {
   // ===== Fileira 1 (rows 0-16, +2) — SAC/Comercial/Jurídico/Financeiro/Reunião =====
-  recepcao:   { id: "recepcao",   label: "SAC / Recepção",  emoji: "🛎️", x:  0, y:  0, w: 12, h: 16, tint: "var(--color-info)",    leaderSeat: { cx:  2.5, cy:  3.5 }, capacity:  5 },
-  comercial:  { id: "comercial",  label: "Comercial",       emoji: "💼", x: 12, y:  0, w: 10, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 14.5, cy:  3.5 }, capacity:  1 },
-  juridico:   { id: "juridico",   label: "Jurídico",        emoji: "⚖️", x: 22, y:  0, w:  9, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 24.5, cy:  3.5 }, capacity:  1 },
-  financeiro: { id: "financeiro", label: "Financeiro",      emoji: "💰", x: 31, y:  0, w: 11, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 33.5, cy:  3.5 }, capacity:  4 },
+  recepcao:   { id: "recepcao",   label: "SAC / Recepção",  emoji: "🛎️", x:  0, y:  0, w: 12, h: 16, tint: "var(--color-info)",    leaderSeat: { cx:  3.0, cy:  5.0 }, capacity:  5 },
+  comercial:  { id: "comercial",  label: "Comercial",       emoji: "💼", x: 12, y:  0, w: 10, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 15.0, cy:  5.0 }, capacity:  1 },
+  juridico:   { id: "juridico",   label: "Jurídico",        emoji: "⚖️", x: 22, y:  0, w:  9, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 25.0, cy:  5.0 }, capacity:  1 },
+  financeiro: { id: "financeiro", label: "Financeiro",      emoji: "💰", x: 31, y:  0, w: 11, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 34.0, cy:  5.0 }, capacity:  4 },
   reuniao:    { id: "reuniao",    label: "Sala de Reunião", emoji: "📊", x: 42, y:  0, w:  6, h: 16, tint: "var(--color-accent)" },
 
   // ===== Fileira 2 (rows 16-28, +2) — Produção e Refeitório enormes =====
-  producao:   { id: "producao",   label: "Produção de Eventos", emoji: "🎪", x:  0, y: 16, w: 24, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  2.5, cy: 18.5 }, capacity: 20 },
+  producao:   { id: "producao",   label: "Produção de Eventos", emoji: "🎪", x:  0, y: 16, w: 24, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  3.0, cy: 20.5 }, capacity: 20 },
   copa:       { id: "copa",       label: "Copa / Refeitório",   emoji: "🍽️", x: 24, y: 16, w: 24, h: 12, tint: "var(--color-info)" },
 
   // ===== Fileira 3 (rows 28-40, +3) — Espera / TI / Almoxarifado / Marketing / Descanso =====
   espera:        { id: "espera",        label: "Espera",       emoji: "🪑", x:  0, y: 28, w:  5, h: 12, tint: "var(--color-muted-foreground)" },
-  ti:            { id: "ti",            label: "TI",           emoji: "🖥️", x:  5, y: 28, w: 20, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  7.5, cy: 30.5 }, capacity: 6 },
+  ti:            { id: "ti",            label: "TI",           emoji: "🖥️", x:  5, y: 28, w: 20, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  8.0, cy: 32.5 }, capacity: 6 },
   almoxarifado:  { id: "almoxarifado",  label: "Almoxarifado", emoji: "📦", x: 25, y: 28, w:  6, h: 12, tint: "var(--color-success)" },
-  marketing:     { id: "marketing",     label: "Marketing",    emoji: "📣", x: 31, y: 28, w:  7, h: 12, tint: "var(--color-success)", leaderSeat: { cx: 33.0, cy: 30.5 }, capacity: 3 },
+  marketing:     { id: "marketing",     label: "Marketing",    emoji: "📣", x: 31, y: 28, w:  7, h: 12, tint: "var(--color-success)", leaderSeat: { cx: 33.5, cy: 32.5 }, capacity: 3 },
   descanso:      { id: "descanso",      label: "Descanso",     emoji: "☕", x: 38, y: 28, w: 10, h: 12, tint: "var(--color-warning)" },
 
   // ===== Fileira 4 (rows 40-48) — Diretoria (andar executivo, full-width) =====
-  diretoria:   { id: "diretoria",   label: "Diretoria", emoji: "🏛️", x:  0, y: 40, w: 48, h: 8, tint: "var(--color-primary)", leaderSeat: { cx:  3.0, cy: 42.5 } },
+  diretoria:   { id: "diretoria",   label: "Diretoria", emoji: "🏛️", x:  0, y: 40, w: 48, h: 8, tint: "var(--color-primary)", leaderSeat: { cx:  4.0, cy: 44.0 } },
 
   // ===== Áreas externas =====
   estacionamento: { id: "estacionamento", label: "Estacionamento",          emoji: "🅿️", x: 0, y: 48, w: 48, h: 4, tint: "var(--color-muted-foreground)" },
@@ -252,12 +252,15 @@ export interface Cell {
  */
 export function packPositions(room: Room, count: number): Cell[] {
   if (count <= 0) return [];
-  const padX = Math.min(1.5, room.w / 4);
-  const padY = Math.min(1.5, room.h / 4);
+  // Margem generosa para manter mesas/avatares bem dentro das paredes do setor
+  // (evita que sprites transbordem para o corredor).
+  const padX = Math.max(1.2, Math.min(2.5, room.w / 6));
+  const padY = Math.max(1.2, Math.min(2.5, room.h / 6));
+  const labelPad = 1.6; // reserva topo para a placa "Nome — nº"
   const innerX = room.x + padX;
-  const innerY = room.y + padY + 0.6; // espaço p/ rótulo no topo
-  const innerW = room.w - padX * 2;
-  const innerH = room.h - padY * 2 - 0.6;
+  const innerY = room.y + padY + labelPad;
+  const innerW = Math.max(1, room.w - padX * 2);
+  const innerH = Math.max(1, room.h - padY * 2 - labelPad);
   const cols = Math.max(1, Math.min(count, Math.ceil(Math.sqrt(count * (innerW / innerH)))));
   const rows = Math.ceil(count / cols);
   const stepX = innerW / cols;
@@ -275,6 +278,28 @@ export function packPositions(room: Room, count: number): Cell[] {
     });
   }
   return cells;
+}
+
+/** Limites internos "seguros" de uma sala (após padding), para clamp de wander. */
+export function roomInnerBounds(room: Room): { x0: number; y0: number; x1: number; y1: number } {
+  const padX = Math.max(1.2, Math.min(2.5, room.w / 6));
+  const padY = Math.max(1.2, Math.min(2.5, room.h / 6));
+  const labelPad = 1.6;
+  return {
+    x0: room.x + padX,
+    y0: room.y + padY + labelPad,
+    x1: room.x + room.w - padX,
+    y1: room.y + room.h - padY,
+  };
+}
+
+/** Descobre a sala que contém uma célula (varredura simples). */
+export function roomAt(cx: number, cy: number): Room | null {
+  for (const id of ROOM_ORDER) {
+    const r = ROOMS[id];
+    if (cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) return r;
+  }
+  return null;
 }
 
 /** Hash estável de string → inteiro (para ordenar/semear posições). */
