@@ -163,6 +163,14 @@ const DEPT_TO_ROOM: Record<string, RoomId> = {
   recepcao: "recepcao",
   recepção: "recepcao",
   atendimento: "recepcao",
+  diretoria: "diretoria",
+  diretor: "diretoria",
+  direcao: "diretoria",
+  direção: "diretoria",
+  rh: "rh",
+  "recursos humanos": "rh",
+  treinamento: "treinamento",
+  "sala de treinamento": "treinamento",
 };
 
 /** Opções canônicas de departamento (valor salvo em profiles.departamento). */
@@ -175,6 +183,9 @@ export const DEPARTAMENTOS: Array<{ value: string; label: string }> = [
   { value: "almoxarifado", label: "Almoxarifado" },
   { value: "marketing", label: "Marketing" },
   { value: "sac", label: "SAC / Recepção" },
+  { value: "diretoria", label: "Diretoria" },
+  { value: "rh", label: "RH" },
+  { value: "treinamento", label: "Treinamento" },
 ];
 
 function deptRoom(dep: string | null | undefined): RoomId | null {
