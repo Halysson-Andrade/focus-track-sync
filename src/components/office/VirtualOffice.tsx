@@ -282,30 +282,79 @@ function Legend() {
 
 /**
  * Overlay decorativo da sala de Descanso: sinuca, cafeteira, sofá, pufe.
- * Coordenadas em % (relativas ao palco). A sala fica em x=38..48, y=24..33.
+ * Posicionado em CÉLULAS (independente do tamanho do mundo). A sala
+ * fica em x=38..48, y=24..33.
  */
 function RestRoomDecor() {
-  const items: Array<{ x: number; y: number; label: string; icon: string; size: number }> = [
-    { x: 40.5, y: 60.5, label: "Sinuca",      icon: "🎱", size: 18 },
-    { x: 45.0, y: 58.5, label: "Cafeteira",   icon: "☕", size: 14 },
-    { x: 46.5, y: 63.0, label: "Sofá",        icon: "🛋️", size: 16 },
-    { x: 41.0, y: 66.5, label: "Pufe",        icon: "🫧", size: 12 },
+  const items: Array<{ cx: number; cy: number; label: string; icon: string; size: number }> = [
+    { cx: 40, cy: 27, label: "Sinuca",    icon: "🎱", size: 20 },
+    { cx: 43, cy: 27, label: "Sinuca",    icon: "🎱", size: 12 },
+    { cx: 45.5, cy: 26, label: "Cafeteira", icon: "☕", size: 16 },
+    { cx: 46, cy: 30, label: "Sofá",      icon: "🛋️", size: 18 },
+    { cx: 40, cy: 31, label: "Pufe",      icon: "🫧", size: 12 },
+    { cx: 42, cy: 31, label: "Vaso",      icon: "🪴", size: 12 },
   ];
-  // Converte célula → %: descanso.x=38 → 79.16%, y=24 → 50%, .. usamos posições
-  // absolutas já em % para simplicidade.
   return (
     <>
-      {items.map((d) => (
-        <div
-          key={d.label}
-          aria-hidden
-          title={d.label}
-          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none opacity-80 drop-shadow"
-          style={{ left: `${d.x}%`, top: `${d.y}%`, fontSize: d.size }}
-        >
-          {d.icon}
-        </div>
-      ))}
+      {items.map((d, i) => {
+        const p = pct({ cx: d.cx, cy: d.cy });
+        return (
+          <div
+            key={`${d.label}-${i}`}
+            aria-hidden
+            title={d.label}
+            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none opacity-85 drop-shadow"
+            style={{ left: `${p.x}%`, top: `${p.y}%`, fontSize: d.size }}
+          >
+            {d.icon}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * Marca visual de cada mesa (colaboradores) e da mesa exclusiva do líder
+ * dentro das salas. Usa as MESMAS posições de `desksFor(room)` +
+ * `room.leaderSeat` que o `placeAvatars` usa — assim mesa e avatar
+ * coincidem. Puramente decorativo (pointer-events off).
+ */
+function DesksLayer() {
+  return (
+    <>
+      {ROOM_ORDER.map((id) => {
+        const room = ROOMS[id];
+        const desks = desksFor(room);
+        return (
+          <div key={`desks-${id}`}>
+            {desks.map((c, i) => {
+              const p = pct(c);
+              return (
+                <div
+                  key={`d-${id}-${i}`}
+                  aria-hidden
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-foreground/25 bg-foreground/10 shadow-sm"
+                  style={{ left: `${p.x}%`, top: `${p.y}%`, width: 18, height: 12 }}
+                />
+              );
+            })}
+            {room.leaderSeat && (() => {
+              const p = pct(room.leaderSeat);
+              return (
+                <div
+                  aria-hidden
+                  title={`Mesa do líder — ${room.label}`}
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center rounded-[4px] border border-primary/60 bg-primary/15 shadow-md ring-1 ring-primary/40"
+                  style={{ left: `${p.x}%`, top: `${p.y}%`, width: 22, height: 16 }}
+                >
+                  <span className="text-[8px] leading-none">👑</span>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })}
     </>
   );
 }
