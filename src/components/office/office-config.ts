@@ -12,7 +12,7 @@
 
 import type { UserSnapshot } from "@/lib/operacional-snapshot";
 
-export const WORLD = { cols: 48, rows: 60 };
+export const WORLD = { cols: 48, rows: 56 };
 
 export type RoomId =
   | "recepcao"
@@ -28,8 +28,6 @@ export type RoomId =
   | "copa"
   | "descanso"
   | "diretoria"
-  | "rh"
-  | "treinamento"
   | "estacionamento"
   | "externa";
 
@@ -58,59 +56,54 @@ export interface Room {
   capacity?: number;
 }
 
-// Layout reformado (world 48×60): 4 fileiras de departamentos + refeitório
-// central + descanso + área externa (estacionamento + jardim). Cada setor
-// tem `capacity` = nº aproximado de mesas (informado pelo cliente) e
-// `leaderSeat` = mesa exclusiva do líder no canto da sala.
+// Layout reformado (world 48×56): salas maiores, mais ar entre mesas.
+// 3 fileiras de departamentos + refeitório + descanso + andar executivo
+// (Diretoria full-width) + área externa (estacionamento + jardim).
 // Coordenadas casam com src/assets/office-map.jpg.
 export const ROOMS: Record<RoomId, Room> = {
-  // ===== Fileira 1 (rows 0-14) — SAC/Comercial/Jurídico/Financeiro/Reunião =====
-  recepcao:   { id: "recepcao",   label: "SAC / Recepção",  emoji: "🛎️", x:  0, y:  0, w: 12, h: 14, tint: "var(--color-info)",    leaderSeat: { cx:  2.5, cy:  2.5 }, capacity:  5 },
-  comercial:  { id: "comercial",  label: "Comercial",       emoji: "💼", x: 12, y:  0, w: 10, h: 14, tint: "var(--color-success)", leaderSeat: { cx: 14.5, cy:  2.5 }, capacity:  1 },
-  juridico:   { id: "juridico",   label: "Jurídico",        emoji: "⚖️", x: 22, y:  0, w:  9, h: 14, tint: "var(--color-success)", leaderSeat: { cx: 24.5, cy:  2.5 }, capacity:  1 },
-  financeiro: { id: "financeiro", label: "Financeiro",      emoji: "💰", x: 31, y:  0, w: 11, h: 14, tint: "var(--color-success)", leaderSeat: { cx: 33.5, cy:  2.5 }, capacity:  4 },
-  reuniao:    { id: "reuniao",    label: "Sala de Reunião", emoji: "📊", x: 42, y:  0, w:  6, h: 14, tint: "var(--color-accent)" },
+  // ===== Fileira 1 (rows 0-16, +2) — SAC/Comercial/Jurídico/Financeiro/Reunião =====
+  recepcao:   { id: "recepcao",   label: "SAC / Recepção",  emoji: "🛎️", x:  0, y:  0, w: 12, h: 16, tint: "var(--color-info)",    leaderSeat: { cx:  2.5, cy:  3.5 }, capacity:  5 },
+  comercial:  { id: "comercial",  label: "Comercial",       emoji: "💼", x: 12, y:  0, w: 10, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 14.5, cy:  3.5 }, capacity:  1 },
+  juridico:   { id: "juridico",   label: "Jurídico",        emoji: "⚖️", x: 22, y:  0, w:  9, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 24.5, cy:  3.5 }, capacity:  1 },
+  financeiro: { id: "financeiro", label: "Financeiro",      emoji: "💰", x: 31, y:  0, w: 11, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 33.5, cy:  3.5 }, capacity:  4 },
+  reuniao:    { id: "reuniao",    label: "Sala de Reunião", emoji: "📊", x: 42, y:  0, w:  6, h: 16, tint: "var(--color-accent)" },
 
-  // ===== Fileira 2 (rows 14-24) — Produção e Refeitório enormes =====
-  producao:   { id: "producao",   label: "Produção de Eventos", emoji: "🎪", x:  0, y: 14, w: 24, h: 10, tint: "var(--color-success)", leaderSeat: { cx:  2.5, cy: 16.5 }, capacity: 20 },
-  copa:       { id: "copa",       label: "Copa / Refeitório",   emoji: "🍽️", x: 24, y: 14, w: 24, h: 10, tint: "var(--color-info)" },
+  // ===== Fileira 2 (rows 16-28, +2) — Produção e Refeitório enormes =====
+  producao:   { id: "producao",   label: "Produção de Eventos", emoji: "🎪", x:  0, y: 16, w: 24, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  2.5, cy: 18.5 }, capacity: 20 },
+  copa:       { id: "copa",       label: "Copa / Refeitório",   emoji: "🍽️", x: 24, y: 16, w: 24, h: 12, tint: "var(--color-info)" },
 
-  // ===== Fileira 3 (rows 24-33) — Espera / TI / Almoxarifado / Marketing / Descanso =====
-  espera:        { id: "espera",        label: "Espera",       emoji: "🪑", x:  0, y: 24, w:  5, h:  9, tint: "var(--color-muted-foreground)" },
-  ti:            { id: "ti",            label: "TI",           emoji: "🖥️", x:  5, y: 24, w: 20, h:  9, tint: "var(--color-success)", leaderSeat: { cx:  7.5, cy: 26.0 }, capacity: 6 },
-  almoxarifado:  { id: "almoxarifado",  label: "Almoxarifado", emoji: "📦", x: 25, y: 24, w:  6, h:  9, tint: "var(--color-success)" },
-  marketing:     { id: "marketing",     label: "Marketing",    emoji: "📣", x: 31, y: 24, w:  7, h:  9, tint: "var(--color-success)", leaderSeat: { cx: 33.0, cy: 26.0 }, capacity: 3 },
-  descanso:      { id: "descanso",      label: "Descanso",     emoji: "☕", x: 38, y: 24, w: 10, h:  9, tint: "var(--color-warning)" },
+  // ===== Fileira 3 (rows 28-40, +3) — Espera / TI / Almoxarifado / Marketing / Descanso =====
+  espera:        { id: "espera",        label: "Espera",       emoji: "🪑", x:  0, y: 28, w:  5, h: 12, tint: "var(--color-muted-foreground)" },
+  ti:            { id: "ti",            label: "TI",           emoji: "🖥️", x:  5, y: 28, w: 20, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  7.5, cy: 30.5 }, capacity: 6 },
+  almoxarifado:  { id: "almoxarifado",  label: "Almoxarifado", emoji: "📦", x: 25, y: 28, w:  6, h: 12, tint: "var(--color-success)" },
+  marketing:     { id: "marketing",     label: "Marketing",    emoji: "📣", x: 31, y: 28, w:  7, h: 12, tint: "var(--color-success)", leaderSeat: { cx: 33.0, cy: 30.5 }, capacity: 3 },
+  descanso:      { id: "descanso",      label: "Descanso",     emoji: "☕", x: 38, y: 28, w: 10, h: 12, tint: "var(--color-warning)" },
 
-  // ===== Fileira 4 (rows 33-45) — NOVA: Diretoria / RH / Treinamento =====
-  diretoria:   { id: "diretoria",   label: "Diretoria",   emoji: "🏛️", x:  0, y: 33, w: 18, h: 12, tint: "var(--color-primary)", leaderSeat: { cx:  2.5, cy: 35.5 } },
-  rh:          { id: "rh",          label: "RH",          emoji: "🤝", x: 18, y: 33, w: 14, h: 12, tint: "var(--color-info)" },
-  treinamento: { id: "treinamento", label: "Treinamento", emoji: "🎓", x: 32, y: 33, w: 16, h: 12, tint: "var(--color-accent)" },
+  // ===== Fileira 4 (rows 40-48) — Diretoria (andar executivo, full-width) =====
+  diretoria:   { id: "diretoria",   label: "Diretoria", emoji: "🏛️", x:  0, y: 40, w: 48, h: 8, tint: "var(--color-primary)", leaderSeat: { cx:  3.0, cy: 42.5 } },
 
   // ===== Áreas externas =====
-  estacionamento: { id: "estacionamento", label: "Estacionamento",          emoji: "🅿️", x: 0, y: 45, w: 48, h:  5, tint: "var(--color-muted-foreground)" },
-  externa:        { id: "externa",        label: "Jardim / Fora do prédio", emoji: "🌳", x: 0, y: 50, w: 48, h: 10, tint: "var(--color-success)" },
+  estacionamento: { id: "estacionamento", label: "Estacionamento",          emoji: "🅿️", x: 0, y: 48, w: 48, h: 4, tint: "var(--color-muted-foreground)" },
+  externa:        { id: "externa",        label: "Jardim / Fora do prédio", emoji: "🌳", x: 0, y: 52, w: 48, h: 4, tint: "var(--color-success)" },
 };
 
 // Portas: células do perímetro que permanecem caminháveis (ligam a sala ao
 // corredor/sala adjacente). O restante do perímetro vira parede.
 export const DOORS: Record<RoomId, Cell[]> = {
-  recepcao:       [{ cx:  6, cy: 14 }],
-  comercial:      [{ cx: 17, cy: 14 }],
-  juridico:       [{ cx: 26, cy: 14 }],
-  financeiro:     [{ cx: 36, cy: 14 }],
-  reuniao:        [{ cx: 45, cy: 14 }],
-  producao:       [{ cx: 12, cy: 24 }],
-  copa:           [{ cx: 36, cy: 24 }],
-  espera:         [{ cx:  2, cy: 24 }],
-  ti:             [{ cx: 15, cy: 24 }, { cx: 15, cy: 33 }],
-  almoxarifado:   [{ cx: 28, cy: 24 }],
-  marketing:      [{ cx: 34, cy: 24 }, { cx: 34, cy: 33 }],
-  descanso:       [{ cx: 42, cy: 24 }],
-  diretoria:      [{ cx:  9, cy: 33 }, { cx:  9, cy: 45 }],
-  rh:             [{ cx: 25, cy: 33 }, { cx: 25, cy: 45 }],
-  treinamento:    [{ cx: 40, cy: 33 }, { cx: 40, cy: 45 }],
-  estacionamento: [{ cx: 24, cy: 45 }],
+  recepcao:       [{ cx:  6, cy: 16 }],
+  comercial:      [{ cx: 17, cy: 16 }],
+  juridico:       [{ cx: 26, cy: 16 }],
+  financeiro:     [{ cx: 36, cy: 16 }],
+  reuniao:        [{ cx: 45, cy: 16 }],
+  producao:       [{ cx: 12, cy: 28 }],
+  copa:           [{ cx: 36, cy: 28 }],
+  espera:         [{ cx:  2, cy: 28 }],
+  ti:             [{ cx: 15, cy: 28 }, { cx: 15, cy: 40 }],
+  almoxarifado:   [{ cx: 28, cy: 28 }],
+  marketing:      [{ cx: 34, cy: 28 }, { cx: 34, cy: 40 }],
+  descanso:       [{ cx: 42, cy: 28 }],
+  diretoria:      [{ cx: 12, cy: 40 }, { cx: 36, cy: 40 }, { cx: 24, cy: 48 }],
+  estacionamento: [{ cx: 24, cy: 48 }],
   externa:        [],
 };
 
@@ -131,8 +124,6 @@ export const ROOM_ORDER: RoomId[] = [
   "copa",
   "descanso",
   "diretoria",
-  "rh",
-  "treinamento",
   "estacionamento",
   "externa",
 ];
