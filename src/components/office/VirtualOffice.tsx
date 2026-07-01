@@ -159,6 +159,10 @@ export function VirtualOffice({
             />
           ))}
 
+          {/* Decorações da sala de descanso (sinuca, cafeteira, sofá) */}
+          <RestRoomDecor />
+
+
           {/* Avatares */}
           {placed.map(({ snapshot, cell }) => (
             <AnimatedAvatar
