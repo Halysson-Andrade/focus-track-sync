@@ -107,9 +107,9 @@ export const DOORS: Record<RoomId, Cell[]> = {
   almoxarifado:   [{ cx: 28, cy: 24 }],
   marketing:      [{ cx: 34, cy: 24 }, { cx: 34, cy: 33 }],
   descanso:       [{ cx: 42, cy: 24 }],
-  diretoria:      [{ cx:  9, cy: 45 }],
-  rh:             [{ cx: 25, cy: 45 }],
-  treinamento:    [{ cx: 40, cy: 45 }],
+  diretoria:      [{ cx:  9, cy: 33 }, { cx:  9, cy: 45 }],
+  rh:             [{ cx: 25, cy: 33 }, { cx: 25, cy: 45 }],
+  treinamento:    [{ cx: 40, cy: 33 }, { cx: 40, cy: 45 }],
   estacionamento: [{ cx: 24, cy: 45 }],
   externa:        [],
 };
