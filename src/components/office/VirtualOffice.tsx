@@ -283,16 +283,17 @@ function Legend() {
 /**
  * Overlay decorativo da sala de Descanso: sinuca, cafeteira, sofá, pufe.
  * Posicionado em CÉLULAS (independente do tamanho do mundo). A sala
- * fica em x=38..48, y=24..33.
+ * fica em x=38..48, y=28..40.
  */
 function RestRoomDecor() {
   const items: Array<{ cx: number; cy: number; label: string; icon: string; size: number }> = [
-    { cx: 40, cy: 27, label: "Sinuca",    icon: "🎱", size: 20 },
-    { cx: 43, cy: 27, label: "Sinuca",    icon: "🎱", size: 12 },
-    { cx: 45.5, cy: 26, label: "Cafeteira", icon: "☕", size: 16 },
-    { cx: 46, cy: 30, label: "Sofá",      icon: "🛋️", size: 18 },
-    { cx: 40, cy: 31, label: "Pufe",      icon: "🫧", size: 12 },
-    { cx: 42, cy: 31, label: "Vaso",      icon: "🪴", size: 12 },
+    { cx: 40,   cy: 31, label: "Sinuca",    icon: "🎱", size: 22 },
+    { cx: 43,   cy: 31, label: "Sinuca",    icon: "🎱", size: 14 },
+    { cx: 45.5, cy: 30, label: "Cafeteira", icon: "☕", size: 18 },
+    { cx: 46,   cy: 35, label: "Sofá",      icon: "🛋️", size: 20 },
+    { cx: 40,   cy: 36, label: "Pufe",      icon: "🫧", size: 14 },
+    { cx: 42,   cy: 36, label: "Vaso",      icon: "🪴", size: 14 },
+    { cx: 44,   cy: 38, label: "TV",        icon: "📺", size: 14 },
   ];
   return (
     <>
