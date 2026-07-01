@@ -346,11 +346,9 @@ function DesksLayer() {
                 <div
                   aria-hidden
                   title={`Mesa do líder — ${room.label}`}
-                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center rounded-[4px] border border-primary/60 bg-primary/15 shadow-md ring-1 ring-primary/40"
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-[4px] border border-primary/60 bg-primary/15 shadow-md ring-1 ring-primary/40"
                   style={{ left: `${p.x}%`, top: `${p.y}%`, width: 22, height: 16 }}
-                >
-                  <span className="text-[8px] leading-none">👑</span>
-                </div>
+                />
               );
             })()}
           </div>
