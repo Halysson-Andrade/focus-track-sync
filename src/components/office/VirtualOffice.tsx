@@ -9,6 +9,7 @@ import {
   ROOMS,
   WORLD,
   densityByRoom,
+  desksFor,
   placeAvatars,
   type Cell,
   type Room,
