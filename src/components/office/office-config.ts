@@ -60,24 +60,27 @@ export interface Room {
 // 3 fileiras de departamentos + refeitório + descanso + andar executivo
 // (Diretoria full-width) + área externa (estacionamento + jardim).
 // Coordenadas casam com src/assets/office-map.jpg.
+// IMPORTANTE: as coordenadas x/w abaixo estão CALIBRADAS às paredes desenhadas
+// em src/assets/office-map.jpg (1024×1216). Alterar sem re-medir o mapa faz
+// avatares "vazarem" para o setor vizinho.
 export const ROOMS: Record<RoomId, Room> = {
-  // ===== Fileira 1 (rows 0-16, +2) — SAC/Comercial/Jurídico/Financeiro/Reunião =====
-  recepcao:   { id: "recepcao",   label: "SAC / Recepção",  emoji: "🛎️", x:  0, y:  0, w: 12, h: 16, tint: "var(--color-info)",    leaderSeat: { cx:  3.0, cy:  5.0 }, capacity:  8 },
-  comercial:  { id: "comercial",  label: "Comercial",       emoji: "💼", x: 12, y:  0, w: 10, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 15.0, cy:  5.0 }, capacity:  4 },
-  juridico:   { id: "juridico",   label: "Jurídico",        emoji: "⚖️", x: 22, y:  0, w:  9, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 25.0, cy:  5.0 }, capacity:  3 },
-  financeiro: { id: "financeiro", label: "Financeiro",      emoji: "💰", x: 31, y:  0, w: 11, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 34.0, cy:  5.0 }, capacity:  6 },
-  reuniao:    { id: "reuniao",    label: "Sala de Reunião", emoji: "📊", x: 42, y:  0, w:  6, h: 16, tint: "var(--color-accent)" },
+  // ===== Fileira 1 (rows 0-16) — SAC/Comercial/Jurídico/Financeiro/Reunião =====
+  recepcao:   { id: "recepcao",   label: "SAC / Recepção",  emoji: "🛎️", x:  0, y:  0, w:  9, h: 16, tint: "var(--color-info)",    leaderSeat: { cx:  3.0, cy:  5.0 }, capacity:  6 },
+  comercial:  { id: "comercial",  label: "Comercial",       emoji: "💼", x:  9, y:  0, w:  7, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 11.5, cy:  5.0 }, capacity:  4 },
+  juridico:   { id: "juridico",   label: "Jurídico",        emoji: "⚖️", x: 16, y:  0, w: 14, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 20.0, cy:  5.0 }, capacity:  6 },
+  financeiro: { id: "financeiro", label: "Financeiro",      emoji: "💰", x: 30, y:  0, w:  9, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 33.0, cy:  5.0 }, capacity:  6 },
+  reuniao:    { id: "reuniao",    label: "Sala de Reunião", emoji: "📊", x: 39, y:  0, w:  9, h: 16, tint: "var(--color-accent)" },
 
-  // ===== Fileira 2 (rows 16-28, +2) — Produção e Refeitório enormes =====
-  producao:   { id: "producao",   label: "Produção de Eventos", emoji: "🎪", x:  0, y: 16, w: 24, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  3.0, cy: 20.5 }, capacity: 24 },
-  copa:       { id: "copa",       label: "Copa / Refeitório",   emoji: "🍽️", x: 24, y: 16, w: 24, h: 12, tint: "var(--color-info)" },
+  // ===== Fileira 2 (rows 16-28) — Produção e Refeitório =====
+  producao:   { id: "producao",   label: "Produção de Eventos", emoji: "🎪", x:  0, y: 16, w: 22, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  3.0, cy: 20.5 }, capacity: 20 },
+  copa:       { id: "copa",       label: "Copa / Refeitório",   emoji: "🍽️", x: 22, y: 16, w: 26, h: 12, tint: "var(--color-info)" },
 
-  // ===== Fileira 3 (rows 28-40, +3) — Espera / TI / Almoxarifado / Marketing / Descanso =====
+  // ===== Fileira 3 (rows 28-40) — Espera / TI / Almoxarifado / Marketing / Descanso =====
   espera:        { id: "espera",        label: "Espera",       emoji: "🪑", x:  0, y: 28, w:  5, h: 12, tint: "var(--color-muted-foreground)" },
-  ti:            { id: "ti",            label: "TI",           emoji: "🖥️", x:  5, y: 28, w: 20, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  8.0, cy: 32.5 }, capacity: 10 },
-  almoxarifado:  { id: "almoxarifado",  label: "Almoxarifado", emoji: "📦", x: 25, y: 28, w:  6, h: 12, tint: "var(--color-success)" },
-  marketing:     { id: "marketing",     label: "Marketing",    emoji: "📣", x: 31, y: 28, w:  7, h: 12, tint: "var(--color-success)", leaderSeat: { cx: 33.5, cy: 32.5 }, capacity: 5 },
-  descanso:      { id: "descanso",      label: "Descanso",     emoji: "☕", x: 38, y: 28, w: 10, h: 12, tint: "var(--color-warning)" },
+  ti:            { id: "ti",            label: "TI",           emoji: "🖥️", x:  5, y: 28, w: 16, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  8.0, cy: 32.5 }, capacity:  8 },
+  almoxarifado:  { id: "almoxarifado",  label: "Almoxarifado", emoji: "📦", x: 21, y: 28, w:  6, h: 12, tint: "var(--color-success)" },
+  marketing:     { id: "marketing",     label: "Marketing",    emoji: "📣", x: 27, y: 28, w: 10, h: 12, tint: "var(--color-success)", leaderSeat: { cx: 30.0, cy: 32.5 }, capacity: 5 },
+  descanso:      { id: "descanso",      label: "Descanso",     emoji: "☕", x: 37, y: 28, w: 11, h: 12, tint: "var(--color-warning)" },
 
   // ===== Fileira 4 (rows 40-48) — Diretoria (andar executivo, full-width) =====
   diretoria:   { id: "diretoria",   label: "Diretoria", emoji: "🏛️", x:  0, y: 40, w: 48, h: 8, tint: "var(--color-primary)", leaderSeat: { cx:  4.0, cy: 44.0 }, capacity: 6 },
