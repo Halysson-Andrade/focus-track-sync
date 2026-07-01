@@ -289,9 +289,25 @@ export function placeAvatars(snapshots: UserSnapshot[]): PlacedAvatar[] {
   }
   const placed: PlacedAvatar[] = [];
   for (const [roomId, arr] of byRoom) {
-    arr.sort((a, b) => hashId(a.profile.id) - hashId(b.profile.id));
-    const cells = packPositions(ROOMS[roomId], arr.length);
-    arr.forEach((s, i) => placed.push({ snapshot: s, room: roomId, cell: cells[i] }));
+    const room = ROOMS[roomId];
+    // Separa o líder (admin) — se a sala tem `leaderSeat`, ele senta lá.
+    // Só um líder por sala (o de menor hash, para ficar estável).
+    let leader: UserSnapshot | null = null;
+    let rest = arr;
+    if (room.leaderSeat) {
+      const admins = arr.filter((s) => s.isAdmin);
+      if (admins.length > 0) {
+        admins.sort((a, b) => hashId(a.profile.id) - hashId(b.profile.id));
+        leader = admins[0];
+        rest = arr.filter((s) => s.profile.id !== leader!.profile.id);
+      }
+    }
+    rest.sort((a, b) => hashId(a.profile.id) - hashId(b.profile.id));
+    const cells = packPositions(room, rest.length);
+    rest.forEach((s, i) => placed.push({ snapshot: s, room: roomId, cell: cells[i] }));
+    if (leader && room.leaderSeat) {
+      placed.push({ snapshot: leader, room: roomId, cell: room.leaderSeat });
+    }
   }
   return placed;
 }
