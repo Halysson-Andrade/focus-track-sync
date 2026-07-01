@@ -252,12 +252,15 @@ export interface Cell {
  */
 export function packPositions(room: Room, count: number): Cell[] {
   if (count <= 0) return [];
-  const padX = Math.min(1.5, room.w / 4);
-  const padY = Math.min(1.5, room.h / 4);
+  // Margem generosa para manter mesas/avatares bem dentro das paredes do setor
+  // (evita que sprites transbordem para o corredor).
+  const padX = Math.max(1.2, Math.min(2.5, room.w / 6));
+  const padY = Math.max(1.2, Math.min(2.5, room.h / 6));
+  const labelPad = 1.6; // reserva topo para a placa "Nome — nº"
   const innerX = room.x + padX;
-  const innerY = room.y + padY + 0.6; // espaço p/ rótulo no topo
-  const innerW = room.w - padX * 2;
-  const innerH = room.h - padY * 2 - 0.6;
+  const innerY = room.y + padY + labelPad;
+  const innerW = Math.max(1, room.w - padX * 2);
+  const innerH = Math.max(1, room.h - padY * 2 - labelPad);
   const cols = Math.max(1, Math.min(count, Math.ceil(Math.sqrt(count * (innerW / innerH)))));
   const rows = Math.ceil(count / cols);
   const stepX = innerW / cols;
@@ -275,6 +278,28 @@ export function packPositions(room: Room, count: number): Cell[] {
     });
   }
   return cells;
+}
+
+/** Limites internos "seguros" de uma sala (após padding), para clamp de wander. */
+export function roomInnerBounds(room: Room): { x0: number; y0: number; x1: number; y1: number } {
+  const padX = Math.max(1.2, Math.min(2.5, room.w / 6));
+  const padY = Math.max(1.2, Math.min(2.5, room.h / 6));
+  const labelPad = 1.6;
+  return {
+    x0: room.x + padX,
+    y0: room.y + padY + labelPad,
+    x1: room.x + room.w - padX,
+    y1: room.y + room.h - padY,
+  };
+}
+
+/** Descobre a sala que contém uma célula (varredura simples). */
+export function roomAt(cx: number, cy: number): Room | null {
+  for (const id of ROOM_ORDER) {
+    const r = ROOMS[id];
+    if (cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) return r;
+  }
+  return null;
 }
 
 /** Hash estável de string → inteiro (para ordenar/semear posições). */
