@@ -79,6 +79,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      // Reforça o "não traduzir" para o Google/Chrome (evita o crash de removeChild
+      // provocado pela tradução automática reescrevendo os nós de texto).
+      { name: "google", content: "notranslate" },
       { title: "GwTimer" },
       {
         name: "description",
@@ -126,8 +129,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  // `translate="no"` + lang correto (pt-BR): desliga a tradução automática do
+  // Chrome. A tradução substitui os nós de texto por <font>, e o React quebra
+  // com "removeChild ... not a child of this node" ao reconciliar a árvore
+  // (ex.: troca de layout por papel). App interno em pt-BR — não há o que traduzir.
   return (
-    <html lang="en">
+    <html lang="pt-BR" translate="no">
       <head>
         <HeadContent />
       </head>
