@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { isNetworkError, isTimeoutError, withRetry } from "@/lib/async-timeout";
+import { isNetworkError, isTimeoutError, withTimeout } from "@/lib/async-timeout";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Entrar — Controle de Atividade" }] }),
@@ -30,10 +30,15 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  // Modo degradado: timeout/rede persistentes => tela de reconexão com
-  // auto-retry, em vez do toast vermelho que parece bug do app.
+  // Modo degradado: mostra tela de reconexão manual (sem auto-retry — o retry
+  // automático causava POSTs paralelos porque withTimeout não aborta o fetch
+  // subjacente do SDK do Supabase).
   const [degraded, setDegraded] = useState(false);
-  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Dedup: garante que só UMA chamada de signInWithPassword esteja em voo, mesmo
+  // com re-renders, duplo-clique ou submits repetidos. useState/loading não é
+  // suficiente porque o setState é assíncrono e a segunda submissão pode entrar
+  // no handler antes do primeiro re-render desabilitar o botão.
+  const inflight = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -41,33 +46,23 @@ function AuthPage() {
     });
   }, [router]);
 
-  const clearRetry = () => {
-    if (retryTimer.current) {
-      clearTimeout(retryTimer.current);
-      retryTimer.current = null;
-    }
-  };
-  useEffect(() => clearRetry, []);
-
   const attemptLogin = useCallback(async () => {
-    clearRetry();
+    if (inflight.current) return;
+    inflight.current = true;
     setLoading(true);
     try {
-      // withRetry só re-tenta timeout/rede (curto prazo). Credenciais inválidas
-      // resolvem com { error } (sem throw) => NÃO são re-tentadas aqui.
-      const { error } = await withRetry(
-        () => supabase.auth.signInWithPassword({ email, password }),
-        {
-          timeoutMs: 12_000,
-          retries: 2,
-          message: "Tempo esgotado ao conectar com a autenticação.",
-        },
+      // UMA chamada, timeout generoso (25s). Sem retry — o SDK do Supabase não
+      // expõe AbortController, então um "timeout" no cliente não cancela o
+      // fetch: retentar dispara POSTs paralelos.
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        25_000,
+        "Tempo esgotado ao conectar com a autenticação.",
       );
       if (error) throw error;
       setDegraded(false);
       router.navigate({ to: "/" });
     } catch (err) {
-      // Loga a causa REAL — antes o erro era engolido e ficava indiagnosticável.
       console.error("[auth] signIn falhou", {
         name: (err as Error)?.name,
         message: (err as Error)?.message,
@@ -75,15 +70,13 @@ function AuthPage() {
       });
       const { kind, message } = classifyError(err);
       if (kind === "timeout" || kind === "network") {
-        // Instabilidade persistente: entra em modo degradado e agenda auto-retry
-        // com backoff curto + jitter (não martela o backend saturado).
         setDegraded(true);
-        retryTimer.current = setTimeout(() => void attemptLogin(), 4_000 + Math.random() * 3_000);
       } else {
         setDegraded(false);
         toast.error(message);
       }
     } finally {
+      inflight.current = false;
       setLoading(false);
     }
   }, [email, password, router]);
@@ -94,9 +87,9 @@ function AuthPage() {
   };
 
   const cancelDegraded = () => {
-    clearRetry();
     setDegraded(false);
   };
+
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
