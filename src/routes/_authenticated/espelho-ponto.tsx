@@ -19,6 +19,7 @@ import {
   type Feriado,
 } from "@/lib/jornada-padrao";
 import { gerarEspelhoPDF } from "@/lib/espelho-pdf";
+import { gerarEspelhoExcel } from "@/lib/espelho-excel";
 import {
   formatDate,
   formatDuration,
@@ -45,7 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Users, Clock } from "lucide-react";
+import { FileText, Users, Clock, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 
 // Acesso por papel: a página é acessível a qualquer autenticado (o pai
@@ -237,10 +238,25 @@ function EspelhoPontoPage() {
     gerarEspelhoPDF([e], `espelho-${nome}-${de}-a-${ate}.pdf`, [calcDe(e, usuarioId)]);
   };
 
-  const exportarSetor = async () => {
+  // Rótulo do escopo atual (setor/equipe) para nomear arquivos de lote.
+  const nomeEscopo = () =>
+    adminPuro
+      ? myDept || "minha-equipe"
+      : setor === "all"
+        ? "todos"
+        : (DEPARTAMENTOS.find((d) => d.value === setor)?.value ?? setor);
+
+  // Carrega o espelho + apuração de todos os colaboradores visíveis (com toast de
+  // progresso). Compartilhado pelas exportações em lote (PDF por setor e Excel).
+  const coletarLote = async (): Promise<{
+    espelhos: EspelhoData[];
+    calculos: (CalcPeriodo | null)[];
+  } | null> => {
     const alvos = usuariosDoSetor;
-    if (alvos.length === 0) return toast.error("Nenhum colaborador no setor.");
-    setExporting(true);
+    if (alvos.length === 0) {
+      toast.error("Nenhum colaborador no setor.");
+      return null;
+    }
     const espelhos: EspelhoData[] = [];
     const calculos: (CalcPeriodo | null)[] = [];
     for (let i = 0; i < alvos.length; i++) {
@@ -251,15 +267,33 @@ function EspelhoPontoPage() {
         calculos.push(calcDe(e, alvos[i].id));
       }
     }
+    return { espelhos, calculos };
+  };
+
+  const exportarSetor = async () => {
+    setExporting(true);
+    const lote = await coletarLote();
     setExporting(false);
-    if (espelhos.length === 0) return;
-    const nomeSetor = adminPuro
-      ? myDept || "minha-equipe"
-      : setor === "all"
-        ? "todos"
-        : (DEPARTAMENTOS.find((d) => d.value === setor)?.value ?? setor);
-    gerarEspelhoPDF(espelhos, `espelho-setor-${nomeSetor}-${de}-a-${ate}.pdf`, calculos);
-    toast.success(`PDF gerado com ${espelhos.length} colaborador(es).`);
+    if (!lote || lote.espelhos.length === 0) return;
+    gerarEspelhoPDF(
+      lote.espelhos,
+      `espelho-setor-${nomeEscopo()}-${de}-a-${ate}.pdf`,
+      lote.calculos,
+    );
+    toast.success(`PDF gerado com ${lote.espelhos.length} colaborador(es).`);
+  };
+
+  const exportarExcel = async () => {
+    setExporting(true);
+    const lote = await coletarLote();
+    setExporting(false);
+    if (!lote || lote.espelhos.length === 0) return;
+    gerarEspelhoExcel(
+      lote.espelhos,
+      `espelho-resumo-${nomeEscopo()}-${de}-a-${ate}.xlsx`,
+      lote.calculos,
+    );
+    toast.success(`Excel gerado com ${lote.espelhos.length} colaborador(es).`);
   };
 
   // Confere se o preview na tela corresponde à seleção/datas atuais.
@@ -366,6 +400,12 @@ function EspelhoPontoPage() {
               : adminPuro
                 ? `Exportar toda a minha equipe (${usuariosDoSetor.length})`
                 : `Exportar todos ${setor === "all" ? "(todos os setores)" : "do setor"} (${usuariosDoSetor.length})`}
+          </Button>
+        )}
+        {podeGerenciar && (
+          <Button variant="outline" onClick={exportarExcel} disabled={exporting}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            {exporting ? "Gerando…" : `Exportar Excel (resumo) (${usuariosDoSetor.length})`}
           </Button>
         )}
       </div>
