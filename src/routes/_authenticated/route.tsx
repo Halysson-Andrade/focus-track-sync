@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePageTracker } from "@/hooks/use-page-tracker";
 import { useNotificacoesRecebidas } from "@/hooks/use-mensagens";
 import { useDecisaoAjusteToast } from "@/hooks/use-ajustes";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
