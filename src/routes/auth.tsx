@@ -30,10 +30,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  // Modo degradado: mostra tela de reconexão manual (sem auto-retry — o retry
-  // automático causava POSTs paralelos porque withTimeout não aborta o fetch
-  // subjacente do SDK do Supabase).
-  const [degraded, setDegraded] = useState(false);
+  const [recoverableError, setRecoverableError] = useState<string | null>(null);
   // Dedup: garante que só UMA chamada de signInWithPassword esteja em voo, mesmo
   // com re-renders, duplo-clique ou submits repetidos. useState/loading não é
   // suficiente porque o setState é assíncrono e a segunda submissão pode entrar
@@ -60,7 +57,7 @@ function AuthPage() {
         "Tempo esgotado ao conectar com a autenticação.",
       );
       if (error) throw error;
-      setDegraded(false);
+      setRecoverableError(null);
       router.navigate({ to: "/" });
     } catch (err) {
       console.error("[auth] signIn falhou", {
@@ -70,9 +67,9 @@ function AuthPage() {
       });
       const { kind, message } = classifyError(err);
       if (kind === "timeout" || kind === "network") {
-        setDegraded(true);
+        setRecoverableError(message);
       } else {
-        setDegraded(false);
+        setRecoverableError(null);
         toast.error(message);
       }
     } finally {
@@ -85,11 +82,6 @@ function AuthPage() {
     e.preventDefault();
     void attemptLogin();
   };
-
-  const cancelDegraded = () => {
-    setDegraded(false);
-  };
-
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
@@ -110,25 +102,6 @@ function AuthPage() {
       </div>
 
       <div className="flex items-center justify-center bg-background p-6">
-        {degraded ? (
-          <div className="w-full max-w-sm space-y-5 text-center">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
-            <div>
-              <h2 className="text-xl font-bold">Estamos com instabilidade</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Não foi possível conectar agora. Tentando reconectar automaticamente…
-              </p>
-            </div>
-            <div className="flex justify-center gap-2">
-              <Button onClick={() => void attemptLogin()} disabled={loading}>
-                {loading ? "Conectando…" : "Tentar agora"}
-              </Button>
-              <Button variant="outline" onClick={cancelDegraded} disabled={loading}>
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        ) : (
           <form onSubmit={submit} className="w-full max-w-sm space-y-5">
             <div>
               <h2 className="text-2xl font-bold">Entrar</h2>
@@ -158,11 +131,22 @@ function AuthPage() {
               />
             </div>
 
+            {recoverableError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {recoverableError} Tente novamente em alguns segundos.
+              </div>
+            )}
+
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "..." : "Entrar"}
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Entrando…
+                </span>
+              ) : (
+                "Entrar"
+              )}
             </Button>
           </form>
-        )}
       </div>
     </div>
   );
