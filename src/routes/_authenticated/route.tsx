@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useLocation, useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/hooks/use-auth";
@@ -20,12 +20,20 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthenticatedLayout() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const router = useRouter();
+  const location = useLocation();
   usePageTracker(user?.id, null);
   // Toast ao vivo de mensagens recebidas (mensageria mão única do painel).
   useNotificacoesRecebidas(user?.id);
   // Toast ao solicitante quando seu ajuste de jornada é aprovado/rejeitado.
   useDecisaoAjusteToast(user?.id);
+
+  useEffect(() => {
+    if (profile?.must_change_password && location.pathname !== "/change-password") {
+      void router.navigate({ to: "/change-password" });
+    }
+  }, [location.pathname, profile?.must_change_password, router]);
 
   return (
     <AppShell>

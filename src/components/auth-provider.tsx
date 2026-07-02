@@ -9,6 +9,7 @@ export interface Profile {
   email: string;
   ativo: boolean;
   departamento: string | null;
+  must_change_password?: boolean;
   espelho_geral?: boolean;
 }
 
