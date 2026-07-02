@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile, Registro, NavRow, Presenca, EventoOcio } from "@/lib/operacional-snapshot";
+import { withTimeout } from "@/lib/async-timeout";
 
 /**
  * Fonte de dados do escritório virtual com visibilidade por nível.
@@ -48,6 +49,7 @@ const REALTIME_TABLES = ["registros_atividade", "presenca_desktop", "presenca_we
 
 const SAFETY_POLL_CONNECTED_MS = 30_000;
 const SAFETY_POLL_DISCONNECTED_MS = 20_000;
+const RPC_TIMEOUT_MS = 9_000;
 // Debounce folgado: coalesce rajadas de eventos em um único refetch.
 const REFETCH_DEBOUNCE_MS = 1_500;
 
@@ -91,7 +93,11 @@ export function useOperacionalData(enabled: boolean, isAdmin: boolean): Operacio
     try {
       const since = startOfDayIso();
 
-      const ov = await supabase.rpc("office_overview", { p_since: since });
+      const ov = await withTimeout(
+        supabase.rpc("office_overview", { p_since: since }),
+        RPC_TIMEOUT_MS,
+        "Tempo esgotado ao carregar o escritório.",
+      ).catch((error) => ({ data: null, error }));
       if (ov.error) {
         console.error("[operacional] office_overview", ov.error.message);
       } else if (ov.data) {
@@ -114,7 +120,11 @@ export function useOperacionalData(enabled: boolean, isAdmin: boolean): Operacio
         return;
       }
 
-      const dt = await supabase.rpc("office_detail", { p_since: since });
+      const dt = await withTimeout(
+        supabase.rpc("office_detail", { p_since: since }),
+        RPC_TIMEOUT_MS,
+        "Tempo esgotado ao carregar detalhes do escritório.",
+      ).catch((error) => ({ data: null, error }));
       if (dt.error) {
         console.error("[operacional] office_detail", dt.error.message);
       } else if (dt.data) {
