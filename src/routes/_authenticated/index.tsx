@@ -189,6 +189,13 @@ function Dashboard() {
   const [breakReason, setBreakReason] = useState("");
   const [breakBusy, setBreakBusy] = useState(false);
   const [now, setNow] = useState(new Date());
+  // Gatilho de refresh "ao vivo" das buscas pesadas do dia (registros/ócio/
+  // navegação/apps de TODOS ou do usuário). Antes essas buscas usavam
+  // `now.getMinutes()` como dep => refaziam o lote pesado a cada minuto, mesmo
+  // com a aba em segundo plano, sobrecarregando o backend. Agora um tick lento
+  // (2,5 min) que só avança com a aba VISÍVEL, mais um bump ao voltar ao primeiro
+  // plano. A visão do dia não precisa de granularidade de 1 min.
+  const [liveRefreshKey, setLiveRefreshKey] = useState(0);
   const [history30, setHistory30] = useState<{ date: Date; records: Registro[] }[]>([]);
   const [history30Ajustes, setHistory30Ajustes] = useState<AjusteJornada[]>([]);
   const [history30IdleEvents, setHistory30IdleEvents] = useState<Map<string, IdleEvent[]>>(new Map());
@@ -294,6 +301,24 @@ function Dashboard() {
     return () => clearInterval(i);
   }, []);
 
+  // Tick lento (2,5 min) do refresh "ao vivo": só avança com a aba visível e
+  // bumpa uma vez ao voltar ao primeiro plano — pausa o lote pesado em background.
+  useEffect(() => {
+    const LIVE_REFRESH_MS = 150_000;
+    const tick = () => {
+      if (!document.hidden) setLiveRefreshKey((k) => k + 1);
+    };
+    const i = setInterval(tick, LIVE_REFRESH_MS);
+    const onVisible = () => {
+      if (!document.hidden) setLiveRefreshKey((k) => k + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(i);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
   // Load users list for admin filter
   useEffect(() => {
     if (!isAdmin) return;
@@ -365,7 +390,7 @@ function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [geral, areaUserIds, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
+  }, [geral, areaUserIds, dayRange.start, dayRange.end, isToday ? liveRefreshKey : 0]);
 
   // Load registros for the selected day (used when viewing another user OR another day)
   useEffect(() => {
@@ -405,7 +430,7 @@ function Dashboard() {
     isToday,
     selectedDate,
     dayKey,
-    isToday ? now.getMinutes() : 0,
+    isToday ? liveRefreshKey : 0,
   ]);
 
   // Intervalos de ociosidade do dia selecionado (faixas na linha do tempo).
@@ -423,7 +448,7 @@ function Dashboard() {
       .lt("inicio", dayRange.end)
       .order("inicio", { ascending: true })
       .then(({ data }) => setIdleEvents((data ?? []) as IdleEvent[]));
-  }, [effectiveUserId, dayRange.start, dayRange.end, isToday ? now.getMinutes() : 0]);
+  }, [effectiveUserId, dayRange.start, dayRange.end, isToday ? liveRefreshKey : 0]);
 
   // Ajustes de jornada do usuário/dia (RLS já entrega só o escopo permitido).
   useEffect(() => {
@@ -438,7 +463,7 @@ function Dashboard() {
       .eq("dia", dayKey)
       .order("criado_em", { ascending: false })
       .then(({ data }) => setAjustes((data ?? []) as AjusteJornada[]));
-  }, [effectiveUserId, dayKey, ajustesRefresh, isToday ? now.getMinutes() : 0]);
+  }, [effectiveUserId, dayKey, ajustesRefresh, isToday ? liveRefreshKey : 0]);
 
   // Para o dia selecionado:
   //   - dentro da retenção bruta (≤25d): lemos navegacao_paginas / navegacao_externa /
@@ -497,7 +522,7 @@ function Dashboard() {
     dayKey,
     dayRange.start,
     dayRange.end,
-    isToday ? now.getMinutes() : 0,
+    isToday ? liveRefreshKey : 0,
   ]);
 
   // 30-day history for effective user — keep raw records grouped per day for the per-day timelines

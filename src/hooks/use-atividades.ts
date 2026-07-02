@@ -62,34 +62,49 @@ export function useAtividades(enabled: boolean, isAdmin: boolean, userId?: strin
   const [profiles, setProfiles] = useState<Map<string, AtividadeProfile>>(new Map());
   const [connected, setConnected] = useState(false);
   const debounceRef = useRef<number | null>(null);
+  // Guarda de "em andamento": impede SOBREPOSIÇÃO de fetches (realtime + poll
+  // disparando queries concorrentes que ficam penduradas e entopem o pool do
+  // backend). Mesmo padrão do use-operacional-data.
+  const inFlightRef = useRef(false);
 
   // Usuário comum: só busca depois que o id resolveu, e filtra pelo próprio id.
   // Admin/superadmin: o RLS decide o alcance (área/tudo), sem filtro no cliente.
   const ready = enabled && (isAdmin || !!userId);
 
   const fetchData = useCallback(async () => {
-    const since = new Date(Date.now() - APONTAMENTOS_WINDOW_DAYS * 86_400_000).toISOString();
-    let ativQuery = supabase
-      .from("atividades")
-      .select(
-        "id, usuario_id, fonte, external_id, external_url, titulo, contexto, total_segundos, criado_em, atualizado_em",
-      )
-      .order("atualizado_em", { ascending: false });
-    // Recentes OU em andamento (para o cronômetro ao vivo do board).
-    let apontQuery = supabase
-      .from("atividade_apontamentos")
-      .select("id, atividade_id, usuario_id, registro_id, inicio, fim, duracao_segundos, criado_em")
-      .or(`fim.is.null,inicio.gte.${since}`)
-      .order("inicio", { ascending: false });
+    if (inFlightRef.current) return;
+    // Não busca com a aba em segundo plano (evita poll/realtime consumir backend
+    // e rede sem ninguém olhando). Ao voltar à aba, o efeito de visibilidade refaz.
+    if (typeof document !== "undefined" && document.hidden) return;
+    inFlightRef.current = true;
+    try {
+      const since = new Date(Date.now() - APONTAMENTOS_WINDOW_DAYS * 86_400_000).toISOString();
+      let ativQuery = supabase
+        .from("atividades")
+        .select(
+          "id, usuario_id, fonte, external_id, external_url, titulo, contexto, total_segundos, criado_em, atualizado_em",
+        )
+        .order("atualizado_em", { ascending: false });
+      // Recentes OU em andamento (para o cronômetro ao vivo do board).
+      let apontQuery = supabase
+        .from("atividade_apontamentos")
+        .select(
+          "id, atividade_id, usuario_id, registro_id, inicio, fim, duracao_segundos, criado_em",
+        )
+        .or(`fim.is.null,inicio.gte.${since}`)
+        .order("inicio", { ascending: false });
 
-    if (!isAdmin && userId) {
-      ativQuery = ativQuery.eq("usuario_id", userId);
-      apontQuery = apontQuery.eq("usuario_id", userId);
+      if (!isAdmin && userId) {
+        ativQuery = ativQuery.eq("usuario_id", userId);
+        apontQuery = apontQuery.eq("usuario_id", userId);
+      }
+
+      const [ativ, apont] = await Promise.all([ativQuery, apontQuery]);
+      setAtividades((ativ.data ?? []) as Atividade[]);
+      setApontamentos((apont.data ?? []) as Apontamento[]);
+    } finally {
+      inFlightRef.current = false;
     }
-
-    const [ativ, apont] = await Promise.all([ativQuery, apontQuery]);
-    setAtividades((ativ.data ?? []) as Atividade[]);
-    setApontamentos((apont.data ?? []) as Apontamento[]);
   }, [isAdmin, userId]);
 
   const scheduleRefetch = useCallback(() => {
@@ -140,6 +155,17 @@ export function useAtividades(enabled: boolean, isAdmin: boolean, userId?: strin
     const poll = window.setInterval(fetchData, intervalMs);
     return () => window.clearInterval(poll);
   }, [ready, connected, fetchData]);
+
+  // Ao voltar a aba para o primeiro plano, faz uma atualização (já que pausamos
+  // o fetch enquanto oculta).
+  useEffect(() => {
+    if (!ready) return;
+    const onVisible = () => {
+      if (!document.hidden) void fetchData();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [ready, fetchData]);
 
   return { atividades, apontamentos, profiles, connected, refetch: fetchData };
 }

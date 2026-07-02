@@ -41,12 +41,18 @@ type RelRow = {
 export const Route = createFileRoute("/_authenticated/relatorios")({
   head: () => ({ meta: [{ title: "Relatórios" }] }),
   beforeLoad: async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw redirect({ to: "/auth" });
+    // Porteiro por getSession() (lê do localStorage, sem rede): uma falha/timeout
+    // de rede no getUser() devolvia usuário nulo e expulsava um admin logado para
+    // /auth. A validação forte contra o servidor já é feita, com folga de 10 min,
+    // no gate pai _authenticated/route.tsx.
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user) throw redirect({ to: "/auth" });
     const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", userData.user.id);
+      .eq("user_id", session.user.id);
     const isAdmin = !!roles?.some((r) => r.role === "admin");
     if (!isAdmin) throw redirect({ to: "/" });
   },

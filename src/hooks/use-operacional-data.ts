@@ -40,12 +40,17 @@ export interface OperacionalData {
   refetch: () => void;
 }
 
-// Realtime APENAS nas tabelas de baixa escrita que mudam o estado do mapa
-// (status + presença). As tabelas de alta escrita (navegação/apps/ócio/extensão)
-// foram REMOVIDAS do gatilho: elas disparavam refetch constante (enxurrada de
-// office_overview/office_detail que entupia o backend). O detalhe dessas fontes
-// é atualizado pelo poll periódico, não a cada evento.
-const REALTIME_TABLES = ["registros_atividade", "presenca_desktop", "presenca_web"] as const;
+// Realtime APENAS em `registros_atividade` (mudança de status: ATIVO/PAUSA/almoço),
+// que é de baixa escrita e precisa refletir no mapa na hora. As tabelas de PRESENÇA
+// (presenca_desktop/presenca_web) foram REMOVIDAS do gatilho: são heartbeat de alta
+// escrita (o desktop grava presenca_desktop continuamente, mesmo ocioso; a web grava
+// presenca_web a cada 60s por usuário) e, como gatilho, disparavam refetch quase
+// contínuo de office_overview/office_detail que saturava a instância compartilhada
+// (Auth+Postgres) e derrubava o login. O online/offline do mapa passa a ser coberto
+// pelo poll de segurança (30s) — a janela de "online" já é de 2 min, então a latência
+// é imperceptível. As tabelas de alta escrita (navegação/apps/ócio/extensão) já
+// estavam fora do gatilho pelo mesmo motivo.
+const REALTIME_TABLES = ["registros_atividade"] as const;
 
 const SAFETY_POLL_CONNECTED_MS = 30_000;
 const SAFETY_POLL_DISCONNECTED_MS = 20_000;
