@@ -21,12 +21,17 @@ export const Route = createFileRoute("/_authenticated")({
     // consulta fora da própria /change-password e quando ainda não validada
     // nesta sessão — evita loop e poupa a query a cada navegação.
     if (location.pathname !== "/change-password" && !isPasswordOk(user.id)) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("must_change_password")
-        .eq("id", user.id)
-        .maybeSingle()
-        .catch(() => ({ data: null }));
+      let profile: { must_change_password: boolean } | null = null;
+      try {
+        const result = await supabase
+          .from("profiles")
+          .select("must_change_password")
+          .eq("id", user.id)
+          .maybeSingle();
+        profile = result.data;
+      } catch {
+        profile = null;
+      }
       if (profile?.must_change_password) throw redirect({ to: "/change-password" });
       // profile === null => não cacheia (query falhou); reavalia na próxima.
       if (profile) markPasswordOk(user.id);
