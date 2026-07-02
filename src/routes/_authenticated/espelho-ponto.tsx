@@ -271,6 +271,11 @@ function EspelhoPontoPage() {
 
   const k = preview?.kpis;
 
+  // Só renderiza após a autenticação resolver: assim o layout dependente de papel
+  // (flag/superadmin/admin) é montado UMA vez, sem trocar de estrutura ao vivo logo
+  // após o login — o que, sob tradução de página, disparava o crash de removeChild.
+  if (authLoading) return null;
+
   return (
     <div className="space-y-6">
       <div>
