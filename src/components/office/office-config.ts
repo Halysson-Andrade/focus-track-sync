@@ -61,52 +61,55 @@ export interface Room {
 // (Diretoria full-width) + área externa (estacionamento + jardim).
 // Coordenadas casam com src/assets/office-map.jpg.
 // IMPORTANTE: as coordenadas x/w abaixo estão CALIBRADAS às paredes desenhadas
-// em src/assets/office-map.jpg (1024×1216). Alterar sem re-medir o mapa faz
-// avatares "vazarem" para o setor vizinho.
+// em src/assets/office-map.jpg (1024×1216, arte redesenhada em 01/07/2026).
+// Alterar sem re-medir o mapa faz avatares "vazarem" para o setor vizinho.
+// Bandas horizontais das paredes na arte atual: y=14 (fim fileira 1),
+// y=27 (fim fileira 2), y=37 (topo diretoria), y=45 (topo estacionamento),
+// y=51 (topo jardim).
 export const ROOMS: Record<RoomId, Room> = {
-  // ===== Fileira 1 (rows 0-16) — SAC/Comercial/Jurídico/Financeiro/Reunião =====
-  recepcao:   { id: "recepcao",   label: "SAC / Recepção",  emoji: "🛎️", x:  0, y:  0, w:  9, h: 16, tint: "var(--color-info)",    leaderSeat: { cx:  3.0, cy:  5.0 }, capacity:  6 },
-  comercial:  { id: "comercial",  label: "Comercial",       emoji: "💼", x:  9, y:  0, w:  7, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 11.5, cy:  5.0 }, capacity:  4 },
-  juridico:   { id: "juridico",   label: "Jurídico",        emoji: "⚖️", x: 16, y:  0, w: 14, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 20.0, cy:  5.0 }, capacity:  6 },
-  financeiro: { id: "financeiro", label: "Financeiro",      emoji: "💰", x: 30, y:  0, w:  9, h: 16, tint: "var(--color-success)", leaderSeat: { cx: 33.0, cy:  5.0 }, capacity:  6 },
-  reuniao:    { id: "reuniao",    label: "Sala de Reunião", emoji: "📊", x: 39, y:  0, w:  9, h: 16, tint: "var(--color-accent)" },
+  // ===== Fileira 1 (rows 0-14) — SAC/Comercial/Jurídico/Financeiro/Reunião =====
+  recepcao:   { id: "recepcao",   label: "SAC / Recepção",  emoji: "🛎️", x:  0, y:  0, w:  9, h: 14, tint: "var(--color-info)",    leaderSeat: { cx:  3.0, cy:  5.0 }, capacity:  6 },
+  comercial:  { id: "comercial",  label: "Comercial",       emoji: "💼", x:  9, y:  0, w:  8, h: 14, tint: "var(--color-success)", leaderSeat: { cx: 11.5, cy:  5.0 }, capacity:  4 },
+  juridico:   { id: "juridico",   label: "Jurídico",        emoji: "⚖️", x: 17, y:  0, w: 11, h: 14, tint: "var(--color-success)", leaderSeat: { cx: 20.0, cy:  5.0 }, capacity:  6 },
+  financeiro: { id: "financeiro", label: "Financeiro",      emoji: "💰", x: 28, y:  0, w:  9, h: 14, tint: "var(--color-success)", leaderSeat: { cx: 32.0, cy:  5.0 }, capacity:  6 },
+  reuniao:    { id: "reuniao",    label: "Sala de Reunião", emoji: "📊", x: 37, y:  0, w: 11, h: 14, tint: "var(--color-accent)" },
 
-  // ===== Fileira 2 (rows 16-28) — Produção e Refeitório =====
-  producao:   { id: "producao",   label: "Produção de Eventos", emoji: "🎪", x:  0, y: 16, w: 22, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  3.0, cy: 20.5 }, capacity: 20 },
-  copa:       { id: "copa",       label: "Copa / Refeitório",   emoji: "🍽️", x: 22, y: 16, w: 26, h: 12, tint: "var(--color-info)" },
+  // ===== Fileira 2 (rows 14-27) — Produção e Refeitório =====
+  producao:   { id: "producao",   label: "Produção de Eventos", emoji: "🎪", x:  0, y: 14, w: 22, h: 13, tint: "var(--color-success)", leaderSeat: { cx:  3.0, cy: 18.0 }, capacity: 20 },
+  copa:       { id: "copa",       label: "Copa / Refeitório",   emoji: "🍽️", x: 22, y: 14, w: 26, h: 13, tint: "var(--color-info)" },
 
-  // ===== Fileira 3 (rows 28-40) — Espera / TI / Almoxarifado / Marketing / Descanso =====
-  espera:        { id: "espera",        label: "Espera",       emoji: "🪑", x:  0, y: 28, w:  5, h: 12, tint: "var(--color-muted-foreground)" },
-  ti:            { id: "ti",            label: "TI",           emoji: "🖥️", x:  5, y: 28, w: 16, h: 12, tint: "var(--color-success)", leaderSeat: { cx:  8.0, cy: 32.5 }, capacity:  8 },
-  almoxarifado:  { id: "almoxarifado",  label: "Almoxarifado", emoji: "📦", x: 21, y: 28, w:  6, h: 12, tint: "var(--color-success)" },
-  marketing:     { id: "marketing",     label: "Marketing",    emoji: "📣", x: 27, y: 28, w: 10, h: 12, tint: "var(--color-success)", leaderSeat: { cx: 30.0, cy: 32.5 }, capacity: 5 },
-  descanso:      { id: "descanso",      label: "Descanso",     emoji: "☕", x: 37, y: 28, w: 11, h: 12, tint: "var(--color-warning)" },
+  // ===== Fileira 3 (rows 27-37) — Espera / TI / Almoxarifado / Marketing / Descanso =====
+  espera:        { id: "espera",        label: "Espera",       emoji: "🪑", x:  0, y: 27, w:  7, h: 10, tint: "var(--color-muted-foreground)" },
+  ti:            { id: "ti",            label: "TI",           emoji: "🖥️", x:  7, y: 27, w: 14, h: 10, tint: "var(--color-success)", leaderSeat: { cx:  9.0, cy: 31.0 }, capacity:  8 },
+  almoxarifado:  { id: "almoxarifado",  label: "Almoxarifado", emoji: "📦", x: 21, y: 27, w:  7, h: 10, tint: "var(--color-success)" },
+  marketing:     { id: "marketing",     label: "Marketing",    emoji: "📣", x: 28, y: 27, w: 10, h: 10, tint: "var(--color-success)", leaderSeat: { cx: 30.0, cy: 31.0 }, capacity: 5 },
+  descanso:      { id: "descanso",      label: "Descanso",     emoji: "☕", x: 38, y: 27, w: 10, h: 10, tint: "var(--color-warning)" },
 
-  // ===== Fileira 4 (rows 40-48) — Diretoria (andar executivo, full-width) =====
-  diretoria:   { id: "diretoria",   label: "Diretoria", emoji: "🏛️", x:  0, y: 40, w: 48, h: 8, tint: "var(--color-primary)", leaderSeat: { cx:  4.0, cy: 44.0 }, capacity: 6 },
+  // ===== Fileira 4 (rows 37-45) — Diretoria (andar executivo, full-width) =====
+  diretoria:   { id: "diretoria",   label: "Diretoria", emoji: "🏛️", x:  0, y: 37, w: 48, h: 8, tint: "var(--color-primary)", leaderSeat: { cx:  4.0, cy: 41.0 }, capacity: 6 },
 
   // ===== Áreas externas =====
-  estacionamento: { id: "estacionamento", label: "Estacionamento",          emoji: "🅿️", x: 0, y: 48, w: 48, h: 4, tint: "var(--color-muted-foreground)" },
-  externa:        { id: "externa",        label: "Jardim / Fora do prédio", emoji: "🌳", x: 0, y: 52, w: 48, h: 4, tint: "var(--color-success)" },
+  estacionamento: { id: "estacionamento", label: "Estacionamento",          emoji: "🅿️", x: 0, y: 45, w: 48, h: 6, tint: "var(--color-muted-foreground)" },
+  externa:        { id: "externa",        label: "Jardim / Fora do prédio", emoji: "🌳", x: 0, y: 51, w: 48, h: 5, tint: "var(--color-success)" },
 };
 
 // Portas: células do perímetro que permanecem caminháveis (ligam a sala ao
 // corredor/sala adjacente). O restante do perímetro vira parede.
 export const DOORS: Record<RoomId, Cell[]> = {
-  recepcao:       [{ cx:  4, cy: 16 }],
-  comercial:      [{ cx: 12, cy: 16 }],
-  juridico:       [{ cx: 23, cy: 16 }],
-  financeiro:     [{ cx: 34, cy: 16 }],
-  reuniao:        [{ cx: 43, cy: 16 }],
-  producao:       [{ cx: 11, cy: 28 }],
-  copa:           [{ cx: 34, cy: 28 }],
-  espera:         [{ cx:  2, cy: 28 }],
-  ti:             [{ cx: 13, cy: 28 }, { cx: 13, cy: 40 }],
-  almoxarifado:   [{ cx: 24, cy: 28 }],
-  marketing:      [{ cx: 32, cy: 28 }, { cx: 32, cy: 40 }],
-  descanso:       [{ cx: 42, cy: 28 }],
-  diretoria:      [{ cx: 12, cy: 40 }, { cx: 36, cy: 40 }, { cx: 24, cy: 48 }],
-  estacionamento: [{ cx: 24, cy: 48 }],
+  recepcao:       [{ cx:  4, cy: 14 }],
+  comercial:      [{ cx: 13, cy: 14 }],
+  juridico:       [{ cx: 22, cy: 14 }],
+  financeiro:     [{ cx: 32, cy: 14 }],
+  reuniao:        [{ cx: 42, cy: 14 }],
+  producao:       [{ cx: 11, cy: 27 }],
+  copa:           [{ cx: 34, cy: 27 }],
+  espera:         [{ cx:  3, cy: 27 }],
+  ti:             [{ cx: 13, cy: 27 }, { cx: 13, cy: 37 }],
+  almoxarifado:   [{ cx: 24, cy: 27 }],
+  marketing:      [{ cx: 32, cy: 27 }, { cx: 32, cy: 37 }],
+  descanso:       [{ cx: 42, cy: 27 }],
+  diretoria:      [{ cx: 12, cy: 37 }, { cx: 36, cy: 37 }, { cx: 24, cy: 45 }],
+  estacionamento: [{ cx: 24, cy: 45 }],
   externa:        [],
 };
 
@@ -252,19 +255,38 @@ export interface Cell {
  * Empacota `count` avatares dentro de uma sala, em grade, retornando os centros
  * de célula (cx,cy). Determinístico em função de (sala, índice, total).
  */
+// Espaçamento-alvo (em células) entre mesas/avatares. Com a arte redesenhada
+// as salas ficaram maiores, então distribuímos por um passo desejado em vez de
+// só encaixar tudo — mantém os avatares "arejados" e não amontoados.
+const TARGET_GAP = 2.8;
+
+/** Padding interno de uma sala (escala com o tamanho — salas maiores respiram mais). */
+function roomPad(room: Room): { padX: number; padY: number } {
+  return {
+    padX: Math.max(1.5, Math.min(3.5, room.w / 5)),
+    padY: Math.max(1.5, Math.min(3.5, room.h / 5)),
+  };
+}
+
 export function packPositions(room: Room, count: number): Cell[] {
   if (count <= 0) return [];
   // Margem generosa para manter mesas/avatares bem dentro das paredes do setor
   // (evita que sprites transbordem para o corredor).
-  const padX = Math.max(1.2, Math.min(2.5, room.w / 6));
-  const padY = Math.max(1.2, Math.min(2.5, room.h / 6));
+  const { padX, padY } = roomPad(room);
   const labelPad = 1.6; // reserva topo para a placa "Nome — nº"
   const innerX = room.x + padX;
   const innerY = room.y + padY + labelPad;
   const innerW = Math.max(1, room.w - padX * 2);
   const innerH = Math.max(1, room.h - padY * 2 - labelPad);
-  const cols = Math.max(1, Math.min(count, Math.ceil(Math.sqrt(count * (innerW / innerH)))));
-  const rows = Math.ceil(count / cols);
+  // Nº de colunas derivado do espaçamento-alvo (lacunas previsíveis), limitado
+  // pela contagem. Se a última linha vertical ficar muito espremida (stepY < 2),
+  // adensa horizontalmente uma coluna por vez para reequilibrar.
+  let cols = Math.max(1, Math.min(count, Math.round(innerW / TARGET_GAP)));
+  let rows = Math.ceil(count / cols);
+  while (cols < count && innerH / rows < 2) {
+    cols += 1;
+    rows = Math.ceil(count / cols);
+  }
   const stepX = innerW / cols;
   const stepY = innerH / Math.max(1, rows);
   const cells: Cell[] = [];
@@ -284,8 +306,7 @@ export function packPositions(room: Room, count: number): Cell[] {
 
 /** Limites internos "seguros" de uma sala (após padding), para clamp de wander. */
 export function roomInnerBounds(room: Room): { x0: number; y0: number; x1: number; y1: number } {
-  const padX = Math.max(1.2, Math.min(2.5, room.w / 6));
-  const padY = Math.max(1.2, Math.min(2.5, room.h / 6));
+  const { padX, padY } = roomPad(room);
   const labelPad = 1.6;
   return {
     x0: room.x + padX,
@@ -377,39 +398,32 @@ export function placeAvatars(snapshots: UserSnapshot[]): PlacedAvatar[] {
     rest.sort((a, b) => hashId(a.profile.id) - hashId(b.profile.id));
 
     const desks = desksFor(room);
-    if (desks.length > 0) {
-      // Mesas fixas: cada avatar tenta seu slot preferido (hash % nDesks) e
-      // faz probing linear se estiver ocupado. Overflow (mais gente que
-      // mesas) recorre a packPositions dinâmico no espaço restante.
+    if (desks.length > 0 && rest.length <= desks.length) {
+      // Sala dentro da capacidade: cada avatar senta numa MESA FIXA (mesmo slot
+      // em toda re-render). Slot preferido = hash % nMesas, com probing linear
+      // se estiver ocupado. Não há sobreposição pois cada mesa é usada uma vez.
       const used = new Set<number>();
-      const seated: UserSnapshot[] = [];
-      const overflow: UserSnapshot[] = [];
       for (const s of rest) {
-        let slot = hashId(s.profile.id) % desks.length;
-        let ok = false;
+        const slot = hashId(s.profile.id) % desks.length;
         for (let k = 0; k < desks.length; k++) {
           const t = (slot + k) % desks.length;
           if (!used.has(t)) {
             used.add(t);
             placed.push({ snapshot: s, room: roomId, cell: desks[t] });
-            seated.push(s);
-            ok = true;
             break;
           }
         }
-        if (!ok) overflow.push(s);
       }
-      if (overflow.length > 0) {
-        const extra = packPositions(room, desks.length + overflow.length).slice(desks.length);
-        overflow.forEach((s, i) =>
-          placed.push({ snapshot: s, room: roomId, cell: extra[i] ?? desks[0] }),
-        );
-      }
-      // (seated só documenta lógica; sem uso adicional)
-      void seated;
     } else {
+      // Sala SEM mesas fixas OU lotada além da capacidade: distribui todos numa
+      // grade uniforme dimensionada para a contagem real. Evita a sobreposição
+      // que o antigo "overflow" causava (posições vindas de packs de tamanhos
+      // diferentes coincidiam), mantendo os avatares espalhados.
       const cells = packPositions(room, rest.length);
-      rest.forEach((s, i) => placed.push({ snapshot: s, room: roomId, cell: cells[i] }));
+      const fallback = { cx: room.x + room.w / 2, cy: room.y + room.h / 2 };
+      rest.forEach((s, i) =>
+        placed.push({ snapshot: s, room: roomId, cell: cells[i] ?? fallback }),
+      );
     }
 
     if (leader && room.leaderSeat) {
