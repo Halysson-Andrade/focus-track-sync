@@ -910,6 +910,10 @@ export type Database = {
         Args: { p_timeout_min?: number }
         Returns: number
       }
+      excluir_ajuste_jornada: {
+        Args: { p_id: string; p_justificativa: string }
+        Returns: string
+      }
       enviar_notificacao: {
         Args: { p_conteudo: string; p_destinatario: string }
         Returns: {
