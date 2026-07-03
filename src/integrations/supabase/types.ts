@@ -1005,16 +1005,15 @@ export type Database = {
           tabela: string
         }[]
       }
-      same_area: { Args: { _owner: string; _viewer: string }; Returns: boolean }
       registrar_ajuste_jornada: {
         Args: {
-          p_usuario: string
           p_dia: string
           p_fim?: string
           p_inicio?: string
           p_justificativa: string
           p_status_alvo?: Database["public"]["Enums"]["activity_status"]
           p_tipo: Database["public"]["Enums"]["ajuste_tipo"]
+          p_usuario: string
         }
         Returns: {
           criado_em: string
@@ -1041,6 +1040,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      same_area: { Args: { _owner: string; _viewer: string }; Returns: boolean }
       solicitar_ajuste_jornada: {
         Args: {
           p_dia: string
