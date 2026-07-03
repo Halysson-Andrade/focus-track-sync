@@ -1005,6 +1005,41 @@ export type Database = {
           tabela: string
         }[]
       }
+      registrar_ajuste_jornada: {
+        Args: {
+          p_dia: string
+          p_fim?: string
+          p_inicio?: string
+          p_justificativa: string
+          p_status_alvo?: Database["public"]["Enums"]["activity_status"]
+          p_tipo: Database["public"]["Enums"]["ajuste_tipo"]
+          p_usuario: string
+        }
+        Returns: {
+          criado_em: string
+          decidido_em: string | null
+          decidido_por: string | null
+          decidido_por_nome: string | null
+          departamento: string | null
+          dia: string
+          fim: string | null
+          id: string
+          inicio: string | null
+          justificativa: string
+          justificativa_decisao: string | null
+          status: Database["public"]["Enums"]["ajuste_status"]
+          status_alvo: Database["public"]["Enums"]["activity_status"] | null
+          tipo: Database["public"]["Enums"]["ajuste_tipo"]
+          usuario_id: string
+          usuario_nome: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ajustes_jornada"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       same_area: { Args: { _owner: string; _viewer: string }; Returns: boolean }
       solicitar_ajuste_jornada: {
         Args: {
