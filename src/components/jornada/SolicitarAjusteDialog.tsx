@@ -67,9 +67,15 @@ function diaLocalStr(dia: Date): string {
 }
 
 /**
- * Popup de solicitação de ajuste de jornada. Mostra os eventos do dia em cards clicáveis
- * (pré-preenchem o período), organiza os campos em seções e envia via RPC
- * solicitar_ajuste_jornada. A solicitação entra como 'pendente' para aprovação da gestão.
+ * Popup de ajuste de jornada. Mostra os eventos do dia em cards clicáveis
+ * (pré-preenchem o período), organiza os campos em seções e envia o ajuste.
+ *
+ * Dois modos:
+ *  - Padrão (dashboard): o próprio colaborador solicita via RPC solicitar_ajuste_jornada;
+ *    entra como 'pendente' para aprovação da gestão.
+ *  - Gestão (espelho de ponto, `aprovaDireto`): superadmin/admin lança para um colaborador
+ *    (`usuarioId`) via RPC registrar_ajuste_jornada; entra já 'aprovada' (aplicado direto).
+ *    O gate real é do backend — o front só ajusta a cópia e a RPC.
  */
 export function SolicitarAjusteDialog({
   dia,
@@ -77,12 +83,20 @@ export function SolicitarAjusteDialog({
   open,
   onOpenChange,
   onSubmitted,
+  usuarioId,
+  usuarioNome,
+  aprovaDireto = false,
 }: {
   dia: Date;
   records: RegistroLinha[];
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSubmitted?: () => void;
+  /** Alvo do ajuste; ausente = o próprio usuário logado. */
+  usuarioId?: string;
+  usuarioNome?: string | null;
+  /** Quando true, aplica direto (RPC registrar_ajuste_jornada, status 'aprovada'). */
+  aprovaDireto?: boolean;
 }) {
   const [tipo, setTipo] = useState<AjusteTipo>("ajuste_periodo");
   const [statusAlvo, setStatusAlvo] = useState<string>("ATIVO");
@@ -93,6 +107,10 @@ export function SolicitarAjusteDialog({
   const [busy, setBusy] = useState(false);
 
   const nowTs = Date.now();
+  // Só faz sentido estender a última lacuna "até agora" quando o dia é hoje. Para dias
+  // passados (espelho de ponto), isso criaria um gap gigante do último registro até o
+  // momento atual — irrelevante e confuso.
+  const isHoje = diaLocalStr(dia) === diaLocalStr(new Date());
   const linhas = useMemo(
     () => [...records].sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime()),
     [records],
@@ -121,7 +139,7 @@ export function SolicitarAjusteDialog({
       if (fim != null) cursorFim = Math.max(cursorFim ?? 0, fim);
       else cursorFim = null; // registro aberto cobre até agora
     }
-    if (cursorFim != null && nowTs - cursorFim >= MIN_GAP_MS) {
+    if (isHoje && cursorFim != null && nowTs - cursorFim >= MIN_GAP_MS) {
       out.push({
         kind: "gap",
         inicio: new Date(cursorFim).toISOString(),
@@ -129,7 +147,7 @@ export function SolicitarAjusteDialog({
       });
     }
     return out;
-  }, [linhas, nowTs]);
+  }, [linhas, nowTs, isHoje]);
 
   const precisaPeriodo = tipo === "ajuste_periodo" || !diaInteiro;
 
@@ -190,21 +208,36 @@ export function SolicitarAjusteDialog({
 
     setBusy(true);
     try {
-      const { error } = await supabase.rpc("solicitar_ajuste_jornada", {
-        p_dia: diaLocalStr(dia),
-        p_tipo: tipo,
-        p_justificativa: justificativa.trim(),
-        p_inicio,
-        p_fim,
-        p_status_alvo: p_status_alvo as Database["public"]["Enums"]["activity_status"] | undefined,
-      });
+      const statusAlvoArg = p_status_alvo as
+        | Database["public"]["Enums"]["activity_status"]
+        | undefined;
+      // Modo gestão (espelho): aplica direto para o colaborador-alvo. Modo padrão
+      // (dashboard): o próprio usuário solicita e entra para aprovação.
+      const { error } = aprovaDireto
+        ? await supabase.rpc("registrar_ajuste_jornada", {
+            p_usuario: usuarioId as string,
+            p_dia: diaLocalStr(dia),
+            p_tipo: tipo,
+            p_justificativa: justificativa.trim(),
+            p_inicio,
+            p_fim,
+            p_status_alvo: statusAlvoArg,
+          })
+        : await supabase.rpc("solicitar_ajuste_jornada", {
+            p_dia: diaLocalStr(dia),
+            p_tipo: tipo,
+            p_justificativa: justificativa.trim(),
+            p_inicio,
+            p_fim,
+            p_status_alvo: statusAlvoArg,
+          });
       if (error) throw error;
-      toast.success("Solicitação enviada para aprovação.");
+      toast.success(aprovaDireto ? "Ajuste aplicado." : "Solicitação enviada para aprovação.");
       reset();
       onOpenChange(false);
       onSubmitted?.();
     } catch (err) {
-      toast.error((err as Error).message ?? "Não foi possível enviar a solicitação.");
+      toast.error((err as Error).message ?? "Não foi possível enviar o ajuste.");
     } finally {
       setBusy(false);
     }
@@ -226,9 +259,15 @@ export function SolicitarAjusteDialog({
               {diaFormatado}
             </Badge>
           </div>
-          <DialogTitle className="text-xl">Solicitar ajuste de jornada</DialogTitle>
+          <DialogTitle className="text-xl">
+            {aprovaDireto
+              ? `Ajustar jornada${usuarioNome ? ` · ${usuarioNome}` : ""}`
+              : "Solicitar ajuste de jornada"}
+          </DialogTitle>
           <DialogDescription>
-            Escolha um período, o tipo de ajuste e a justificativa. A solicitação entra para aprovação da gestão.
+            {aprovaDireto
+              ? "Escolha um período, o tipo de ajuste e a justificativa. O ajuste é aplicado imediatamente."
+              : "Escolha um período, o tipo de ajuste e a justificativa. A solicitação entra para aprovação da gestão."}
           </DialogDescription>
         </DialogHeader>
 
@@ -425,7 +464,13 @@ export function SolicitarAjusteDialog({
             Cancelar
           </Button>
           <Button onClick={submit} disabled={busy}>
-            {busy ? "Enviando..." : "Enviar solicitação"}
+            {busy
+              ? aprovaDireto
+                ? "Aplicando..."
+                : "Enviando..."
+              : aprovaDireto
+                ? "Aplicar ajuste"
+                : "Enviar solicitação"}
           </Button>
         </DialogFooter>
       </DialogContent>

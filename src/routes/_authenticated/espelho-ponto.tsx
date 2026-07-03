@@ -6,10 +6,12 @@ import type { Tables } from "@/integrations/supabase/types";
 import { DEPARTAMENTOS } from "@/components/office/office-config";
 import {
   montarEspelho,
+  agruparPorDia,
   sufixoVirada,
   type EspelhoPayload,
   type EspelhoData,
 } from "@/lib/espelho-ponto";
+import { SolicitarAjusteDialog } from "@/components/jornada/SolicitarAjusteDialog";
 import {
   calcularJornadaPeriodo,
   rowToJornada,
@@ -46,7 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Users, Clock, FileSpreadsheet } from "lucide-react";
+import { FileText, Users, Clock, FileSpreadsheet, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 // Acesso por papel: a página é acessível a qualquer autenticado (o pai
@@ -98,8 +100,13 @@ function EspelhoPontoPage() {
   const [ate, setAte] = useState(today.toISOString().slice(0, 10));
   const [preview, setPreview] = useState<EspelhoData | null>(null);
   const [previewUid, setPreviewUid] = useState<string>("");
+  const [previewPayload, setPreviewPayload] = useState<EspelhoPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  // Ajuste de jornada por linha (dia clicado na folha).
+  const [ajusteDia, setAjusteDia] = useState<string | null>(null);
+  const [ajusteOpen, setAjusteOpen] = useState(false);
 
   // Jornada padrão (apuração liberada para admin+superadmin): modelos, vínculos e feriados.
   // Leituras tolerantes a tabelas inexistentes (pré-deploy): erro → lista vazia.
@@ -204,7 +211,11 @@ function EspelhoPontoPage() {
       setUsuarioId("");
   }, [podeGerenciar, usuariosDoSetor, usuarioId]);
 
-  const carregarEspelho = async (uid: string): Promise<EspelhoData | null> => {
+  // Devolve o espelho derivado E o payload cru (este último alimenta o seletor de
+  // período do modal de ajuste com os registros do dia).
+  const carregarEspelho = async (
+    uid: string,
+  ): Promise<{ data: EspelhoData; payload: EspelhoPayload } | null> => {
     const { data, error } = await supabase.rpc("espelho_ponto", {
       p_usuario: uid,
       p_de: de,
@@ -214,24 +225,38 @@ function EspelhoPontoPage() {
       toast.error("Falha ao carregar espelho", { description: error.message });
       return null;
     }
-    return montarEspelho(data as unknown as EspelhoPayload, de, ate);
+    const payload = data as unknown as EspelhoPayload;
+    return { data: montarEspelho(payload, de, ate), payload };
   };
 
   const visualizar = async () => {
     if (!usuarioId) return toast.error("Selecione um colaborador.");
     setLoading(true);
-    const e = await carregarEspelho(usuarioId);
+    const r = await carregarEspelho(usuarioId);
     setLoading(false);
-    if (e) {
-      setPreview(e);
+    if (r) {
+      setPreview(r.data);
       setPreviewUid(usuarioId);
+      setPreviewPayload(r.payload);
+    }
+  };
+
+  // Recarrega o colaborador em tela após um ajuste, para o overlay recalcular (aprovação
+  // direta muda os totais na hora; solicitação pendente aparece em "Abonos e edições").
+  const recarregarPreview = async () => {
+    if (!previewUid) return;
+    const r = await carregarEspelho(previewUid);
+    if (r) {
+      setPreview(r.data);
+      setPreviewPayload(r.payload);
     }
   };
 
   const exportarIndividual = async () => {
     if (!usuarioId) return toast.error("Selecione um colaborador.");
     setExporting(true);
-    const e = preview && previewMatchesSelection() ? preview : await carregarEspelho(usuarioId);
+    const e =
+      preview && previewMatchesSelection() ? preview : (await carregarEspelho(usuarioId))?.data;
     setExporting(false);
     if (!e) return;
     const nome = (e.perfil?.nome ?? "colaborador").replace(/\s+/g, "-").toLowerCase();
@@ -261,7 +286,7 @@ function EspelhoPontoPage() {
     const calculos: (CalcPeriodo | null)[] = [];
     for (let i = 0; i < alvos.length; i++) {
       toast.message(`Gerando ${i + 1}/${alvos.length}…`, { description: alvos[i].nome ?? "" });
-      const e = await carregarEspelho(alvos[i].id);
+      const e = (await carregarEspelho(alvos[i].id))?.data;
       if (e) {
         espelhos.push(e);
         calculos.push(calcDe(e, alvos[i].id));
@@ -302,6 +327,27 @@ function EspelhoPontoPage() {
     preview.periodo.de === de &&
     preview.periodo.ate === ate &&
     perfis.find((p) => p.id === usuarioId)?.nome === (preview.perfil?.nome ?? null);
+
+  // Ajuste por linha: o próprio colaborador solicita (pendente); admin/superadmin
+  // aplica direto (o backend reconfirma a autoridade/same_area).
+  const ehProprio = previewUid !== "" && previewUid === user?.id;
+  const podeAjustar = ehProprio || isAdmin;
+  const aprovaDireto = isAdmin;
+
+  // Registros crus por dia (agrupados pela jornada) para o seletor de período do modal.
+  const registrosPorDia = useMemo(
+    () =>
+      previewPayload
+        ? agruparPorDia(previewPayload.registros)
+        : new Map<string, EspelhoPayload["registros"]>(),
+    [previewPayload],
+  );
+  const ajusteRecords = ajusteDia ? (registrosPorDia.get(ajusteDia) ?? []) : [];
+
+  const abrirAjuste = (diaISO: string) => {
+    setAjusteDia(diaISO);
+    setAjusteOpen(true);
+  };
 
   const k = preview?.kpis;
 
@@ -513,6 +559,7 @@ function EspelhoPontoPage() {
                         <TableHead>Saldo</TableHead>
                         <TableHead>Noturno</TableHead>
                         <TableHead>Situação</TableHead>
+                        {podeAjustar && <TableHead className="text-right">Ações</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -569,6 +616,19 @@ function EspelhoPontoPage() {
                               {c.noturnoMin ? formatDuration(c.noturnoMin) : "—"}
                             </TableCell>
                             <TableCell className="text-xs">{situacaoDia(c)}</TableCell>
+                            {podeAjustar && (
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  title={aprovaDireto ? "Ajustar jornada" : "Solicitar ajuste"}
+                                  onClick={() => abrirAjuste(d.dia)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </TableCell>
+                            )}
                           </TableRow>
                         );
                       })}
@@ -585,12 +645,16 @@ function EspelhoPontoPage() {
                         <TableHead>Saída</TableHead>
                         <TableHead>Trabalhado</TableHead>
                         <TableHead>Obs.</TableHead>
+                        {podeAjustar && <TableHead className="text-right">Ações</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {preview.dias.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-muted-foreground">
+                          <TableCell
+                            colSpan={podeAjustar ? 8 : 7}
+                            className="text-center text-muted-foreground"
+                          >
                             Nenhum registro no período.
                           </TableCell>
                         </TableRow>
@@ -631,6 +695,19 @@ function EspelhoPontoPage() {
                               <TableCell className="text-xs text-muted-foreground">
                                 {obs.join(" · ")}
                               </TableCell>
+                              {podeAjustar && (
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    title={aprovaDireto ? "Ajustar jornada" : "Solicitar ajuste"}
+                                    onClick={() => abrirAjuste(d.dia)}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
+                              )}
                             </TableRow>
                           );
                         })
@@ -693,6 +770,19 @@ function EspelhoPontoPage() {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {ajusteDia && (
+            <SolicitarAjusteDialog
+              dia={new Date(ajusteDia + "T00:00:00")}
+              records={ajusteRecords}
+              open={ajusteOpen}
+              onOpenChange={setAjusteOpen}
+              usuarioId={previewUid}
+              usuarioNome={preview.perfil?.nome}
+              aprovaDireto={aprovaDireto}
+              onSubmitted={recarregarPreview}
+            />
           )}
         </div>
       )}
