@@ -108,14 +108,17 @@ function EspelhoPontoPage() {
   const [ajusteDia, setAjusteDia] = useState<string | null>(null);
   const [ajusteOpen, setAjusteOpen] = useState(false);
 
-  // Jornada padrão (apuração liberada para admin+superadmin): modelos, vínculos e feriados.
+  // Jornada padrão (apuração de jornada, para TODOS os perfis): modelos, vínculos e
+  // feriados. A RLS dessas tabelas é leitura livre p/ authenticated (jornada_padrao/
+  // jornada_usuario/feriados: SELECT USING true), então o usuário comum também apura o
+  // próprio previsto vs. realizado — a mesma visão do gestor.
   // Leituras tolerantes a tabelas inexistentes (pré-deploy): erro → lista vazia.
   const [modelos, setModelos] = useState<Tables<"jornada_padrao">[]>([]);
   const [vinculos, setVinculos] = useState<{ usuario_id: string; jornada_padrao_id: string }[]>([]);
   const [feriados, setFeriados] = useState<Feriado[]>([]);
 
   useEffect(() => {
-    if (!podeGerenciar) return;
+    if (authLoading || !user) return;
     supabase
       .from("jornada_padrao")
       .select("*")
@@ -136,7 +139,7 @@ function EspelhoPontoPage() {
             .map((f) => ({ data: f.data })),
         ),
       );
-  }, [podeGerenciar]);
+  }, [authLoading, user]);
 
   const modeloById = useMemo(() => new Map(modelos.map((m) => [m.id, m])), [modelos]);
   const vinculoMap = useMemo(
@@ -155,14 +158,15 @@ function EspelhoPontoPage() {
     [vinculoMap, modeloById, modeloPadrao],
   );
 
+  // Apuração de jornada para qualquer perfil (o próprio usuário vê o mesmo cálculo do
+  // gestor). Sem modelo resolvido (nem padrão do sistema) → sem apuração (null).
   const calcDe = useCallback(
     (e: EspelhoData, uid: string): CalcPeriodo | null => {
-      if (!podeGerenciar) return null;
       const j = resolverJornada(uid);
       if (!j) return null;
       return calcularJornadaPeriodo(e.dias, e.periodo.de, e.periodo.ate, j, feriados);
     },
-    [podeGerenciar, resolverJornada, feriados],
+    [resolverJornada, feriados],
   );
 
   // Cálculo do preview na tela (do colaborador efetivamente visualizado).
@@ -367,7 +371,7 @@ function EspelhoPontoPage() {
             ? "Folha de frequência de qualquer colaborador, com marcações, KPIs do período e abonos/edições."
             : adminPuro
               ? "Folha de frequência da sua equipe (mesmo setor), com marcações, KPIs do período e abonos/edições."
-              : "Seu espelho de ponto: marcações, KPIs do período e abonos/edições."}
+              : "Seu espelho de ponto: marcações, apuração de jornada, KPIs do período e abonos/edições."}
         </p>
       </div>
 
@@ -494,7 +498,7 @@ function EspelhoPontoPage() {
             </CardContent>
           </Card>
 
-          {/* Apuração de jornada (vs horário padrão) — só superadmin por ora. */}
+          {/* Apuração de jornada (vs horário padrão) — visível para todos os perfis. */}
           {calc && (
             <Card>
               <CardHeader>
