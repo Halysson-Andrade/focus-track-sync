@@ -101,6 +101,63 @@ export type Database = {
         }
         Relationships: []
       }
+      ajustes_jornada_exclusoes: {
+        Row: {
+          ajuste_id: string
+          aprovado_por_nome: string | null
+          departamento: string | null
+          dia: string
+          excluido_em: string
+          excluido_por: string | null
+          excluido_por_nome: string | null
+          fim: string | null
+          id: string
+          inicio: string | null
+          justificativa: string | null
+          justificativa_exclusao: string
+          status_alvo: Database["public"]["Enums"]["activity_status"] | null
+          tipo: Database["public"]["Enums"]["ajuste_tipo"]
+          usuario_id: string
+          usuario_nome: string
+        }
+        Insert: {
+          ajuste_id: string
+          aprovado_por_nome?: string | null
+          departamento?: string | null
+          dia: string
+          excluido_em?: string
+          excluido_por?: string | null
+          excluido_por_nome?: string | null
+          fim?: string | null
+          id?: string
+          inicio?: string | null
+          justificativa?: string | null
+          justificativa_exclusao: string
+          status_alvo?: Database["public"]["Enums"]["activity_status"] | null
+          tipo: Database["public"]["Enums"]["ajuste_tipo"]
+          usuario_id: string
+          usuario_nome: string
+        }
+        Update: {
+          ajuste_id?: string
+          aprovado_por_nome?: string | null
+          departamento?: string | null
+          dia?: string
+          excluido_em?: string
+          excluido_por?: string | null
+          excluido_por_nome?: string | null
+          fim?: string | null
+          id?: string
+          inicio?: string | null
+          justificativa?: string | null
+          justificativa_exclusao?: string
+          status_alvo?: Database["public"]["Enums"]["activity_status"] | null
+          tipo?: Database["public"]["Enums"]["ajuste_tipo"]
+          usuario_id?: string
+          usuario_nome?: string
+        }
+        Relationships: []
+      }
       app_config: {
         Row: {
           atualizado_em: string
@@ -936,6 +993,10 @@ export type Database = {
       espelho_ponto: {
         Args: { p_ate: string; p_de: string; p_usuario: string }
         Returns: Json
+      }
+      excluir_ajuste_jornada: {
+        Args: { p_id: string; p_justificativa: string }
+        Returns: string
       }
       fechar_apontamento_aberto: {
         Args: { p_fim: string; p_uid: string }
