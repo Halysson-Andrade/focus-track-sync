@@ -16,6 +16,7 @@ import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authentic
 import { Route as AuthenticatedRankingRouteImport } from './routes/_authenticated/ranking'
 import { Route as AuthenticatedOperacionalRouteImport } from './routes/_authenticated/operacional'
 import { Route as AuthenticatedJornadaPadraoRouteImport } from './routes/_authenticated/jornada-padrao'
+import { Route as AuthenticatedInatividadeRouteImport } from './routes/_authenticated/inatividade'
 import { Route as AuthenticatedExtensaoRouteImport } from './routes/_authenticated/extensao'
 import { Route as AuthenticatedEspelhoPontoRouteImport } from './routes/_authenticated/espelho-ponto'
 import { Route as AuthenticatedDesktopRouteImport } from './routes/_authenticated/desktop'
@@ -61,6 +62,12 @@ const AuthenticatedJornadaPadraoRoute =
   AuthenticatedJornadaPadraoRouteImport.update({
     id: '/jornada-padrao',
     path: '/jornada-padrao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedInatividadeRoute =
+  AuthenticatedInatividadeRouteImport.update({
+    id: '/inatividade',
+    path: '/inatividade',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedExtensaoRoute = AuthenticatedExtensaoRouteImport.update({
@@ -129,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/desktop': typeof AuthenticatedDesktopRoute
   '/espelho-ponto': typeof AuthenticatedEspelhoPontoRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
+  '/inatividade': typeof AuthenticatedInatividadeRoute
   '/jornada-padrao': typeof AuthenticatedJornadaPadraoRoute
   '/operacional': typeof AuthenticatedOperacionalRoute
   '/ranking': typeof AuthenticatedRankingRoute
@@ -146,6 +154,7 @@ export interface FileRoutesByTo {
   '/desktop': typeof AuthenticatedDesktopRoute
   '/espelho-ponto': typeof AuthenticatedEspelhoPontoRoute
   '/extensao': typeof AuthenticatedExtensaoRoute
+  '/inatividade': typeof AuthenticatedInatividadeRoute
   '/jornada-padrao': typeof AuthenticatedJornadaPadraoRoute
   '/operacional': typeof AuthenticatedOperacionalRoute
   '/ranking': typeof AuthenticatedRankingRoute
@@ -166,6 +175,7 @@ export interface FileRoutesById {
   '/_authenticated/desktop': typeof AuthenticatedDesktopRoute
   '/_authenticated/espelho-ponto': typeof AuthenticatedEspelhoPontoRoute
   '/_authenticated/extensao': typeof AuthenticatedExtensaoRoute
+  '/_authenticated/inatividade': typeof AuthenticatedInatividadeRoute
   '/_authenticated/jornada-padrao': typeof AuthenticatedJornadaPadraoRoute
   '/_authenticated/operacional': typeof AuthenticatedOperacionalRoute
   '/_authenticated/ranking': typeof AuthenticatedRankingRoute
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/desktop'
     | '/espelho-ponto'
     | '/extensao'
+    | '/inatividade'
     | '/jornada-padrao'
     | '/operacional'
     | '/ranking'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/desktop'
     | '/espelho-ponto'
     | '/extensao'
+    | '/inatividade'
     | '/jornada-padrao'
     | '/operacional'
     | '/ranking'
@@ -223,6 +235,7 @@ export interface FileRouteTypes {
     | '/_authenticated/desktop'
     | '/_authenticated/espelho-ponto'
     | '/_authenticated/extensao'
+    | '/_authenticated/inatividade'
     | '/_authenticated/jornada-padrao'
     | '/_authenticated/operacional'
     | '/_authenticated/ranking'
@@ -288,6 +301,13 @@ declare module '@tanstack/react-router' {
       path: '/jornada-padrao'
       fullPath: '/jornada-padrao'
       preLoaderRoute: typeof AuthenticatedJornadaPadraoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inatividade': {
+      id: '/_authenticated/inatividade'
+      path: '/inatividade'
+      fullPath: '/inatividade'
+      preLoaderRoute: typeof AuthenticatedInatividadeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/extensao': {
@@ -372,6 +392,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDesktopRoute: typeof AuthenticatedDesktopRoute
   AuthenticatedEspelhoPontoRoute: typeof AuthenticatedEspelhoPontoRoute
   AuthenticatedExtensaoRoute: typeof AuthenticatedExtensaoRoute
+  AuthenticatedInatividadeRoute: typeof AuthenticatedInatividadeRoute
   AuthenticatedJornadaPadraoRoute: typeof AuthenticatedJornadaPadraoRoute
   AuthenticatedOperacionalRoute: typeof AuthenticatedOperacionalRoute
   AuthenticatedRankingRoute: typeof AuthenticatedRankingRoute
@@ -388,6 +409,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDesktopRoute: AuthenticatedDesktopRoute,
   AuthenticatedEspelhoPontoRoute: AuthenticatedEspelhoPontoRoute,
   AuthenticatedExtensaoRoute: AuthenticatedExtensaoRoute,
+  AuthenticatedInatividadeRoute: AuthenticatedInatividadeRoute,
   AuthenticatedJornadaPadraoRoute: AuthenticatedJornadaPadraoRoute,
   AuthenticatedOperacionalRoute: AuthenticatedOperacionalRoute,
   AuthenticatedRankingRoute: AuthenticatedRankingRoute,
