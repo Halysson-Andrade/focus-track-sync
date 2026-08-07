@@ -1101,10 +1101,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      relatorio_inatividade: {
-        Args: { p_ate: string; p_de: string }
-        Returns: Json
-      }
       same_area: { Args: { _owner: string; _viewer: string }; Returns: boolean }
       solicitar_ajuste_jornada: {
         Args: {
