@@ -810,6 +810,30 @@ export type Database = {
         }
         Relationships: []
       }
+      registros_atividade_overlap_backup: {
+        Row: {
+          duracao_antiga: number | null
+          fim_antigo: string | null
+          fim_novo: string | null
+          registro_id: string
+          saneado_em: string
+        }
+        Insert: {
+          duracao_antiga?: number | null
+          fim_antigo?: string | null
+          fim_novo?: string | null
+          registro_id: string
+          saneado_em?: string
+        }
+        Update: {
+          duracao_antiga?: number | null
+          fim_antigo?: string | null
+          fim_novo?: string | null
+          registro_id?: string
+          saneado_em?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1001,6 +1025,10 @@ export type Database = {
       fechar_apontamento_aberto: {
         Args: { p_fim: string; p_uid: string }
         Returns: undefined
+      }
+      fechar_registros_abertos: {
+        Args: { _exceto?: string; _ts: string; _uid: string }
+        Returns: number
       }
       gate_monitoramento_ativo: { Args: never; Returns: boolean }
       has_role: {
