@@ -66,6 +66,7 @@ import {
   atribuirDiaJornada,
   janelaDiaJornada,
   type SegmentoEfetivo,
+  type SegmentoTimeline,
   type AjusteJornada,
 } from "@/lib/jornada-efetiva";
 import { SolicitarAjusteDialog } from "@/components/jornada/SolicitarAjusteDialog";
@@ -620,15 +621,22 @@ function Dashboard() {
     [todayRecords, ajustes, selectedDate, now],
   );
 
-  // Totais do dia a partir da timeline DISJUNTA (cada instante conta uma vez; almoço
-  // que indevidamente cai sob um ATIVO é recortado) e com aberto contado até AGORA.
-  const totals = useMemo(() => {
+  // Jornada RESOLVIDA do dia: timeline DISJUNTA (cada instante conta uma vez; almoço
+  // que indevidamente cai sob um ATIVO é recortado), totais e janela do eixo — fonte
+  // ÚNICA consumida tanto pelos KPIs quanto pela linha do tempo, para que o desenho e
+  // os números nunca divirjam.
+  const jornada = useMemo(() => {
     // Janela do dia da jornada: estende além da meia-noite se a sessão cruzou (o tail
     // já vem filtrado para este dia em dayRecords).
-    const { diaStart, diaEnd } = janelaDiaJornada(effectiveRecords, dayKey, now.getTime());
-    const { totais } = resolverJornada(effectiveRecords, diaStart, diaEnd, now.getTime());
-    return { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0, ABONO: 0, ...totais };
+    const { diaStart, diaEnd, cap } = janelaDiaJornada(effectiveRecords, dayKey, now.getTime());
+    const { timeline, totais } = resolverJornada(effectiveRecords, diaStart, diaEnd, now.getTime());
+    return { diaStart, diaEnd, cap, timeline, totais };
   }, [effectiveRecords, dayKey, now]);
+
+  const totals = useMemo(
+    () => ({ ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0, ABONO: 0, ...jornada.totais }),
+    [jornada],
+  );
 
   const totalOnline = totals.ATIVO + totals.PAUSA + totals.ALMOCO + totals.INATIVO;
 
@@ -1574,10 +1582,17 @@ function Dashboard() {
             )}
           </CardHeader>
           <CardContent>
-            {effectiveRecords.length === 0 ? (
+            {jornada.timeline.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Sem registros.</p>
             ) : (
-              <HorizontalTimeline records={effectiveRecords} idleEvents={idleEvents} />
+              <HorizontalTimeline
+                segments={jornada.timeline}
+                axisStartTs={jornada.diaStart}
+                axisEndTs={jornada.diaEnd}
+                capTs={jornada.cap}
+                nowTs={now.getTime()}
+                idleEvents={idleEvents}
+              />
             )}
             {!viewingOther && ajustes.length > 0 && (
               <div className="mt-4 space-y-1 border-t border-border pt-3">
@@ -1853,7 +1868,12 @@ function Dashboard() {
 
                 // Mesma resolução do dia selecionado: timeline disjunta + aberto até AGORA
                 // (o dia corrente deixa de contar 0 ou de inflar até a meia-noite).
-                const { totais } = resolverJornada(effective, diaStart, diaEnd, now.getTime());
+                const { timeline, totais } = resolverJornada(
+                  effective,
+                  diaStart,
+                  diaEnd,
+                  now.getTime(),
+                );
                 const totals = { ATIVO: 0, PAUSA: 0, ALMOCO: 0, INATIVO: 0, ...totais };
                 const isSelected = day.date.getTime() === selectedDate.getTime();
                 return (
@@ -1885,7 +1905,14 @@ function Dashboard() {
                         <span className="text-destructive">I {formatDuration(totals.INATIVO)}</span>
                       </div>
                     </div>
-                    <HorizontalTimeline records={effective} idleEvents={dayIdleEvents} />
+                    <HorizontalTimeline
+                      segments={timeline}
+                      axisStartTs={diaStart}
+                      axisEndTs={diaEnd}
+                      capTs={cap}
+                      nowTs={now.getTime()}
+                      idleEvents={dayIdleEvents}
+                    />
                   </div>
                 );
               })}
@@ -2017,11 +2044,25 @@ function SourceCard({
 
 
 
+// Consome a jornada RESOLVIDA (`resolverJornada`): segmentos DISJUNTOS, já recortados à
+// janela do dia e com a sobreposição decidida por latest-start-wins. É a mesma fonte dos
+// KPIs — o desenho e os números não podem divergir (ver src/lib/jornada-efetiva.ts).
 function HorizontalTimeline({
-  records,
+  segments,
+  axisStartTs,
+  axisEndTs,
+  capTs,
+  nowTs,
   idleEvents = [],
 }: {
-  records: SegmentoEfetivo[];
+  segments: SegmentoTimeline[];
+  /** `diaStart` de `janelaDiaJornada`. */
+  axisStartTs: number;
+  /** `diaEnd` de `janelaDiaJornada` (passa da meia-noite em jornada vira-noite). */
+  axisEndTs: number;
+  /** `cap` = min(agora, diaEnd) — um segmento que encosta nele ainda está aberto. */
+  capTs: number;
+  nowTs: number;
   idleEvents?: IdleEvent[];
 }) {
   // Reaproveita o mapa central; ENCERRADO usa o muted (mais claro) por ser fundo
@@ -2040,23 +2081,25 @@ function HorizontalTimeline({
     ABONO: "Abonado",
   };
 
-  const nowTs = Date.now();
-  // Day window: 00:00 → 24:00 of the day of the first record
-  const dayBase = new Date(records[0]?.inicio ?? Date.now());
-  dayBase.setHours(0, 0, 0, 0);
-  const axisStart = dayBase.getTime();
-  const axisEnd = axisStart + 24 * 3600_000;
+  // Eixo = janela do DIA DA JORNADA (`janelaDiaJornada`), não 24h fixas derivadas do
+  // primeiro registro: em vira-noite `diaEnd` passa da meia-noite e o rabo da jornada
+  // precisa aparecer — antes ele era descartado aqui e mesmo assim contava nos totais.
+  // O `max` normaliza o caso comum (diaEnd = 23:59:59.999) para 24h cheias; o teto de
+  // 48h protege contra registro esquecido em aberto, que faz `diaEnd` esticar até AGORA
+  // (eixo de largura arbitrária ⇒ centenas de ticks redesenhados a cada segundo).
+  const AXIS_MAX_MS = 48 * 3600_000;
+  const axisStart = axisStartTs;
+  const axisEnd = Math.min(
+    axisStartTs + AXIS_MAX_MS,
+    Math.max(axisStartTs + 24 * 3600_000, axisEndTs),
+  );
   const clamp = (ts: number) => Math.max(axisStart, Math.min(axisEnd, ts));
 
   // Dynamic piecewise scale: the worked window expands to fill ~70% of the track,
   // while the idle periods before/after compress into the remaining 30%.
-  const ativoRecsAll = records.filter((r) => r.status === "ATIVO");
-  const workStartTs = ativoRecsAll.length
-    ? Math.min(...ativoRecsAll.map((r) => new Date(r.inicio).getTime()))
-    : null;
-  const workEndTs = ativoRecsAll.length
-    ? Math.max(...ativoRecsAll.map((r) => (r.fim ? new Date(r.fim).getTime() : nowTs)))
-    : null;
+  const ativoSegs = segments.filter((s) => s.status === "ATIVO");
+  const workStartTs = ativoSegs.length ? Math.min(...ativoSegs.map((s) => s.inicio)) : null;
+  const workEndTs = ativoSegs.length ? Math.max(...ativoSegs.map((s) => s.fim)) : null;
 
   // Expand work window by 30min padding on each side for breathing room
   const pad = 30 * 60_000;
@@ -2099,28 +2142,35 @@ function HorizontalTimeline({
     return wStart + ((p - beforePct) / WORK_PCT) * workDur;
   };
 
-  // Ticks: hourly inside the work window (dense), every 3h outside (sparse)
-  const majorTicks: number[] = [];
-  const minorTicks: number[] = [];
-  for (let h = 0; h <= 24; h += 1) {
-    const t = axisStart + h * 3600_000;
+  // Ticks: hourly inside the work window (dense), every 3h outside (sparse).
+  // O eixo pode passar de 24h (vira-noite), então a contagem de horas é derivada da
+  // janela real; os Sets evitam tick duplicado quando a última hora é clampada.
+  const totalHours = Math.ceil((axisEnd - axisStart) / 3600_000);
+  const majorSet = new Set<number>();
+  const minorSet = new Set<number>();
+  for (let h = 0; h <= totalHours; h += 1) {
+    const t = Math.min(axisStart + h * 3600_000, axisEnd);
     const insideWork = hasWork && t >= wStart && t <= wEnd;
     if (insideWork) {
-      minorTicks.push(t);
-      if (h % 1 === 0) majorTicks.push(t);
+      minorSet.add(t);
+      majorSet.add(t);
     } else if (h % 3 === 0) {
-      majorTicks.push(t);
+      majorSet.add(t);
     }
   }
+  const minorTicks = Array.from(minorSet).sort((a, b) => a - b);
+  const majorTicks = Array.from(majorSet).sort((a, b) => a - b);
 
   // Highlighted worked window (reuses already-computed bounds)
   const ativoStart = workStartTs;
   const ativoEnd = workEndTs;
 
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const [hover, setHover] = useState<{ x: number; ts: number; rec: SegmentoEfetivo | null } | null>(
-    null,
-  );
+  const [hover, setHover] = useState<{
+    x: number;
+    ts: number;
+    seg: SegmentoTimeline | null;
+  } | null>(null);
 
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = trackRef.current;
@@ -2129,25 +2179,11 @@ function HorizontalTimeline({
     const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
     const p = (x / rect.width) * 100;
     const ts = tsFromPct(p);
-    const rec =
-      records.find((r) => {
-        const s = new Date(r.inicio).getTime();
-        const en = r.fim ? new Date(r.fim).getTime() : nowTs;
-        return ts >= s && ts <= en;
-      }) ?? null;
-    setHover({ x, ts, rec });
-  };
-
-  // ATIVO occupies the central band (tall); ABONO (justificado) usa banda média para
-  // ficar visível; demais status renderizam como faixas finas centradas.
-  // Ajustes (editado) sempre usam faixa fina para não dominar a linha do tempo.
-  const dimsForStatus = (s: string, editado?: boolean) => {
-    if (editado) return { top: "36%", bottom: "36%" };
-    return s === "ATIVO"
-      ? { top: "18%", bottom: "18%" }
-      : s === "ABONO"
-        ? { top: "32%", bottom: "32%" }
-        : { top: "40%", bottom: "40%" };
+    // Timeline disjunta: no máximo UM segmento cobre `ts`. (Antes, sobre os registros
+    // brutos, o `find` devolvia o de início MAIS ANTIGO — o oposto do latest-start-wins
+    // usado nos totais —, e por isso o hover sobre o almoço reportava "Ativo".)
+    const seg = segments.find((s) => ts >= s.inicio && ts < s.fim) ?? null;
+    setHover({ x, ts, seg });
   };
 
   return (
@@ -2191,35 +2227,27 @@ function HorizontalTimeline({
           />
         ))}
 
-        {/* Segments — ATIVO is the dominant centered band, others compress */}
-        {records.map((r) => {
-          const s = new Date(r.inicio).getTime();
-          const e = r.fim ? new Date(r.fim).getTime() : nowTs;
-          if (e <= axisStart || s >= axisEnd) return null;
-          const left = pct(s);
-          const width = Math.max(pct(e) - left, 0.2);
-          const isAtivo = r.status === "ATIVO";
-          const editado = r.editado;
-          const d = dimsForStatus(r.status, editado);
+        {/* Segmentos — a timeline é DISJUNTA, então nenhum cobre outro: todos usam a
+            MESMA banda e opacidade cheia. (O esquema anterior de alturas + z-index
+            existia só para mitigar sobreposição e escondia o almoço sob o ATIVO.) */}
+        {segments.map((seg) => {
+          if (seg.fim <= axisStart || seg.inicio >= axisEnd) return null;
+          const left = pct(seg.inicio);
+          const width = Math.max(pct(seg.fim) - left, 0.2);
           return (
             <div
-              key={r.id}
+              // `origemId` NÃO é único: um registro cortado ao meio (ex.: ATIVO partido
+              // pelo almoço) emite duas faixas com a mesma origem.
+              key={`${seg.origemId}-${seg.inicio}`}
               className="absolute rounded-sm transition-opacity hover:opacity-90"
               style={{
                 left: `${left}%`,
                 width: `${width}%`,
-                top: d.top,
-                bottom: d.bottom,
-                background: colorByStatus[r.status] ?? "var(--color-muted)",
-                opacity: editado ? 0.95 : isAtivo ? 1 : 0.65,
-                // Ajuste aprovado: anel na cor "editado" + topo da pilha, para
-                // distinguir visualmente do tracking original.
-                zIndex: editado ? 4 : isAtivo ? 2 : 1,
-                boxShadow: editado
-                  ? `0 0 0 1px ${EDITADO_COLOR}`
-                  : isAtivo
-                    ? "0 0 0 1px color-mix(in oklch, var(--color-success) 50%, transparent)"
-                    : undefined,
+                top: "22%",
+                bottom: "22%",
+                background: colorByStatus[seg.status] ?? "var(--color-muted)",
+                // Ajuste aprovado: anel na cor "editado", único sinal de procedência.
+                boxShadow: seg.editado ? `0 0 0 1px ${EDITADO_COLOR}` : undefined,
               }}
             />
           );
@@ -2253,13 +2281,10 @@ function HorizontalTimeline({
 
         {/* Start / End markers for the worked period */}
         {ativoStart != null && (
-          <Marker
-            x={pct(ativoStart)}
-            label={`Início ${formatHM(new Date(ativoStart).toISOString())}`}
-          />
+          <Marker x={pct(ativoStart)} label={`Início ${formatHM(new Date(ativoStart))}`} />
         )}
         {ativoEnd != null && (
-          <Marker x={pct(ativoEnd)} label={`Fim ${formatHM(new Date(ativoEnd).toISOString())}`} />
+          <Marker x={pct(ativoEnd)} label={`Fim ${formatHM(new Date(ativoEnd))}`} />
         )}
 
         {/* "now" marker */}
@@ -2288,11 +2313,12 @@ function HorizontalTimeline({
                   second: "2-digit",
                 })}
               </div>
-              {hover.rec ? (
+              {hover.seg ? (
                 <div className="text-muted-foreground">
-                  {labelByStatus[hover.rec.status] ?? hover.rec.status} •{" "}
-                  {formatHM(hover.rec.inicio)} → {hover.rec.fim ? formatHM(hover.rec.fim) : "agora"}
-                  {hover.rec.editado && <span style={{ color: EDITADO_COLOR }}> • editado</span>}
+                  {labelByStatus[hover.seg.status] ?? hover.seg.status} •{" "}
+                  {formatHM(new Date(hover.seg.inicio))} →{" "}
+                  {hover.seg.fim >= capTs ? "agora" : formatHM(new Date(hover.seg.fim))}
+                  {hover.seg.editado && <span style={{ color: EDITADO_COLOR }}> • editado</span>}
                 </div>
               ) : (
                 <div className="text-muted-foreground">Offline</div>
@@ -2339,18 +2365,13 @@ function HorizontalTimeline({
         })}
       </div>
 
-      {/* legend — visually mirrors the compression of non-ativo statuses */}
+      {/* legenda — swatches uniformes, espelhando a banda única da régua */}
       <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-muted-foreground">
         {(["ATIVO", "PAUSA", "ALMOCO", "INATIVO"] as const).map((s) => (
           <span key={s} className="inline-flex items-center gap-1.5">
             <span
               className="rounded-sm"
-              style={{
-                background: colorByStatus[s],
-                width: s === "ATIVO" ? "14px" : "10px",
-                height: s === "ATIVO" ? "10px" : "4px",
-                opacity: s === "ATIVO" ? 1 : 0.65,
-              }}
+              style={{ background: colorByStatus[s], width: "10px", height: "10px" }}
             />
             {s === "ALMOCO" ? "Almoço" : s.charAt(0) + s.slice(1).toLowerCase()}
           </span>
@@ -2369,9 +2390,16 @@ function HorizontalTimeline({
           Ocioso
         </span>
         <span className="inline-flex items-center gap-1.5">
+          {/* Abono divide a cor com o Almoço, mas nasce sempre de um ajuste aprovado,
+              logo carrega o anel "editado" — é ele que os distingue na régua. */}
           <span
             className="rounded-sm"
-            style={{ background: ABONO_COLOR, width: "10px", height: "6px" }}
+            style={{
+              background: ABONO_COLOR,
+              width: "10px",
+              height: "10px",
+              boxShadow: `0 0 0 1px ${EDITADO_COLOR}`,
+            }}
           />
           Abonado
         </span>
