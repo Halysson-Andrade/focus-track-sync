@@ -16,6 +16,7 @@ import {
   AJUSTE_STATUS_LABEL,
 } from "./format";
 import { sufixoVirada, type EspelhoData } from "./espelho-ponto";
+import { duracaoMin, JUSTIFICATIVA_STATUS_LABEL } from "./justificativas-ocio";
 import { situacaoDia, type CalcPeriodo } from "./jornada-padrao";
 
 const MARGIN = 14;
@@ -60,6 +61,7 @@ function renderEspelho(doc: jsPDF, e: EspelhoData, calc?: CalcPeriodo | null): v
       [
         "Tempo Ativo",
         "Ociosidade",
+        "Justificado",
         "Efetivo",
         "Produtividade",
         "Pausa",
@@ -72,6 +74,7 @@ function renderEspelho(doc: jsPDF, e: EspelhoData, calc?: CalcPeriodo | null): v
       [
         formatDuration(k.ativoMin),
         formatDuration(k.ocioMin),
+        formatDuration(k.ocioJustificadoMin),
         formatDuration(k.efetivoMin),
         `${k.produtividade.toFixed(0)}%`,
         formatDuration(k.pausaMin),
@@ -146,7 +149,9 @@ function renderEspelho(doc: jsPDF, e: EspelhoData, calc?: CalcPeriodo | null): v
               : "—",
           c.previstoMin ? formatDuration(c.previstoMin) : "—",
           c.realizadoMin ? formatDuration(c.realizadoMin) : "—",
-          d.ocioMin ? formatDuration(d.ocioMin) : "—",
+          d.ocioMin || d.ocioJustificadoMin
+            ? formatDuration(d.ocioMin) + (d.ocioJustificadoMin ? "*" : "")
+            : "—",
           c.realizadoMin || c.previstoMin ? sinalDur(c.saldoMin) : "—",
           c.noturnoMin ? formatDuration(c.noturnoMin) : "—",
           situacaoDia(c),
@@ -173,6 +178,8 @@ function renderEspelho(doc: jsPDF, e: EspelhoData, calc?: CalcPeriodo | null): v
         }
         if (d.marcacoes.extras.length) obs.push(`+${d.marcacoes.extras.length} intervalo(s)`);
         if (d.ocioMin > 0) obs.push(`ócio ${formatDuration(d.ocioMin)}`);
+        if (d.ocioJustificadoMin > 0)
+          obs.push(`justificado ${formatDuration(d.ocioJustificadoMin)}`);
         return [
           formatDate(d.dia),
           fmtHora(d.marcacoes.entrada),
@@ -218,6 +225,38 @@ function renderEspelho(doc: jsPDF, e: EspelhoData, calc?: CalcPeriodo | null): v
           periodo,
           AJUSTE_STATUS_LABEL[a.status] ?? a.status,
           a.justificativa,
+          decisao,
+        ];
+      }),
+      styles: { fontSize: 8, cellWidth: "wrap" },
+      headStyles: { fillColor: AZUL },
+      columnStyles: { 4: { cellWidth: 45 }, 5: { cellWidth: 45 } },
+      margin: { left: MARGIN, right: MARGIN },
+    });
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+  }
+
+  // ---- Justificativas de ociosidade (o que foi descontado do "Ocioso*") ----
+  if (e.justificativas.length) {
+    doc.setFontSize(11);
+    doc.text("Justificativas de ociosidade", MARGIN, y);
+    y += 2;
+    autoTable(doc, {
+      startY: y,
+      head: [["Dia", "Período", "Duração", "Status", "Justificativa", "Decisão"]],
+      body: e.justificativas.map((j) => {
+        const decisao = [
+          j.justificativa_decisao ?? "",
+          j.decidido_por_nome ? `(${j.decidido_por_nome})` : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        return [
+          formatDate(j.dia),
+          `${formatHM(j.inicio)}–${formatHM(j.fim)}`,
+          formatDuration(duracaoMin(j)),
+          JUSTIFICATIVA_STATUS_LABEL[j.status] ?? j.status,
+          j.justificativa,
           decisao,
         ];
       }),

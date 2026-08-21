@@ -496,6 +496,60 @@ export type Database = {
           },
         ]
       }
+      justificativas_ociosidade: {
+        Row: {
+          criado_em: string
+          criado_por: string
+          decidido_em: string | null
+          decidido_por: string | null
+          decidido_por_nome: string | null
+          departamento: string | null
+          dia: string
+          fim: string
+          id: string
+          inicio: string
+          justificativa: string
+          justificativa_decisao: string | null
+          status: Database["public"]["Enums"]["ajuste_status"]
+          usuario_id: string
+          usuario_nome: string
+        }
+        Insert: {
+          criado_em?: string
+          criado_por: string
+          decidido_em?: string | null
+          decidido_por?: string | null
+          decidido_por_nome?: string | null
+          departamento?: string | null
+          dia: string
+          fim: string
+          id?: string
+          inicio: string
+          justificativa: string
+          justificativa_decisao?: string | null
+          status?: Database["public"]["Enums"]["ajuste_status"]
+          usuario_id: string
+          usuario_nome: string
+        }
+        Update: {
+          criado_em?: string
+          criado_por?: string
+          decidido_em?: string | null
+          decidido_por?: string | null
+          decidido_por_nome?: string | null
+          departamento?: string | null
+          dia?: string
+          fim?: string
+          id?: string
+          inicio?: string
+          justificativa?: string
+          justificativa_decisao?: string | null
+          status?: Database["public"]["Enums"]["ajuste_status"]
+          usuario_id?: string
+          usuario_nome?: string
+        }
+        Relationships: []
+      }
       monitor_idle_whitelist: {
         Row: {
           ativo: boolean
@@ -983,6 +1037,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      decidir_justificativa_ociosidade: {
+        Args: { p_aprovar: boolean; p_id: string; p_justificativa: string }
+        Returns: {
+          criado_em: string
+          criado_por: string
+          decidido_em: string | null
+          decidido_por: string | null
+          decidido_por_nome: string | null
+          departamento: string | null
+          dia: string
+          fim: string
+          id: string
+          inicio: string
+          justificativa: string
+          justificativa_decisao: string | null
+          status: Database["public"]["Enums"]["ajuste_status"]
+          usuario_id: string
+          usuario_nome: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "justificativas_ociosidade"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       encerrar_expediente_admin: {
         Args: { p_motivo?: string; p_usuario: string }
         Returns: number
@@ -1125,6 +1205,38 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "ajustes_jornada"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      registrar_justificativa_ociosidade: {
+        Args: {
+          p_dia: string
+          p_fim: string
+          p_inicio: string
+          p_justificativa: string
+          p_usuario: string
+        }
+        Returns: {
+          criado_em: string
+          criado_por: string
+          decidido_em: string | null
+          decidido_por: string | null
+          decidido_por_nome: string | null
+          departamento: string | null
+          dia: string
+          fim: string
+          id: string
+          inicio: string
+          justificativa: string
+          justificativa_decisao: string | null
+          status: Database["public"]["Enums"]["ajuste_status"]
+          usuario_id: string
+          usuario_nome: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "justificativas_ociosidade"
           isOneToOne: true
           isSetofReturn: false
         }

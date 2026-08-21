@@ -40,6 +40,7 @@ function linhaResumo(e: EspelhoData, calc: CalcPeriodo | null) {
     // KPIs do período (sempre presentes)
     "Tempo ativo (h)": min2h(k.ativoMin),
     "Ocioso (h)": min2h(k.ocioMin),
+    "Ócio justificado (h)": min2h(k.ocioJustificadoMin),
     "Efetivo (h)": min2h(k.efetivoMin),
     "Produtividade (%)": Math.round(k.produtividade),
     "Pausa (h)": min2h(k.pausaMin),

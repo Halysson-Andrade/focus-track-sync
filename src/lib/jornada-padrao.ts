@@ -272,6 +272,8 @@ function diaVazio(dia: string): DiaEspelho {
     inativoMin: 0,
     abonoMin: 0,
     ocioMin: 0,
+    ocioBrutoMin: 0,
+    ocioJustificadoMin: 0,
     editado: false,
     tiposAjuste: [],
   };

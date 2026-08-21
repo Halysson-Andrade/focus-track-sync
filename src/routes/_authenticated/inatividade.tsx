@@ -9,7 +9,8 @@ import {
   type RelatorioInatividade,
 } from "@/lib/relatorio-inatividade";
 import { gerarInatividadePDF } from "@/lib/inatividade-pdf";
-import { formatDate, formatDuration } from "@/lib/format";
+import { JUSTIFICATIVA_STATUS_LABEL } from "@/lib/justificativas-ocio";
+import { formatDate, formatDuration, formatHM } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Gauge, FileText, Users } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Gauge, FileText, Users, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/inatividade")({
@@ -187,10 +190,11 @@ function InatividadePage() {
           </div>
 
           {/* ---- KPIs ---- */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             {(
               [
                 ["Ociosidade total", formatDuration(rel.totalOcioMin)],
+                ["Ócio justificado", formatDuration(rel.totalOcioJustificadoMin)],
                 ["Tempo ativo total", formatDuration(rel.totalAtivoMin)],
                 ["% ócio", `${pctTotal.toFixed(0)}%`],
                 ["Colaboradores", String(rel.totalColaboradores)],
@@ -203,95 +207,202 @@ function InatividadePage() {
             ))}
           </div>
 
-          {/* ---- Ranking por setor ---- */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Users className="h-4 w-4" /> Ranking por setor
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {rel.setores.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  Sem dados no período.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10">#</TableHead>
-                      <TableHead>Setor</TableHead>
-                      <TableHead className="text-right">Colab.</TableHead>
-                      <TableHead className="text-right">Ócio</TableHead>
-                      <TableHead className="text-right">Tempo ativo</TableHead>
-                      <TableHead className="text-right">% ócio</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rel.setores.map((s, i) => (
-                      <TableRow key={s.setorLabel}>
-                        <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                        <TableCell className="font-medium">{s.setorLabel}</TableCell>
-                        <TableCell className="text-right">{s.colaboradores}</TableCell>
-                        <TableCell className="text-right">{formatDuration(s.ocioMin)}</TableCell>
-                        <TableCell className="text-right">{formatDuration(s.ativoMin)}</TableCell>
-                        <TableCell className="text-right">{s.pctOcio.toFixed(0)}%</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <Tabs defaultValue="ranking" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="ranking">Ranking</TabsTrigger>
+              <TabsTrigger value="justificativas">
+                Justificativas ({rel.justificativas.length})
+              </TabsTrigger>
+            </TabsList>
 
-          {/* ---- Ranking por colaborador ---- */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Ranking por colaborador</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {rel.colaboradores.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  Sem dados no período.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10">#</TableHead>
-                      <TableHead>Colaborador</TableHead>
-                      <TableHead>Setor</TableHead>
-                      <TableHead className="text-right">Ócio</TableHead>
-                      <TableHead className="text-right">Tempo ativo</TableHead>
-                      <TableHead className="text-right">% ócio</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rel.colaboradores.map((c, i) => (
-                      <TableRow key={c.usuarioId}>
-                        <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                        <TableCell className="font-medium">
-                          <div>{c.nome}</div>
-                          <div className="mt-1 h-1.5 w-32 overflow-hidden rounded-full bg-muted">
-                            <div
-                              className="h-full bg-primary"
-                              style={{ width: `${maxOcio > 0 ? (c.ocioMin / maxOcio) * 100 : 0}%` }}
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{c.setorLabel}</TableCell>
-                        <TableCell className="text-right font-semibold">
-                          {formatDuration(c.ocioMin)}
-                        </TableCell>
-                        <TableCell className="text-right">{formatDuration(c.ativoMin)}</TableCell>
-                        <TableCell className="text-right">{c.pctOcio.toFixed(0)}%</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+            <TabsContent value="ranking" className="space-y-6">
+              {/* ---- Ranking por setor ---- */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Users className="h-4 w-4" /> Ranking por setor
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {rel.setores.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Sem dados no período.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10">#</TableHead>
+                          <TableHead>Setor</TableHead>
+                          <TableHead className="text-right">Colab.</TableHead>
+                          <TableHead className="text-right">Ócio</TableHead>
+                          <TableHead className="text-right">Tempo ativo</TableHead>
+                          <TableHead className="text-right">% ócio</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {rel.setores.map((s, i) => (
+                          <TableRow key={s.setorLabel}>
+                            <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                            <TableCell className="font-medium">{s.setorLabel}</TableCell>
+                            <TableCell className="text-right">{s.colaboradores}</TableCell>
+                            <TableCell className="text-right">
+                              {formatDuration(s.ocioMin)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatDuration(s.ativoMin)}
+                            </TableCell>
+                            <TableCell className="text-right">{s.pctOcio.toFixed(0)}%</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* ---- Ranking por colaborador ---- */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Ranking por colaborador</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {rel.colaboradores.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Sem dados no período.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10">#</TableHead>
+                          <TableHead>Colaborador</TableHead>
+                          <TableHead>Setor</TableHead>
+                          <TableHead className="text-right">Ócio</TableHead>
+                          <TableHead className="text-right">Tempo ativo</TableHead>
+                          <TableHead className="text-right">% ócio</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {rel.colaboradores.map((c, i) => (
+                          <TableRow key={c.usuarioId}>
+                            <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                            <TableCell className="font-medium">
+                              <div>{c.nome}</div>
+                              <div className="mt-1 h-1.5 w-32 overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className="h-full bg-primary"
+                                  style={{
+                                    width: `${maxOcio > 0 ? (c.ocioMin / maxOcio) * 100 : 0}%`,
+                                  }}
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{c.setorLabel}</TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {formatDuration(c.ocioMin)}
+                              {c.ocioJustificadoMin > 0 && (
+                                <div
+                                  className="text-xs font-normal text-muted-foreground"
+                                  title={`Ócio bruto ${formatDuration(c.ocioBrutoMin)}; ${formatDuration(c.ocioJustificadoMin)} justificado e aprovado`}
+                                >
+                                  −{formatDuration(c.ocioJustificadoMin)} justificado
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatDuration(c.ativoMin)}
+                            </TableCell>
+                            <TableCell className="text-right">{c.pctOcio.toFixed(0)}%</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ---- Justificativas de ociosidade ---- */}
+            <TabsContent value="justificativas">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <ShieldCheck className="h-4 w-4" /> Justificativas de ociosidade
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {rel.justificativas.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Nenhuma justificativa de ociosidade no período.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Dia</TableHead>
+                            <TableHead>Colaborador</TableHead>
+                            <TableHead>Setor</TableHead>
+                            <TableHead>Período</TableHead>
+                            <TableHead className="text-right">Duração</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Justificativa</TableHead>
+                            <TableHead>Decisão</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {rel.justificativas.map((j) => {
+                            const decisao = [
+                              j.justificativaDecisao ?? "",
+                              j.decididoPorNome ? `(${j.decididoPorNome})` : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ");
+                            return (
+                              <TableRow key={j.id}>
+                                <TableCell>{formatDate(j.dia)}</TableCell>
+                                <TableCell className="font-medium">{j.nome}</TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {j.setorLabel}
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">
+                                  {formatHM(j.inicio)}–{formatHM(j.fim)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatDuration(j.duracaoMin)}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={
+                                      j.status === "aprovada"
+                                        ? "default"
+                                        : j.status === "rejeitada"
+                                          ? "destructive"
+                                          : "secondary"
+                                    }
+                                    className="font-normal"
+                                  >
+                                    {JUSTIFICATIVA_STATUS_LABEL[j.status] ?? j.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="max-w-[22rem] text-xs">
+                                  {j.justificativa}
+                                </TableCell>
+                                <TableCell className="max-w-[16rem] text-xs text-muted-foreground">
+                                  {decisao || "—"}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </>
       )}
 

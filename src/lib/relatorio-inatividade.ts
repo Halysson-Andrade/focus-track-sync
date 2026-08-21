@@ -7,7 +7,12 @@
 // A fórmula de duração das janelas ATIVO espelha `ranking.tsx` (duracao_minutos
 // quando fechada; senão, agora − início).
 
-import { ocioReconciliadoSeg } from "./ocio";
+import { ocioDetalhado } from "./ocio";
+import {
+  intervalosAprovados,
+  duracaoMin,
+  type JustificativaOcioPayload,
+} from "./justificativas-ocio";
 import { DEPARTAMENTOS } from "@/components/office/office-config";
 
 export type InatividadePayload = {
@@ -19,6 +24,7 @@ export type InatividadePayload = {
     duracao_minutos: number | null;
   }[];
   eventos: { usuario_id: string; inicio: string; fim: string | null }[];
+  justificativas: JustificativaOcioPayload[];
 };
 
 export type LinhaColaborador = {
@@ -27,7 +33,10 @@ export type LinhaColaborador = {
   departamento: string | null;
   setorLabel: string;
   ativoMin: number;
+  /** Ócio que CONTA no ranking: já descontado o justificado e aprovado. */
   ocioMin: number;
+  ocioBrutoMin: number;
+  ocioJustificadoMin: number;
   /** Ócio como % do tempo ativo (comparável entre jornadas diferentes). */
   pctOcio: number;
 };
@@ -37,14 +46,33 @@ export type LinhaSetor = {
   colaboradores: number;
   ativoMin: number;
   ocioMin: number;
+  ocioBrutoMin: number;
+  ocioJustificadoMin: number;
   pctOcio: number;
 };
 
+/** Linha da aba "Justificativas" (todos os status, do escopo/setor selecionado). */
+export type LinhaJustificativa = {
+  id: string;
+  nome: string;
+  setorLabel: string;
+  dia: string;
+  inicio: string;
+  fim: string;
+  duracaoMin: number;
+  justificativa: string;
+  status: JustificativaOcioPayload["status"];
+  decididoPorNome: string | null;
+  justificativaDecisao: string | null;
+};
+
 export type RelatorioInatividade = {
-  colaboradores: LinhaColaborador[]; // ordenado por ócio desc
-  setores: LinhaSetor[]; // ordenado por ócio desc
+  colaboradores: LinhaColaborador[]; // ordenado por ócio (líquido) desc
+  setores: LinhaSetor[]; // ordenado por ócio (líquido) desc
+  justificativas: LinhaJustificativa[]; // ordenado por dia desc
   totalAtivoMin: number;
   totalOcioMin: number;
+  totalOcioJustificadoMin: number;
   totalColaboradores: number;
 };
 
@@ -115,12 +143,28 @@ export function montarRelatorio(
     eventosByUser.set(e.usuario_id, list);
   }
 
+  // Justificativas do escopo visível (todos os status: as aprovadas descontam,
+  // as demais só aparecem na aba de relatório).
+  const justificativasVisiveis = (payload.justificativas ?? []).filter((j) =>
+    idsVisiveis.has(j.usuario_id),
+  );
+  const justByUser = new Map<string, JustificativaOcioPayload[]>();
+  for (const j of justificativasVisiveis) {
+    const list = justByUser.get(j.usuario_id) ?? [];
+    list.push(j);
+    justByUser.set(j.usuario_id, list);
+  }
+
   const colaboradores: LinhaColaborador[] = perfis
     .map((p) => {
       const ativoMin = ativoMinByUser.get(p.id) ?? 0;
-      const ocioMin =
-        ocioReconciliadoSeg(eventosByUser.get(p.id) ?? [], ativosByUser.get(p.id) ?? [], nowTs) /
-        60;
+      const ocio = ocioDetalhado(
+        eventosByUser.get(p.id) ?? [],
+        ativosByUser.get(p.id) ?? [],
+        nowTs,
+        intervalosAprovados(justByUser.get(p.id) ?? []),
+      );
+      const ocioMin = ocio.liquidoSeg / 60;
       return {
         usuarioId: p.id,
         nome: p.nome ?? "—",
@@ -128,18 +172,37 @@ export function montarRelatorio(
         setorLabel: setorLabel(p.departamento),
         ativoMin,
         ocioMin,
+        ocioBrutoMin: ocio.brutoSeg / 60,
+        ocioJustificadoMin: ocio.justificadoSeg / 60,
         pctOcio: ativoMin > 0 ? (ocioMin / ativoMin) * 100 : 0,
       };
     })
     .sort((a, b) => b.ocioMin - a.ocioMin);
 
   // Agregação por setor.
-  const setorMap = new Map<string, { colaboradores: number; ativoMin: number; ocioMin: number }>();
+  const setorMap = new Map<
+    string,
+    {
+      colaboradores: number;
+      ativoMin: number;
+      ocioMin: number;
+      ocioBrutoMin: number;
+      ocioJustificadoMin: number;
+    }
+  >();
   for (const c of colaboradores) {
-    const s = setorMap.get(c.setorLabel) ?? { colaboradores: 0, ativoMin: 0, ocioMin: 0 };
+    const s = setorMap.get(c.setorLabel) ?? {
+      colaboradores: 0,
+      ativoMin: 0,
+      ocioMin: 0,
+      ocioBrutoMin: 0,
+      ocioJustificadoMin: 0,
+    };
     s.colaboradores += 1;
     s.ativoMin += c.ativoMin;
     s.ocioMin += c.ocioMin;
+    s.ocioBrutoMin += c.ocioBrutoMin;
+    s.ocioJustificadoMin += c.ocioJustificadoMin;
     setorMap.set(c.setorLabel, s);
   }
   const setores: LinhaSetor[] = Array.from(setorMap.entries())
@@ -148,18 +211,41 @@ export function montarRelatorio(
       colaboradores: s.colaboradores,
       ativoMin: s.ativoMin,
       ocioMin: s.ocioMin,
+      ocioBrutoMin: s.ocioBrutoMin,
+      ocioJustificadoMin: s.ocioJustificadoMin,
       pctOcio: s.ativoMin > 0 ? (s.ocioMin / s.ativoMin) * 100 : 0,
     }))
     .sort((a, b) => b.ocioMin - a.ocioMin);
 
+  // Aba de justificativas: mesma lista já recortada por escopo/setor.
+  const nomePorId = new Map(perfis.map((p) => [p.id, p.nome ?? "—"]));
+  const justificativas: LinhaJustificativa[] = justificativasVisiveis
+    .map((j) => ({
+      id: j.id,
+      nome: nomePorId.get(j.usuario_id) ?? j.usuario_nome,
+      setorLabel: setorLabel(j.departamento),
+      dia: j.dia,
+      inicio: j.inicio,
+      fim: j.fim,
+      duracaoMin: duracaoMin(j),
+      justificativa: j.justificativa,
+      status: j.status,
+      decididoPorNome: j.decidido_por_nome,
+      justificativaDecisao: j.justificativa_decisao,
+    }))
+    .sort((a, b) => (a.dia === b.dia ? a.nome.localeCompare(b.nome) : b.dia.localeCompare(a.dia)));
+
   const totalAtivoMin = colaboradores.reduce((acc, c) => acc + c.ativoMin, 0);
   const totalOcioMin = colaboradores.reduce((acc, c) => acc + c.ocioMin, 0);
+  const totalOcioJustificadoMin = colaboradores.reduce((acc, c) => acc + c.ocioJustificadoMin, 0);
 
   return {
     colaboradores,
     setores,
+    justificativas,
     totalAtivoMin,
     totalOcioMin,
+    totalOcioJustificadoMin,
     totalColaboradores: colaboradores.length,
   };
 }

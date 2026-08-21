@@ -8,6 +8,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatDate, formatDuration, formatHM } from "./format";
 import type { RelatorioInatividade } from "./relatorio-inatividade";
+import { JUSTIFICATIVA_STATUS_LABEL } from "./justificativas-ocio";
 
 const MARGIN = 14;
 const AZUL: [number, number, number] = [30, 64, 175];
@@ -46,10 +47,13 @@ export function gerarInatividadePDF(
   const pctTotal = rel.totalAtivoMin > 0 ? (rel.totalOcioMin / rel.totalAtivoMin) * 100 : 0;
   autoTable(doc, {
     startY: y,
-    head: [["Ociosidade total", "Tempo ativo total", "% ócio", "Colaboradores"]],
+    head: [
+      ["Ociosidade total", "Ócio justificado", "Tempo ativo total", "% ócio", "Colaboradores"],
+    ],
     body: [
       [
         formatDuration(rel.totalOcioMin),
+        formatDuration(rel.totalOcioJustificadoMin),
         formatDuration(rel.totalAtivoMin),
         `${pctTotal.toFixed(0)}%`,
         String(rel.totalColaboradores),
@@ -101,6 +105,33 @@ export function gerarInatividadePDF(
     headStyles: { fillColor: AZUL },
     margin: { left: MARGIN, right: MARGIN },
   });
+  y = finalY(doc) + 6;
+
+  // ---- Justificativas de ociosidade (o que saiu do ranking) ----
+  if (rel.justificativas.length) {
+    doc.setFontSize(11);
+    doc.text("Justificativas de ociosidade", MARGIN, y);
+    y += 2;
+    autoTable(doc, {
+      startY: y,
+      head: [["Dia", "Colaborador", "Período", "Duração", "Status", "Justificativa", "Decisão"]],
+      body: rel.justificativas.map((j) => [
+        formatDate(j.dia),
+        j.nome,
+        `${formatHM(j.inicio)}–${formatHM(j.fim)}`,
+        formatDuration(j.duracaoMin),
+        JUSTIFICATIVA_STATUS_LABEL[j.status] ?? j.status,
+        j.justificativa,
+        [j.justificativaDecisao ?? "", j.decididoPorNome ? `(${j.decididoPorNome})` : ""]
+          .filter(Boolean)
+          .join(" "),
+      ]),
+      styles: { fontSize: 7, cellWidth: "wrap" },
+      headStyles: { fillColor: AZUL },
+      columnStyles: { 5: { cellWidth: 40 }, 6: { cellWidth: 32 } },
+      margin: { left: MARGIN, right: MARGIN },
+    });
+  }
 
   doc.save(filename);
 }

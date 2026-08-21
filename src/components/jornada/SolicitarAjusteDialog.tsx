@@ -23,7 +23,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { formatHM, formatDuration, STATUS_LABEL, STATUS_COLOR, AJUSTE_TIPO_LABEL } from "@/lib/format";
+import {
+  formatHM,
+  formatDuration,
+  STATUS_LABEL,
+  STATUS_COLOR,
+  AJUSTE_TIPO_LABEL,
+  hmFromIso,
+  isoFromHm,
+  diaLocalStr,
+} from "@/lib/format";
 import { Clock, FileText, CalendarCheck, ArrowRight, Pointer } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -44,27 +53,6 @@ const TIPO_ICON: Record<AjusteTipo, React.ReactNode> = {
   atestado: <FileText className="h-4 w-4" />,
   abono: <CalendarCheck className="h-4 w-4" />,
 };
-
-function hmFromIso(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-function isoFromHm(dia: Date, hm: string): string | null {
-  if (!hm) return null;
-  const [h, m] = hm.split(":").map(Number);
-  if (Number.isNaN(h) || Number.isNaN(m)) return null;
-  const d = new Date(dia);
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
-}
-
-function diaLocalStr(dia: Date): string {
-  return `${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, "0")}-${String(
-    dia.getDate(),
-  ).padStart(2, "0")}`;
-}
 
 /**
  * Popup de ajuste de jornada. Mostra os eventos do dia em cards clicáveis

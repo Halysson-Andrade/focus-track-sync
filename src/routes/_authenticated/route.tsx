@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePageTracker } from "@/hooks/use-page-tracker";
 import { useNotificacoesRecebidas } from "@/hooks/use-mensagens";
 import { useDecisaoAjusteToast } from "@/hooks/use-ajustes";
+import { useDecisaoJustificativaOcioToast } from "@/hooks/use-justificativas-ocio";
 import { useEffect } from "react";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -29,6 +30,7 @@ function AuthenticatedLayout() {
   useNotificacoesRecebidas(user?.id);
   // Toast ao solicitante quando seu ajuste de jornada é aprovado/rejeitado.
   useDecisaoAjusteToast(user?.id);
+  useDecisaoJustificativaOcioToast(user?.id);
 
   useEffect(() => {
     if (profile?.must_change_password && location.pathname !== "/change-password") {

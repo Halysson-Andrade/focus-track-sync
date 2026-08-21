@@ -18,7 +18,11 @@ import {
   type AjusteJornada,
   type SegmentoTimeline,
 } from "./jornada-efetiva";
-import { ocioReconciliadoSeg, type Intervalo } from "./ocio";
+import { ocioDetalhado, type Intervalo } from "./ocio";
+import {
+  intervalosAprovados,
+  type JustificativaOcioPayload,
+} from "./justificativas-ocio";
 
 // --- Tipos do payload cru (espelho exatamente o que a RPC devolve) ---
 
@@ -47,6 +51,7 @@ export type EspelhoPayload = {
   registros: RegistroBase[];
   ajustes: AjusteEspelho[];
   eventos: Intervalo[];
+  justificativas: JustificativaOcioPayload[];
   apps: {
     process_name: string;
     app_label: string | null;
@@ -75,7 +80,12 @@ export type DiaEspelho = {
   almocoMin: number;
   inativoMin: number;
   abonoMin: number;
+  /** Ócio que CONTA: bruto menos o justificado e aprovado. */
   ocioMin: number;
+  /** Ócio reconciliado antes das justificativas (mostrado no tooltip da folha). */
+  ocioBrutoMin: number;
+  /** Parcela do bruto coberta por justificativa aprovada. */
+  ocioJustificadoMin: number;
   editado: boolean;
   tiposAjuste: string[]; // tipos de ajuste aplicados no dia (para a coluna "Obs.")
 };
@@ -105,9 +115,13 @@ export type EspelhoData = {
     almocoMin: number;
     inativoMin: number;
     abonoMin: number;
+    /** Ócio descontado por justificativa aprovada (já fora de `ocioMin`). */
+    ocioJustificadoMin: number;
     diasComRegistro: number;
   };
   abonos: AbonoLinha[];
+  /** Justificativas de ociosidade do período (todos os status, para exibição). */
+  justificativas: JustificativaOcioPayload[];
 };
 
 // --- Helpers de agrupamento por DIA DA JORNADA (vira-noite: pertence ao dia que começou) ---
@@ -126,7 +140,7 @@ export function agruparPorDia(registros: RegistroBase[]): Map<string, RegistroBa
 
 /** Atribui cada evento de ócio ao dia da jornada cuja JANELA [start, fim] contém seu
  *  `inicio` (janelas derivadas dos registros já agrupados); fallback = dia local. */
-function agruparEventosPorDia(
+export function agruparEventosPorDia(
   eventos: Intervalo[],
   registrosPorDia: Map<string, RegistroBase[]>,
   nowTs: number,
@@ -204,6 +218,7 @@ export function montarDiaEspelho(
   ajustes: AjusteEspelho[],
   eventos: Intervalo[],
   nowTs: number,
+  justificativas: JustificativaOcioPayload[] = [],
 ): DiaEspelho {
   // Janela do dia da jornada: fim estende-se além da meia-noite se a sessão cruzou
   // (o rabo pós-meia-noite pertence a este dia). Aberto conta até AGORA (não infla hoje).
@@ -220,11 +235,12 @@ export function montarDiaEspelho(
   const emAndamento =
     segs.some((s) => !s.fim) && diaISO === diaLocal(new Date(nowTs).toISOString());
 
-  // Ócio reconciliado contra as janelas ATIVO BRUTAS (mesma semântica do dashboard).
+  // Ócio reconciliado contra as janelas ATIVO BRUTAS (mesma semântica do dashboard),
+  // descontando as justificativas APROVADAS do dia.
   const ativosRaw: Intervalo[] = registros
     .filter((r) => r.status === "ATIVO")
     .map((r) => ({ inicio: r.inicio, fim: r.fim }));
-  const ocioMin = ocioReconciliadoSeg(eventos, ativosRaw, cap) / 60;
+  const ocio = ocioDetalhado(eventos, ativosRaw, cap, intervalosAprovados(justificativas));
 
   const tiposAjuste = Array.from(
     new Set(ajustes.filter((a) => a.status === "aprovada").map((a) => a.tipo as string)),
@@ -238,7 +254,9 @@ export function montarDiaEspelho(
     almocoMin: totais["ALMOCO"] ?? 0,
     inativoMin: totais["INATIVO"] ?? 0,
     abonoMin: totais[STATUS_ABONO] ?? 0,
-    ocioMin,
+    ocioMin: ocio.liquidoSeg / 60,
+    ocioBrutoMin: ocio.brutoSeg / 60,
+    ocioJustificadoMin: ocio.justificadoSeg / 60,
     editado: timeline.some((s) => s.editado),
     tiposAjuste,
   };
@@ -264,6 +282,7 @@ export function montarEspelho(
     ]),
   ).sort();
 
+  const justificativas = payload.justificativas ?? [];
   const dias: DiaEspelho[] = diasISO.map((d) =>
     montarDiaEspelho(
       d,
@@ -271,11 +290,15 @@ export function montarEspelho(
       payload.ajustes.filter((a) => a.dia === d),
       eventosPorDia.get(d) ?? [],
       nowTs,
+      justificativas.filter((j) => j.dia === d),
     ),
   );
 
   const soma = (sel: (x: DiaEspelho) => number) => dias.reduce((acc, x) => acc + sel(x), 0);
   const ativoMin = soma((x) => x.ativoMin);
+  // Ócio LÍQUIDO: o justificado e aprovado não conta. Como efetivo/produtividade
+  // derivam daqui, aprovar uma justificativa sobe a produtividade do período — é o
+  // objetivo da feature, não efeito colateral.
   const ocioMin = soma((x) => x.ocioMin);
   const efetivoMin = Math.max(0, ativoMin - ocioMin);
   const produtividade = ativoMin > 0 ? (efetivoMin / ativoMin) * 100 : 0;
@@ -306,8 +329,10 @@ export function montarEspelho(
       almocoMin: soma((x) => x.almocoMin),
       inativoMin: soma((x) => x.inativoMin),
       abonoMin: soma((x) => x.abonoMin),
+      ocioJustificadoMin: soma((x) => x.ocioJustificadoMin),
       diasComRegistro: dias.length,
     },
     abonos,
+    justificativas,
   };
 }

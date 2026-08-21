@@ -94,3 +94,31 @@ export const STATUS_COLOR: Record<string, string> = {
   INATIVO: "var(--color-muted-foreground)",
   ENCERRADO: "var(--color-muted-foreground)",
 };
+
+// --- Hora local <-> ISO nos formulários de jornada/ociosidade ---------------
+// Compartilhados por SolicitarAjusteDialog e JustificarOcioDialog: os dois leem
+// e escrevem <input type="time"> sobre um dia de referência.
+
+/** "HH:MM" local a partir de um ISO (vazio quando nulo). */
+export function hmFromIso(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** ISO a partir de "HH:MM" aplicado ao `dia` de referência (fuso local). */
+export function isoFromHm(dia: Date, hm: string): string | null {
+  if (!hm) return null;
+  const [h, m] = hm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  const d = new Date(dia);
+  d.setHours(h, m, 0, 0);
+  return d.toISOString();
+}
+
+/** "YYYY-MM-DD" local de um Date (sem passar por UTC, que erraria o dia). */
+export function diaLocalStr(dia: Date): string {
+  return `${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, "0")}-${String(
+    dia.getDate(),
+  ).padStart(2, "0")}`;
+}

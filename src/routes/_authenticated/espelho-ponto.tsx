@@ -7,11 +7,14 @@ import { DEPARTAMENTOS } from "@/components/office/office-config";
 import {
   montarEspelho,
   agruparPorDia,
+  agruparEventosPorDia,
   sufixoVirada,
   type EspelhoPayload,
   type EspelhoData,
 } from "@/lib/espelho-ponto";
 import { SolicitarAjusteDialog } from "@/components/jornada/SolicitarAjusteDialog";
+import { JustificarOcioDialog } from "@/components/ociosidade/JustificarOcioDialog";
+import { duracaoMin, JUSTIFICATIVA_STATUS_LABEL } from "@/lib/justificativas-ocio";
 import {
   calcularJornadaPeriodo,
   rowToJornada,
@@ -48,7 +51,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Users, Clock, FileSpreadsheet, Pencil } from "lucide-react";
+import { FileText, Users, Clock, FileSpreadsheet, Pencil, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 // Acesso por papel: a página é acessível a qualquer autenticado (o pai
@@ -107,6 +110,10 @@ function EspelhoPontoPage() {
   // Ajuste de jornada por linha (dia clicado na folha).
   const [ajusteDia, setAjusteDia] = useState<string | null>(null);
   const [ajusteOpen, setAjusteOpen] = useState(false);
+
+  // Justificativa de ociosidade por linha (dia clicado na folha).
+  const [ocioDia, setOcioDia] = useState<string | null>(null);
+  const [ocioOpen, setOcioOpen] = useState(false);
 
   // Jornada padrão (apuração de jornada, para TODOS os perfis): modelos, vínculos e
   // feriados. A RLS dessas tabelas é leitura livre p/ authenticated (jornada_padrao/
@@ -351,6 +358,26 @@ function EspelhoPontoPage() {
   const abrirAjuste = (diaISO: string) => {
     setAjusteDia(diaISO);
     setAjusteOpen(true);
+  };
+
+  // Eventos de ócio por dia (mesmo agrupamento por jornada usado no cálculo da folha),
+  // para o modal de justificativa listar os blocos ociosos do dia clicado.
+  const eventosPorDia = useMemo(
+    () =>
+      previewPayload
+        ? agruparEventosPorDia(previewPayload.eventos, registrosPorDia, Date.now())
+        : new Map<string, EspelhoPayload["eventos"]>(),
+    [previewPayload, registrosPorDia],
+  );
+  const ocioEventos = ocioDia ? (eventosPorDia.get(ocioDia) ?? []) : [];
+  const ocioAtivos = (ocioDia ? (registrosPorDia.get(ocioDia) ?? []) : [])
+    .filter((r) => r.status === "ATIVO")
+    .map((r) => ({ inicio: r.inicio, fim: r.fim }));
+  const ocioJustificativas = (preview?.justificativas ?? []).filter((j) => j.dia === ocioDia);
+
+  const abrirJustificativaOcio = (diaISO: string) => {
+    setOcioDia(diaISO);
+    setOcioOpen(true);
   };
 
   const k = preview?.kpis;
@@ -601,7 +628,24 @@ function EspelhoPontoPage() {
                               {c.realizadoMin ? formatDuration(c.realizadoMin) : "—"}
                             </TableCell>
                             <TableCell className="text-muted-foreground">
-                              {d.ocioMin ? formatDuration(d.ocioMin) : "—"}
+                              {d.ocioMin || d.ocioJustificadoMin ? (
+                                <span
+                                  title={
+                                    d.ocioJustificadoMin
+                                      ? `Ocioso bruto ${formatDuration(d.ocioBrutoMin)} − justificado ${formatDuration(d.ocioJustificadoMin)}`
+                                      : undefined
+                                  }
+                                >
+                                  {formatDuration(d.ocioMin)}
+                                  {d.ocioJustificadoMin ? (
+                                    <span className="text-primary" aria-label="com ociosidade justificada">
+                                      *
+                                    </span>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
                             </TableCell>
                             <TableCell
                               className={
@@ -622,6 +666,21 @@ function EspelhoPontoPage() {
                             <TableCell className="text-xs">{situacaoDia(c)}</TableCell>
                             {podeAjustar && (
                               <TableCell className="text-right">
+                                {d.ocioBrutoMin > 0 && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    title={
+                                      aprovaDireto
+                                        ? "Justificar ociosidade"
+                                        : "Solicitar justificativa de ociosidade"
+                                    }
+                                    onClick={() => abrirJustificativaOcio(d.dia)}
+                                  >
+                                    <ShieldCheck className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -672,6 +731,8 @@ function EspelhoPontoPage() {
                           if (d.marcacoes.extras.length)
                             obs.push(`+${d.marcacoes.extras.length} interv.`);
                           if (d.ocioMin > 0) obs.push(`ócio ${formatDuration(d.ocioMin)}`);
+                          if (d.ocioJustificadoMin > 0)
+                            obs.push(`justificado ${formatDuration(d.ocioJustificadoMin)}`);
                           return (
                             <TableRow
                               key={d.dia}
@@ -701,6 +762,21 @@ function EspelhoPontoPage() {
                               </TableCell>
                               {podeAjustar && (
                                 <TableCell className="text-right">
+                                  {d.ocioBrutoMin > 0 && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      title={
+                                        aprovaDireto
+                                          ? "Justificar ociosidade"
+                                          : "Solicitar justificativa de ociosidade"
+                                      }
+                                      onClick={() => abrirJustificativaOcio(d.dia)}
+                                    >
+                                      <ShieldCheck className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -776,12 +852,83 @@ function EspelhoPontoPage() {
             </Card>
           )}
 
+          {/* ---- Justificativas de ociosidade (overlay do ócio no período) ---- */}
+          {preview.justificativas.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ShieldCheck className="h-4 w-4" /> Justificativas de ociosidade (
+                  {preview.justificativas.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Dia</TableHead>
+                        <TableHead>Período</TableHead>
+                        <TableHead>Duração</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Justificativa</TableHead>
+                        <TableHead>Decisão</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {preview.justificativas.map((j) => {
+                        const decisao = [
+                          j.justificativa_decisao ?? "",
+                          j.decidido_por_nome ? `(${j.decidido_por_nome})` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ");
+                        return (
+                          <TableRow key={j.id}>
+                            <TableCell>{formatDate(j.dia)}</TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {formatHM(j.inicio)}–{formatHM(j.fim)}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {formatDuration(duracaoMin(j))}
+                            </TableCell>
+                            <TableCell>
+                              {JUSTIFICATIVA_STATUS_LABEL[j.status] ?? j.status}
+                            </TableCell>
+                            <TableCell className="text-xs">{j.justificativa || "—"}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {decisao || "—"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {ajusteDia && (
             <SolicitarAjusteDialog
               dia={new Date(ajusteDia + "T00:00:00")}
               records={ajusteRecords}
               open={ajusteOpen}
               onOpenChange={setAjusteOpen}
+              usuarioId={previewUid}
+              usuarioNome={preview.perfil?.nome}
+              aprovaDireto={aprovaDireto}
+              onSubmitted={recarregarPreview}
+            />
+          )}
+
+          {ocioDia && (
+            <JustificarOcioDialog
+              dia={new Date(ocioDia + "T00:00:00")}
+              eventos={ocioEventos}
+              ativos={ocioAtivos}
+              justificativas={ocioJustificativas}
+              open={ocioOpen}
+              onOpenChange={setOcioOpen}
               usuarioId={previewUid}
               usuarioNome={preview.perfil?.nome}
               aprovaDireto={aprovaDireto}
