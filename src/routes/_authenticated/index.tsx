@@ -5,6 +5,8 @@ import { useCurrentSession } from "@/hooks/use-current-session";
 import { usePresenceStatus } from "@/hooks/use-presence-status";
 import { StatusBadge } from "@/components/StatusBadge";
 import { InactivityModal } from "@/components/InactivityModal";
+import { PausaInterrompidaCard } from "@/components/jornada/PausaInterrompidaCard";
+import { detectarPausaInterrompida } from "@/lib/pausa-interrompida";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1054,6 +1056,13 @@ function Dashboard() {
     router.navigate({ to: "/" });
   };
 
+  // Recuperação de pausa/almoço interrompido pelo sistema (ver
+  // @/lib/pausa-interrompida). Só faz sentido na própria jornada.
+  const pausaInterrompida = useMemo(
+    () => (viewingOther ? null : detectarPausaInterrompida(session.todayRecords)),
+    [viewingOther, session.todayRecords],
+  );
+
   const selectedUser = users.find((u) => u.id === targetUserId);
   const displayName = viewingOther ? (selectedUser?.nome ?? "Usuário") : (profile?.nome ?? "...");
 
@@ -1169,7 +1178,22 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {!viewingOther && <InactivityModal open={session.showInactive} onResume={handleInactivityResume} />}
+      {/* O card de recuperação tem prioridade sobre o modal: ele explica o que
+          houve com a pausa e oferece a correção, em vez de só pedir retomada. */}
+      {!viewingOther && (
+        <InactivityModal
+          open={session.showInactive && !pausaInterrompida}
+          onResume={handleInactivityResume}
+        />
+      )}
+
+      {pausaInterrompida && (
+        <PausaInterrompidaCard
+          pausa={pausaInterrompida}
+          onResume={handleInactivityResume}
+          onCorrigido={session.refresh}
+        />
+      )}
 
       {/* Header card */}
       <Card>

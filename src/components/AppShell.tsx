@@ -98,13 +98,25 @@ export function AppShell({ children }: { children: ReactNode }) {
         // Encerra registro de atividade aberto
         const { data: openReg } = await supabase
           .from("registros_atividade")
-          .select("id, inicio")
+          .select("id, inicio, status")
           .eq("usuario_id", uid)
           .is("fim", null)
           .order("inicio", { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (openReg) {
+        if (openReg && (openReg.status === "PAUSA" || openReg.status === "ALMOCO")) {
+          // Fechar pausa/almoço por UPDATE direto é recusado pelo backend
+          // (migration 20260827120000). O marcador ENCERRADO fecha a linha pelo
+          // trigger fechar_abertos_ao_inserir — mesmo caminho do botão Encerrar.
+          await supabase.from("registros_atividade").insert({
+            usuario_id: uid,
+            status: "ENCERRADO",
+            inicio: nowIso,
+            fim: nowIso,
+            duracao_minutos: 0,
+            observacao: "Encerrado no logout",
+          });
+        } else if (openReg) {
           const dur = (new Date(nowIso).getTime() - new Date(openReg.inicio).getTime()) / 60000;
           await supabase
             .from("registros_atividade")

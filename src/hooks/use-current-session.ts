@@ -77,7 +77,10 @@ export function useCurrentSession(userId: string | undefined) {
         .filter((r) => !r.fim)
         .sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime())[0] ?? null;
     setCurrent(open);
-    if (open?.status === "INATIVO") setShowInactive(true);
+    // Reflete o estado REAL: além de abrir o modal ao virar INATIVO, fecha-o
+    // quando o status volta a ATIVO/PAUSA/ALMOCO (ex.: o almoço foi iniciado no
+    // app desktop, ou o backend recusou a marcação de inatividade).
+    setShowInactive(open?.status === "INATIVO");
   }, [userId]);
 
   useEffect(() => {
@@ -120,18 +123,22 @@ export function useCurrentSession(userId: string | undefined) {
   // Rede de segurança do sincronismo: se o realtime perder um evento (ou ainda
   // não tiver conectado), o card se atualiza sozinho — sem precisar de F5.
   // Espelha o poll de segurança do painel operacional. Atualiza ao focar/voltar
-  // para a aba e num poll leve enquanto a aba está visível.
+  // para a aba e num poll leve — que roda TAMBÉM com a aba oculta, em cadência
+  // menor (60s): uma aba escondida e defasada era a origem do falso INATIVO
+  // durante o almoço (ela seguia achando que o status era ATIVO).
   useEffect(() => {
     if (!userId) return;
-    const refreshIfVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
-    };
-    window.addEventListener("focus", refreshIfVisible);
-    document.addEventListener("visibilitychange", refreshIfVisible);
-    const poll = window.setInterval(refreshIfVisible, 20000);
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    let ticks = 0;
+    const poll = window.setInterval(() => {
+      ticks += 1;
+      if (document.visibilityState === "visible" || ticks % 3 === 0) void refresh();
+    }, 20000);
     return () => {
-      window.removeEventListener("focus", refreshIfVisible);
-      document.removeEventListener("visibilitychange", refreshIfVisible);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
       window.clearInterval(poll);
     };
   }, [userId, refresh]);
@@ -226,22 +233,16 @@ export function useCurrentSession(userId: string | undefined) {
   const transition = useCallback(
     async (next: Status, observacao?: string): Promise<boolean> => {
       if (!userId) return false;
-      const now = new Date().toISOString();
-      if (current) {
-        const dur = (new Date(now).getTime() - new Date(current.inicio).getTime()) / 60000;
-        await supabase
-          .from("registros_atividade")
-          .update({
-            fim: now,
-            duracao_minutos: dur,
-          })
-          .eq("id", current.id);
-      }
       if (next !== "ENCERRADO") {
         // Abrir sessão é EXCLUSIVO do front, via RPC (SECURITY DEFINER). A RLS
         // recusa INSERT direto de linha aberta — isso bloqueia o auto-início de
         // desktops antigos sem precisar atualizá-los. Ver migration
         // 20260614210000_inicio_expediente_via_rpc.
+        //
+        // A RPC fecha a linha anterior sob advisory lock: NÃO feche aqui antes.
+        // Fechar-e-depois-abrir deixava o usuário SEM registro aberto quando a
+        // chamada falhava (rede/504/gate) — e o monitor de inatividade, ainda
+        // achando que o status era ATIVO, voltava a disparar.
         const { data, error } = await supabase.rpc("abrir_registro", {
           p_status: next,
           p_observacao: observacao ?? undefined,
@@ -250,20 +251,47 @@ export function useCurrentSession(userId: string | undefined) {
           toast.error(friendlyRpcError(error.message));
           return false;
         }
-        setCurrent(data as Registro);
-      } else {
-        setCurrent(null);
+        const row = data as Registro;
+        setCurrent(row);
+        lastActivityRef.current = Date.now();
+        await refresh();
+        // A RPC devolve a linha REAL: pedir INATIVO durante pausa/almoço é
+        // no-op no backend (migration 20260827120000). Nesse caso a transição
+        // não aconteceu — quem chamou não deve tratar como sucesso.
+        return row.status === next;
       }
+      // Encerramento: marcador de duração zero. O trigger AFTER INSERT
+      // fechar_abertos_ao_inserir (20260818143405) fecha a linha aberta no mesmo
+      // instante — inclusive uma PAUSA/ALMOCO, cujo fechamento por UPDATE direto
+      // passou a ser recusado pelo backend.
+      const now = new Date().toISOString();
+      const { error } = await supabase.from("registros_atividade").insert({
+        usuario_id: userId,
+        status: "ENCERRADO",
+        inicio: now,
+        fim: now,
+        duracao_minutos: 0,
+        observacao: observacao ?? null,
+      });
+      if (error) {
+        toast.error(error.message);
+        return false;
+      }
+      setCurrent(null);
       lastActivityRef.current = Date.now();
       await refresh();
       return true;
     },
-    [current, userId, refresh],
+    [userId, refresh],
   );
 
-  // Inactivity monitor
+  // Inactivity monitor. Depende do STATUS/ID (não do objeto `current`, que muda
+  // de identidade a cada refresh): senão o interval de 15s era destruído e
+  // recriado a cada poll, podendo nunca completar uma checagem.
+  const statusAtual = current?.status ?? null;
+  const registroAtualId = current?.id ?? null;
   useEffect(() => {
-    if (!current || current.status !== "ATIVO") {
+    if (!userId || statusAtual !== "ATIVO") {
       if (checkRef.current) window.clearInterval(checkRef.current);
       return;
     }
@@ -278,16 +306,31 @@ export function useCurrentSession(userId: string | undefined) {
           Date.now() - lastDesktopHeartbeatRef.current < EXT_PRESENCE_WINDOW_MS);
       if (document.hidden && !hasPresence) return;
       const elapsed = Date.now() - lastActivityRef.current;
-      if (elapsed >= INACTIVITY_LIMIT_MS) {
+      if (elapsed < INACTIVITY_LIMIT_MS) return;
+      // Confirma o status no BANCO antes de marcar inatividade. Esta aba pode
+      // estar defasada — o almoço/pausa pode ter sido iniciado no app desktop ou
+      // em outra aba, e marcar INATIVO aqui matava o registro de almoço em curso.
+      const { data: aberta } = await supabase
+        .from("registros_atividade")
+        .select("id, status")
+        .eq("usuario_id", userId)
+        .is("fim", null)
+        .order("inicio", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!aberta || aberta.status !== "ATIVO" || aberta.id !== registroAtualId) {
+        await refresh(); // ressincroniza a aba em vez de transicionar
+        return;
+      }
+      if (await transition("INATIVO", "Inatividade automática")) {
         notify("Inatividade detectada", "Você foi marcado como inativo.");
-        await transition("INATIVO", "Inatividade automática");
         setShowInactive(true);
       }
     }, 15000);
     return () => {
       if (checkRef.current) window.clearInterval(checkRef.current);
     };
-  }, [current, transition]);
+  }, [userId, statusAtual, registroAtualId, transition, refresh]);
 
   const start = useCallback(async () => {
     if (!(await transition("ATIVO"))) return;
@@ -322,37 +365,12 @@ export function useCurrentSession(userId: string | undefined) {
 
   const stop = useCallback(async () => {
     if (!userId) return;
-    // If currently paused or at lunch, close that record first, then mark journey end.
-    if (current && (current.status === "PAUSA" || current.status === "ALMOCO")) {
-      const now = new Date().toISOString();
-      const dur = (new Date(now).getTime() - new Date(current.inicio).getTime()) / 60000;
-      await supabase
-        .from("registros_atividade")
-        .update({
-          fim: now,
-          duracao_minutos: dur,
-        })
-        .eq("id", current.id);
-      // Mark journey end as a zero-length ENCERRADO row.
-      const { error } = await supabase.from("registros_atividade").insert({
-        usuario_id: userId,
-        status: "ENCERRADO",
-        inicio: now,
-        fim: now,
-        duracao_minutos: 0,
-      });
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      setCurrent(null);
-      await refresh();
-    } else {
-      if (!(await transition("ENCERRADO"))) return;
-    }
+    // Caminho único: o marcador ENCERRADO fecha a linha aberta pelo trigger do
+    // banco, seja ela ATIVO, INATIVO, PAUSA ou ALMOCO.
+    if (!(await transition("ENCERRADO"))) return;
     notify("Expediente encerrado", "Até logo!");
     toast.success("Expediente encerrado");
-  }, [current, userId, transition, refresh]);
+  }, [userId, transition]);
 
   return {
     current,
